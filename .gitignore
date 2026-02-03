@@ -30,3 +30,6 @@ Thumbs.db
 
 # Misc
 *.tsbuildinfo
+
+# Test artifacts
+/tests/.tmp/
