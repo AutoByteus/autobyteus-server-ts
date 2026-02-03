@@ -1,0 +1,32 @@
+# Node
+node_modules/
+.pnpm-debug.log*
+.npm-debug.log*
+.yarn-debug.log*
+.yarn-error.log*
+.pnp.*
+
+# Build outputs
+/dist/
+/coverage/
+.vite/
+
+# Environment files
+.env
+.env.*
+
+# Runtime data
+/db/
+/logs/
+/media/
+/download/
+/temp_workspace/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Misc
+*.tsbuildinfo

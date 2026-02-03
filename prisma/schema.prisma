@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AgentDefinition {
+  id                                Int    @id @default(autoincrement())
+  name                              String @unique
+  role                              String
+  description                       String
+  toolNames                         String @default("[]") @map("tool_names")
+  inputProcessorNames               String @default("[]") @map("input_processor_names")
+  llmResponseProcessorNames         String @default("[]") @map("llm_response_processor_names")
+  systemPromptProcessorNames        String @default("[]") @map("system_prompt_processor_names")
+  toolExecutionResultProcessorNames String @default("[]") @map("tool_execution_result_processor_names")
+  toolInvocationPreprocessorNames   String @default("[]") @map("tool_invocation_preprocessor_names")
+  lifecycleProcessorNames           String @default("[]") @map("lifecycle_processor_names")
+  skillNames                        String @default("[]") @map("skill_names")
+
+  promptMapping AgentPromptMapping?
+
+  @@map("agent_definitions")
+}
+
+model AgentPromptMapping {
+  id                 Int    @id @default(autoincrement())
+  agentDefinitionId  Int    @unique @map("agent_definition_id")
+  promptName         String @map("prompt_name")
+  promptCategory     String @map("prompt_category")
+
+  agentDefinition AgentDefinition @relation(fields: [agentDefinitionId], references: [id], onDelete: Cascade)
+
+  @@map("agent_prompt_mappings")
+}
+
+model Prompt {
+  id                Int      @id @default(autoincrement())
+  name              String
+  category          String
+  promptContent     String   @map("prompt_content")
+  version           Int      @default(1)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @map("updated_at")
+  parentId          Int?     @map("parent_id")
+  isActive          Boolean  @default(true) @map("is_active")
+  description       String?
+  suitableForModels String?  @map("suitable_for_models")
+
+  @@unique([name, category, version, suitableForModels], map: "uq_prompt_version")
+  @@map("prompts")
+}
+
+model AgentConversation {
+  id               Int     @id @default(autoincrement())
+  agentId          String  @unique @map("agent_id")
+  agentDefinitionId String @map("agent_definition_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  llmModel         String? @map("llm_model")
+  useXmlToolFormat Boolean @default(false) @map("use_xml_tool_format")
+
+  messages AgentConversationMessage[]
+
+  @@map("agent_conversations")
+}
+
+model AgentConversationMessage {
+  id                  Int      @id @default(autoincrement())
+  agentConversationId Int      @map("agent_conversation_id")
+  role                String
+  message             String
+  originalMessage     String?  @map("original_message")
+  contextPaths        String?  @map("context_paths")
+  timestamp           DateTime @default(now())
+  tokenCount          Int?     @map("token_count")
+  cost                Float?
+  reasoning           String?
+  imageUrls           String?  @map("image_urls")
+  audioUrls           String?  @map("audio_urls")
+  videoUrls           String?  @map("video_urls")
+
+  conversation AgentConversation @relation(fields: [agentConversationId], references: [id], onDelete: Cascade)
+
+  @@map("agent_conversation_messages")
+}
+
+model AgentTeamDefinition {
+  id                     Int    @id @default(autoincrement())
+  name                   String @unique
+  description            String
+  role                   String?
+  nodes                  String
+  coordinatorMemberName  String @map("coordinator_member_name")
+
+  @@map("agent_team_definitions")
+}
+
+model AgentWorkflowDefinition {
+  id           Int    @id @default(autoincrement())
+  name         String @unique
+  description  String
+  nodes        String
+  beginNodeId  String @map("begin_node_id")
+  endNodeId    String @map("end_node_id")
+
+  @@map("agent_workflow_definitions")
+}
+
+model TokenUsageRecord {
+  id             Int      @id @default(autoincrement())
+  usageRecordId  String   @unique @default(uuid()) @map("usage_record_id")
+  agentId        String   @map("agent_id")
+  role           String
+  tokenCount     Int      @map("token_count")
+  cost           Float
+  createdAt      DateTime @default(now()) @map("created_at")
+  llmModel       String?  @map("llm_model")
+
+  @@map("token_usage_records")
+}
+
+model AgentArtifact {
+  id            Int      @id @default(autoincrement())
+  agentId       String   @map("agent_id")
+  path          String
+  type          String
+  workspaceRoot String?  @map("workspace_root")
+  url           String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([agentId])
+  @@map("agent_artifacts")
+}
+
+model McpServerConfiguration {
+  id             Int      @id @default(autoincrement())
+  serverId       String   @unique @map("server_id")
+  transportType  String   @map("transport_type")
+  enabled        Boolean  @default(true)
+  toolNamePrefix String?  @map("tool_name_prefix")
+  configDetails  String   @map("config_details")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("mcp_server_configurations")
+}
