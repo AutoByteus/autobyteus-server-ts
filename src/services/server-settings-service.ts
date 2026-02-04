@@ -21,9 +21,9 @@ export class ServerSettingsService {
 
   private initializeSettings(): void {
     this.settingsInfo.set(
-      "AUTOBYTEUS_LLM_SERVER_URLS",
+      "AUTOBYTEUS_LLM_SERVER_HOSTS",
       new ServerSettingDescription(
-        "AUTOBYTEUS_LLM_SERVER_URLS",
+        "AUTOBYTEUS_LLM_SERVER_HOSTS",
         "Comma-separated URLs of AUTOBYTEUS LLM servers",
       ),
     );
