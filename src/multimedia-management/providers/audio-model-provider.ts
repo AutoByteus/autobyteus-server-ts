@@ -1,4 +1,5 @@
 import { AudioClientFactory } from "autobyteus-ts/multimedia/audio/audio-client-factory.js";
+import { AutobyteusAudioModelProvider } from "autobyteus-ts/multimedia/audio/autobyteus-audio-provider.js";
 import type { AudioModel } from "autobyteus-ts/multimedia/audio/audio-model.js";
 
 const logger = {
@@ -10,6 +11,8 @@ export class AudioModelProvider {
   async listModels(): Promise<AudioModel[]> {
     logger.info("Fetching list of available Audio models from AudioClientFactory...");
     try {
+      logger.info("Awaiting Autobyteus audio model discovery before listing models...");
+      await AutobyteusAudioModelProvider.ensureDiscovered();
       const models = AudioClientFactory.listModels();
       logger.info(`Successfully fetched ${models.length} audio models from AudioClientFactory.`);
       return models;
