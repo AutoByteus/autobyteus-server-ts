@@ -2,13 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { lookup as lookupMime } from "mime-types";
-import { mediaStorageService } from "../../services/media-storage-service.js";
+import { getMediaStorageService } from "../../services/media-storage-service.js";
 
 export async function registerFileRoutes(app: FastifyInstance): Promise<void> {
   app.get<{
     Params: { category: string; filename: string };
   }>("/files/:category/:filename", async (request, reply) => {
     const { category, filename } = request.params;
+    const mediaStorageService = getMediaStorageService();
     const mediaRoot = mediaStorageService.getMediaRoot();
 
     if (

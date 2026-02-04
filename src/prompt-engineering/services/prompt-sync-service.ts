@@ -291,4 +291,11 @@ export class PromptSyncService {
   }
 }
 
-export const promptSyncService = new PromptSyncService();
+let cachedPromptSyncService: PromptSyncService | null = null;
+
+export const getPromptSyncService = (): PromptSyncService => {
+  if (!cachedPromptSyncService) {
+    cachedPromptSyncService = new PromptSyncService();
+  }
+  return cachedPromptSyncService;
+};

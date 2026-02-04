@@ -1,6 +1,6 @@
 import { appConfigProvider } from "../config/app-config-provider.js";
-import { promptSyncService } from "../prompt-engineering/services/prompt-sync-service.js";
-import { promptLoader } from "../prompt-engineering/utils/prompt-loader.js";
+import { getPromptSyncService } from "../prompt-engineering/services/prompt-sync-service.js";
+import { getPromptLoader } from "../prompt-engineering/utils/prompt-loader.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -26,9 +26,9 @@ export async function runPromptSynchronization(): Promise<void> {
   );
 
   try {
-    const syncSuccess = await promptSyncService.syncPrompts();
+    const syncSuccess = await getPromptSyncService().syncPrompts();
     if (syncSuccess) {
-      promptLoader.invalidateCache();
+      getPromptLoader().invalidateCache();
       logger.info("Prompt synchronization finished successfully.");
       logger.info("Prompt template cache invalidated after successful synchronization.");
     } else {

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { BaseFileExplorer } from "../../file-explorer/base-file-explorer.js";
 import type { WorkspaceManager } from "../../workspaces/workspace-manager.js";
-import { workspaceManager } from "../../workspaces/workspace-manager.js";
+import { getWorkspaceManager } from "../../workspaces/workspace-manager.js";
 import { FileExplorerSessionManager } from "./file-explorer-session-manager.js";
 import {
   ClientMessageType,
@@ -30,7 +30,7 @@ export class FileExplorerStreamHandler {
 
   constructor(
     sessionManager: FileExplorerSessionManager = new FileExplorerSessionManager(),
-    workspaceManagerInstance: WorkspaceManager = workspaceManager,
+    workspaceManagerInstance: WorkspaceManager = getWorkspaceManager(),
   ) {
     this.manager = sessionManager;
     this.workspaceManager = workspaceManagerInstance;
@@ -154,4 +154,11 @@ export class FileExplorerStreamHandler {
   }
 }
 
-export const fileExplorerStreamHandler = new FileExplorerStreamHandler();
+let cachedFileExplorerStreamHandler: FileExplorerStreamHandler | null = null;
+
+export const getFileExplorerStreamHandler = (): FileExplorerStreamHandler => {
+  if (!cachedFileExplorerStreamHandler) {
+    cachedFileExplorerStreamHandler = new FileExplorerStreamHandler();
+  }
+  return cachedFileExplorerStreamHandler;
+};

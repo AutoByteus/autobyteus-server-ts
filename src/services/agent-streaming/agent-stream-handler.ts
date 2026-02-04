@@ -7,7 +7,7 @@ import {
   StreamEventType,
   AgentEventStream,
 } from "autobyteus-ts";
-import { agentInstanceManager, AgentInstanceManager } from "../../agent-execution/services/agent-instance-manager.js";
+import { AgentInstanceManager } from "../../agent-execution/services/agent-instance-manager.js";
 import { AgentSessionManager } from "./agent-session-manager.js";
 import {
   ClientMessageType,
@@ -63,7 +63,7 @@ export class AgentStreamHandler {
 
   constructor(
     sessionManager: AgentSessionManager = new AgentSessionManager(),
-    agentManager: AgentInstanceManager = agentInstanceManager,
+    agentManager: AgentInstanceManager = AgentInstanceManager.getInstance(),
   ) {
     this.sessionManager = sessionManager;
     this.agentManager = agentManager;
@@ -316,4 +316,11 @@ export class AgentStreamHandler {
   }
 }
 
-export const agentStreamHandler = new AgentStreamHandler();
+let cachedAgentStreamHandler: AgentStreamHandler | null = null;
+
+export const getAgentStreamHandler = (): AgentStreamHandler => {
+  if (!cachedAgentStreamHandler) {
+    cachedAgentStreamHandler = new AgentStreamHandler();
+  }
+  return cachedAgentStreamHandler;
+};

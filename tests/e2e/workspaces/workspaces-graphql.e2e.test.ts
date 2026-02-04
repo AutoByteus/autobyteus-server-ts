@@ -6,7 +6,8 @@ import { createRequire } from "node:module";
 import { beforeAll, beforeEach, afterEach, describe, expect, it } from "vitest";
 import type { graphql as graphqlFn, GraphQLSchema } from "graphql";
 import { buildGraphqlSchema } from "../../../src/api/graphql/schema.js";
-import { workspaceManager } from "../../../src/workspaces/workspace-manager.js";
+import { getWorkspaceManager } from "../../../src/workspaces/workspace-manager.js";
+const workspaceManager = getWorkspaceManager();
 
 describe("Workspaces GraphQL e2e", () => {
   let schema: GraphQLSchema;

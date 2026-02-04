@@ -3,7 +3,7 @@ import path from "node:path";
 import { appConfigProvider } from "../../config/app-config-provider.js";
 import { DirectoryTraversal } from "../../file-explorer/directory-traversal.js";
 import { TreeNode } from "../../file-explorer/tree-node.js";
-import { serverSettingsService } from "../../services/server-settings-service.js";
+import { getServerSettingsService } from "../../services/server-settings-service.js";
 import { Skill, SkillSourceInfo } from "../domain/models.js";
 import { DisabledSkillsStore } from "../disabled-skills-store.js";
 import { SkillLoader } from "../loader.js";
@@ -402,7 +402,7 @@ export class SkillService {
     const rawEnv = this.config.get("AUTOBYTEUS_SKILLS_PATHS", "");
     const newEnvValue = rawEnv ? `${rawEnv},${resolved}` : resolved;
 
-    const [success, msg] = serverSettingsService.updateSetting(
+    const [success, msg] = getServerSettingsService().updateSetting(
       "AUTOBYTEUS_SKILLS_PATHS",
       newEnvValue,
     );
@@ -436,7 +436,7 @@ export class SkillService {
     }
 
     const newEnvValue = remaining.join(",");
-    const [success, msg] = serverSettingsService.updateSetting(
+    const [success, msg] = getServerSettingsService().updateSetting(
       "AUTOBYTEUS_SKILLS_PATHS",
       newEnvValue,
     );

@@ -8,7 +8,7 @@ import {
   Resolver,
 } from "type-graphql";
 import { GraphQLJSON } from "graphql-scalars";
-import { agentInstanceManager } from "../../../agent-execution/services/agent-instance-manager.js";
+import { AgentInstanceManager } from "../../../agent-execution/services/agent-instance-manager.js";
 import { UserInputConverter } from "../converters/user-input-converter.js";
 import { AgentInstanceConverter } from "../converters/agent-instance-converter.js";
 import { AgentUserInput } from "./agent-user-input.js";
@@ -115,10 +115,14 @@ export class ApproveToolInvocationResult {
 
 @Resolver()
 export class AgentInstanceResolver {
+  private get agentInstanceManager(): AgentInstanceManager {
+    return AgentInstanceManager.getInstance();
+  }
+
   @Query(() => AgentInstance, { nullable: true })
   async agentInstance(@Arg("id", () => String) id: string): Promise<AgentInstance | null> {
     try {
-      const domainAgent = agentInstanceManager.getAgentInstance(id);
+      const domainAgent = this.agentInstanceManager.getAgentInstance(id);
       if (!domainAgent) {
         return null;
       }
@@ -132,10 +136,10 @@ export class AgentInstanceResolver {
   @Query(() => [AgentInstance])
   async agentInstances(): Promise<AgentInstance[]> {
     try {
-      const instanceIds = agentInstanceManager.listActiveInstances();
+      const instanceIds = this.agentInstanceManager.listActiveInstances();
       const results = await Promise.all(
         instanceIds.map(async (instanceId) => {
-          const domainAgent = agentInstanceManager.getAgentInstance(instanceId);
+          const domainAgent = this.agentInstanceManager.getAgentInstance(instanceId);
           if (!domainAgent) {
             return null;
           }
@@ -154,7 +158,7 @@ export class AgentInstanceResolver {
     @Arg("id", () => String) id: string,
   ): Promise<TerminateAgentInstanceResult> {
     try {
-      const success = await agentInstanceManager.terminateAgentInstance(id);
+      const success = await this.agentInstanceManager.terminateAgentInstance(id);
       return {
         success,
         message: success
@@ -176,7 +180,7 @@ export class AgentInstanceResolver {
   ): Promise<SendAgentUserInputResult> {
     try {
       let agentId = input.agentId ?? null;
-      let agent = agentId ? agentInstanceManager.getAgentInstance(agentId) : null;
+      let agent = agentId ? this.agentInstanceManager.getAgentInstance(agentId) : null;
 
       if (agentId && !agent) {
         logger.warn(`sendAgentUserInput: Agent with ID '${agentId}' not found.`);
@@ -203,7 +207,7 @@ export class AgentInstanceResolver {
         logger.info(
           `Creating a new agent instance from definition '${input.agentDefinitionId}'...`,
         );
-        agentId = await agentInstanceManager.createAgentInstance({
+        agentId = await this.agentInstanceManager.createAgentInstance({
           agentDefinitionId: input.agentDefinitionId,
           llmModelIdentifier: input.llmModelIdentifier,
           autoExecuteTools: input.autoExecuteTools ?? false,
@@ -211,7 +215,7 @@ export class AgentInstanceResolver {
           llmConfig: input.llmConfig ?? null,
         });
 
-        agent = agentInstanceManager.getAgentInstance(agentId);
+        agent = this.agentInstanceManager.getAgentInstance(agentId);
         if (!agent) {
           logger.error(
             `Failed to retrieve newly created agent instance with ID '${agentId}'.`,
@@ -248,7 +252,7 @@ export class AgentInstanceResolver {
         `Received tool invocation approval request for agent '${input.agentId}', invocation '${input.invocationId}', approved: ${input.isApproved}`,
       );
 
-      const agent = agentInstanceManager.getAgentInstance(input.agentId);
+      const agent = this.agentInstanceManager.getAgentInstance(input.agentId);
       if (!agent) {
         logger.warn(`approveToolInvocation: Agent with ID '${input.agentId}' not found.`);
         return {

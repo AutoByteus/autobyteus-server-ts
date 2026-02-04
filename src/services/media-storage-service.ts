@@ -414,4 +414,4 @@ export class MediaStorageService {
   }
 }
 
-export const mediaStorageService = MediaStorageService.getInstance();
+export const getMediaStorageService = (): MediaStorageService => MediaStorageService.getInstance();

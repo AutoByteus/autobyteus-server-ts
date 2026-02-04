@@ -73,11 +73,19 @@ export class AppConfig {
     }
 
     try {
+      this.initMemoryPath();
+    } catch (error) {
+      const message = `Failed to initialize memory path: ${String(error)}`;
+      console.error(`ERROR: ${message}`);
+      throw new AppConfigError(message);
+    }
+
+    try {
       this.configureLogger();
     } catch (error) {
       const message = `Failed to configure logging: ${String(error)}`;
-      console.error(`ERROR: ${message}`);
-      throw new AppConfigError(message);
+        console.error(`ERROR: ${message}`);
+        throw new AppConfigError(message);
     }
 
     this.initialized = true;
@@ -89,6 +97,7 @@ export class AppConfig {
     logger.info(`DB DIRECTORY: ${this.getDbDir()}`);
     logger.info(`LOGS DIRECTORY: ${this.getLogsDir()}`);
     logger.info(`DOWNLOAD DIRECTORY: ${this.getDownloadDir()}`);
+    logger.info(`MEMORY DIRECTORY: ${this.getMemoryDir()}`);
     logger.info("=".repeat(60));
     logger.info("AppConfig initialization completed successfully");
   }
@@ -151,8 +160,9 @@ export class AppConfig {
   private initSqlitePath(): void {
     const dbPath = this.getSqlitePath();
     this.set("DB_NAME", dbPath);
-    if (!this.get("DATABASE_URL")) {
-      this.set("DATABASE_URL", `file:${dbPath}`);
+    const expectedUrl = `file:${dbPath}`;
+    if (this.get("DATABASE_URL") !== expectedUrl) {
+      this.set("DATABASE_URL", expectedUrl);
     }
   }
 
@@ -169,6 +179,14 @@ export class AppConfig {
     const configPath = path.join(appRoot, "logging_config.ini");
     console.info(`Logging config file is ignored in Node.js: ${configPath}`);
     this.getLogsDir();
+  }
+
+  private initMemoryPath(): void {
+    const memoryDir = this.getMemoryDir();
+    if (!this.get("AUTOBYTEUS_MEMORY_DIR")) {
+      this.set("AUTOBYTEUS_MEMORY_DIR", memoryDir);
+    }
+    process.env.AUTOBYTEUS_MEMORY_DIR ??= memoryDir;
   }
 
   private loadEnvironmentInternal(): void {
@@ -252,6 +270,12 @@ export class AppConfig {
     const downloadDir = path.join(this.dataDir, "download");
     fs.mkdirSync(downloadDir, { recursive: true });
     return downloadDir;
+  }
+
+  getMemoryDir(): string {
+    const memoryDir = path.join(this.dataDir, "memory");
+    fs.mkdirSync(memoryDir, { recursive: true });
+    return memoryDir;
   }
 
   getSkillsDir(): string {

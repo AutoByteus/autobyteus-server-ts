@@ -8,7 +8,8 @@ import WebSocket from "ws";
 import { WorkspaceConfig } from "autobyteus-ts";
 import { PtySessionManager, TerminalHandler, } from "../../../src/services/terminal-streaming/index.js";
 import { registerTerminalWebsocket } from "../../../src/api/websocket/terminal.js";
-import { workspaceManager } from "../../../src/workspaces/workspace-manager.js";
+import { getWorkspaceManager } from "../../../src/workspaces/workspace-manager.js";
+const workspaceManager = getWorkspaceManager();
 class FakePtySession {
     sessionId;
     cwd = null;

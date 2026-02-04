@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { lookup as lookupMime } from "mime-types";
-import { workspaceManager } from "../../workspaces/workspace-manager.js";
+import { getWorkspaceManager } from "../../workspaces/workspace-manager.js";
 
 const logger = {
   warn: (...args: unknown[]) => console.warn(...args),
@@ -21,7 +21,7 @@ export async function registerWorkspaceRoutes(app: FastifyInstance): Promise<voi
       return reply.code(400).send({ detail: "Missing required query parameter: path" });
     }
 
-    const workspace = workspaceManager.getWorkspaceById(workspaceId);
+    const workspace = getWorkspaceManager().getWorkspaceById(workspaceId);
     if (!workspace) {
       logger.warn(`Attempted to access non-existent workspace: ${workspaceId}`);
       return reply.code(404).send({ detail: "Workspace not found" });
@@ -67,7 +67,7 @@ export async function registerWorkspaceRoutes(app: FastifyInstance): Promise<voi
       return reply.code(400).send({ detail: "Missing file path." });
     }
 
-    const workspace = workspaceManager.getWorkspaceById(workspaceId);
+    const workspace = getWorkspaceManager().getWorkspaceById(workspaceId);
     if (!workspace) {
       logger.warn(`Attempted to access non-existent workspace: ${workspaceId}`);
       return reply.code(404).send({ detail: "Workspace not found" });

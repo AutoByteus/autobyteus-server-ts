@@ -23,10 +23,11 @@ import { LLMConfig } from "autobyteus-ts/llm/utils/llm-config.js";
 import { AgentDefinition } from "../../agent-definition/domain/models.js";
 import { AgentDefinitionService } from "../../agent-definition/services/agent-definition-service.js";
 import { mergeMandatoryAndOptional } from "../../agent-definition/utils/processor-defaults.js";
-import { PromptLoader, promptLoader } from "../../prompt-engineering/utils/prompt-loader.js";
+import { PromptLoader, getPromptLoader } from "../../prompt-engineering/utils/prompt-loader.js";
 import { SkillService } from "../../skills/services/skill-service.js";
-import { WorkspaceManager, workspaceManager } from "../../workspaces/workspace-manager.js";
+import { WorkspaceManager, getWorkspaceManager } from "../../workspaces/workspace-manager.js";
 import { AgentCreationError, AgentTerminationError } from "../errors.js";
+import { appConfigProvider } from "../../config/app-config-provider.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -101,9 +102,9 @@ export class AgentInstanceManager {
     this.agentDefinitionService =
       options.agentDefinitionService ?? AgentDefinitionService.getInstance();
     this.llmFactory = options.llmFactory ?? LLMFactory;
-    this.workspaceManager = options.workspaceManager ?? workspaceManager;
+    this.workspaceManager = options.workspaceManager ?? getWorkspaceManager();
     this.skillService = options.skillService ?? SkillService.getInstance();
-    this.promptLoader = options.promptLoader ?? promptLoader;
+    this.promptLoader = options.promptLoader ?? getPromptLoader();
     this.registries = {
       input: options.registries?.input ?? defaultInputProcessorRegistry,
       llmResponse: options.registries?.llmResponse ?? defaultLlmResponseProcessorRegistry,
@@ -325,6 +326,7 @@ export class AgentInstanceManager {
       lifecycleProcessors,
       initialCustomData,
       skillPaths,
+      appConfigProvider.config.getMemoryDir(),
     );
 
     const agent = this.agentFactory.createAgent(agentConfig) as AgentLike & {
@@ -366,5 +368,3 @@ export class AgentInstanceManager {
     return new AgentEventStream(agent as any);
   }
 }
-
-export const agentInstanceManager = AgentInstanceManager.getInstance();

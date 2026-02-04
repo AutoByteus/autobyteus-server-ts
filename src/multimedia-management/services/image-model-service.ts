@@ -41,4 +41,4 @@ export class ImageModelService {
   }
 }
 
-export const imageModelService = ImageModelService.getInstance();
+export const getImageModelService = (): ImageModelService => ImageModelService.getInstance();

@@ -6,7 +6,8 @@ import { createRequire } from "node:module";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { WorkspaceConfig } from "autobyteus-ts";
 import { buildGraphqlSchema } from "../../../src/api/graphql/schema.js";
-import { workspaceManager } from "../../../src/workspaces/workspace-manager.js";
+import { getWorkspaceManager } from "../../../src/workspaces/workspace-manager.js";
+const workspaceManager = getWorkspaceManager();
 const createTempRoot = () => fs.mkdtempSync(path.join(os.tmpdir(), "autobyteus-file-explorer-"));
 const closeWithTimeout = async (workspace) => {
     await Promise.race([

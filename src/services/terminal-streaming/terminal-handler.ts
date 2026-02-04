@@ -143,4 +143,11 @@ export class TerminalHandler {
   }
 }
 
-export const terminalHandler = new TerminalHandler();
+let cachedTerminalHandler: TerminalHandler | null = null;
+
+export const getTerminalHandler = (): TerminalHandler => {
+  if (!cachedTerminalHandler) {
+    cachedTerminalHandler = new TerminalHandler();
+  }
+  return cachedTerminalHandler;
+};

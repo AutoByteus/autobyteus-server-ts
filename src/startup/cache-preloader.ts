@@ -1,10 +1,10 @@
 import { AgentDefinitionService } from "../agent-definition/services/agent-definition-service.js";
 import { AgentTeamDefinitionService } from "../agent-team-definition/services/agent-team-definition-service.js";
-import { McpConfigService } from "../mcp-server-management/services/mcp-config-service.js";
+import { getMcpConfigService } from "../mcp-server-management/services/mcp-config-service.js";
 import { PromptService } from "../prompt-engineering/services/prompt-service.js";
-import { llmModelService } from "../llm-management/services/llm-model-service.js";
-import { imageModelService } from "../multimedia-management/services/image-model-service.js";
-import { audioModelService } from "../multimedia-management/services/audio-model-service.js";
+import { getLlmModelService } from "../llm-management/services/llm-model-service.js";
+import { getImageModelService } from "../multimedia-management/services/image-model-service.js";
+import { getAudioModelService } from "../multimedia-management/services/audio-model-service.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -31,7 +31,7 @@ export async function runCachePreloading(): Promise<void> {
   }
 
   try {
-    const mcpService = McpConfigService.getInstance();
+    const mcpService = getMcpConfigService();
     const configs = await mcpService.getAllMcpServers();
     logger.info(`Pre-loaded ${configs.length} MCP server configs into cache.`);
   } catch (error) {
@@ -47,21 +47,21 @@ export async function runCachePreloading(): Promise<void> {
   }
 
   try {
-    const models = await llmModelService.getAvailableModels();
+    const models = await getLlmModelService().getAvailableModels();
     logger.info(`Pre-loaded ${models.length} LLM models into cache.`);
   } catch (error) {
     logger.error(`Failed to preload LLM models: ${String(error)}`);
   }
 
   try {
-    const imageModels = await imageModelService.getAvailableModels();
+    const imageModels = await getImageModelService().getAvailableModels();
     logger.info(`Pre-loaded ${imageModels.length} image models into cache.`);
   } catch (error) {
     logger.error(`Failed to preload image models: ${String(error)}`);
   }
 
   try {
-    const audioModels = await audioModelService.getAvailableModels();
+    const audioModels = await getAudioModelService().getAvailableModels();
     logger.info(`Pre-loaded ${audioModels.length} audio models into cache.`);
   } catch (error) {
     logger.error(`Failed to preload audio models: ${String(error)}`);

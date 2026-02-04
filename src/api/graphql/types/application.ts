@@ -1,6 +1,6 @@
 import { Arg, Field, Mutation, ObjectType, Query, Resolver } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-scalars";
-import { applicationService } from "../../../services/application-service.js";
+import { getApplicationService } from "../../../services/application-service.js";
 
 @ObjectType()
 export class ApplicationManifest {
@@ -25,10 +25,14 @@ export class ApplicationManifest {
 
 @Resolver()
 export class ApplicationResolver {
+  private get applicationService() {
+    return getApplicationService();
+  }
+
   @Query(() => [ApplicationManifest])
   listApplications(): ApplicationManifest[] {
     try {
-      const manifests = applicationService.listApplications();
+      const manifests = this.applicationService.listApplications();
       return manifests.map((manifest) => ({
         id: String(manifest.id ?? ""),
         name: String(manifest.name ?? ""),
@@ -50,7 +54,7 @@ export class ApplicationResolver {
     @Arg("input", () => GraphQLJSONObject) input: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     try {
-      return (await applicationService.runApplication(appId, input)) as Record<string, unknown>;
+      return (await this.applicationService.runApplication(appId, input)) as Record<string, unknown>;
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(error.message);

@@ -52,7 +52,7 @@ const mockMediaStorageService = vi.hoisted(() => {
     return service;
 });
 vi.mock("../../../../src/services/media-storage-service.js", () => ({
-    mediaStorageService: mockMediaStorageService,
+    getMediaStorageService: () => mockMediaStorageService,
 }));
 vi.mock("../../../../src/config/app-config-provider.js", () => ({
     appConfigProvider: {

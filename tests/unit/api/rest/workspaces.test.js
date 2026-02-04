@@ -7,7 +7,7 @@ const mockWorkspaceManager = vi.hoisted(() => ({
     getWorkspaceById: vi.fn(),
 }));
 vi.mock("../../../../src/workspaces/workspace-manager.js", () => ({
-    workspaceManager: mockWorkspaceManager,
+    getWorkspaceManager: () => mockWorkspaceManager,
 }));
 import { registerWorkspaceRoutes } from "../../../../src/api/rest/workspaces.js";
 describe("REST workspaces routes", () => {

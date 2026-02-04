@@ -25,9 +25,9 @@ import { AgentDefinitionService } from "../../agent-definition/services/agent-de
 import { mergeMandatoryAndOptional } from "../../agent-definition/utils/processor-defaults.js";
 import { NodeType } from "../../agent-team-definition/domain/enums.js";
 import { AgentTeamDefinitionService } from "../../agent-team-definition/services/agent-team-definition-service.js";
-import { PromptLoader, promptLoader } from "../../prompt-engineering/utils/prompt-loader.js";
+import { PromptLoader, getPromptLoader } from "../../prompt-engineering/utils/prompt-loader.js";
 import { SkillService } from "../../skills/services/skill-service.js";
-import { WorkspaceManager, workspaceManager } from "../../workspaces/workspace-manager.js";
+import { WorkspaceManager, getWorkspaceManager } from "../../workspaces/workspace-manager.js";
 import { AgentTeamCreationError, AgentTeamTerminationError } from "../errors.js";
 
 const logger = {
@@ -112,9 +112,9 @@ export class AgentTeamInstanceManager {
     this.agentDefinitionService =
       options.agentDefinitionService ?? AgentDefinitionService.getInstance();
     this.llmFactory = options.llmFactory ?? LLMFactory;
-    this.workspaceManager = options.workspaceManager ?? workspaceManager;
+    this.workspaceManager = options.workspaceManager ?? getWorkspaceManager();
     this.skillService = options.skillService ?? SkillService.getInstance();
-    this.promptLoader = options.promptLoader ?? promptLoader;
+    this.promptLoader = options.promptLoader ?? getPromptLoader();
     this.registries = {
       input: options.registries?.input ?? defaultInputProcessorRegistry,
       llmResponse: options.registries?.llmResponse ?? defaultLlmResponseProcessorRegistry,
@@ -462,5 +462,3 @@ export class AgentTeamInstanceManager {
     return new AgentTeamEventStream(team as any);
   }
 }
-
-export const agentTeamInstanceManager = AgentTeamInstanceManager.getInstance();

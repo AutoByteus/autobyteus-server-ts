@@ -1,5 +1,5 @@
 import { Arg, Field, Mutation, ObjectType, Query, Resolver } from "type-graphql";
-import { serverSettingsService } from "../../../services/server-settings-service.js";
+import { getServerSettingsService } from "../../../services/server-settings-service.js";
 
 @ObjectType()
 export class ServerSetting {
@@ -15,9 +15,13 @@ export class ServerSetting {
 
 @Resolver()
 export class ServerSettingsResolver {
+  private get serverSettingsService() {
+    return getServerSettingsService();
+  }
+
   @Query(() => [ServerSetting])
   getServerSettings(): ServerSetting[] {
-    const settings = serverSettingsService.getAvailableSettings();
+    const settings = this.serverSettingsService.getAvailableSettings();
     return settings.map((setting) => ({
       key: setting.key,
       value: setting.value,
@@ -30,7 +34,7 @@ export class ServerSettingsResolver {
     @Arg("key", () => String) key: string,
     @Arg("value", () => String) value: string,
   ): string {
-    const [, message] = serverSettingsService.updateSetting(key, value);
+    const [, message] = this.serverSettingsService.updateSetting(key, value);
     return message;
   }
 }

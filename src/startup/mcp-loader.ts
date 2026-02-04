@@ -1,4 +1,4 @@
-import { mcpConfigService } from "../mcp-server-management/services/mcp-config-service.js";
+import { getMcpConfigService } from "../mcp-server-management/services/mcp-config-service.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -8,7 +8,7 @@ const logger = {
 export async function runMcpToolRegistration(): Promise<void> {
   logger.info("Running MCP tool registration background task...");
   try {
-    await mcpConfigService.loadAllAndRegister();
+    await getMcpConfigService().loadAllAndRegister();
   } catch (error) {
     logger.error(`MCP tool registration failed: ${String(error)}`);
     throw error;

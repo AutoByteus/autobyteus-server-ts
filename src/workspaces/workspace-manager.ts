@@ -108,4 +108,11 @@ export class WorkspaceManager {
   }
 }
 
-export const workspaceManager = WorkspaceManager.getInstance();
+let cachedWorkspaceManager: WorkspaceManager | null = null;
+
+export const getWorkspaceManager = (): WorkspaceManager => {
+  if (!cachedWorkspaceManager) {
+    cachedWorkspaceManager = WorkspaceManager.getInstance();
+  }
+  return cachedWorkspaceManager;
+};

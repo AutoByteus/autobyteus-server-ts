@@ -152,4 +152,4 @@ export class ApplicationService {
   }
 }
 
-export const applicationService = ApplicationService.getInstance();
+export const getApplicationService = (): ApplicationService => ApplicationService.getInstance();

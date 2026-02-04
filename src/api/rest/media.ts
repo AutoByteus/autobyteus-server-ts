@@ -3,7 +3,7 @@ import {
   InvalidMediaCategoryError,
   InvalidMediaPathError,
   MediaFileNotFoundError,
-  mediaStorageService,
+  getMediaStorageService,
 } from "../../services/media-storage-service.js";
 
 const logger = {
@@ -27,6 +27,7 @@ export async function registerMediaRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
+      const mediaStorageService = getMediaStorageService();
       const result = await mediaStorageService.listMediaFiles(category, pageNumber, limitNumber);
       return reply.send(result);
     } catch (error) {
@@ -43,6 +44,7 @@ export async function registerMediaRoutes(app: FastifyInstance): Promise<void> {
     const { category, filename } = request.params;
 
     try {
+      const mediaStorageService = getMediaStorageService();
       mediaStorageService.deleteMediaFile(category, filename);
       return reply.code(204).send();
     } catch (error) {

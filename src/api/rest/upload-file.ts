@@ -6,7 +6,7 @@ import { pipeline } from "node:stream/promises";
 import type { FastifyInstance } from "fastify";
 import { extension as mimeExtension } from "mime-types";
 import { appConfigProvider } from "../../config/app-config-provider.js";
-import { mediaStorageService } from "../../services/media-storage-service.js";
+import { getMediaStorageService } from "../../services/media-storage-service.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -89,6 +89,7 @@ export async function registerUploadRoutes(app: FastifyInstance): Promise<void> 
     }
 
     const category = getCategoryFromMimetype(file.mimetype);
+    const mediaStorageService = getMediaStorageService();
     const storageDir = mediaStorageService.getStorageDirByCategory(category);
     const ext = mimeExtension(file.mimetype) ?? path.extname(file.filename) ?? "";
     const fileExtension = ext ? `.${ext}`.replace(/\.\./g, ".") : "";

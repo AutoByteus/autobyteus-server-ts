@@ -6,7 +6,7 @@ import {
 } from "autobyteus-ts";
 import { ToolDefinitionConverter } from "../converters/tool-definition-converter.js";
 import { McpServerConverter } from "../converters/mcp-server-converter.js";
-import { mcpConfigService } from "../../../mcp-server-management/services/mcp-config-service.js";
+import { getMcpConfigService } from "../../../mcp-server-management/services/mcp-config-service.js";
 import {
   ConfigureMcpServerResult,
   DeleteMcpServerResult,
@@ -77,10 +77,14 @@ const toToolDefinitions = (tools: ToolDefinition[]): ReturnType<typeof ToolDefin
 
 @Resolver()
 export class McpServerResolver {
+  private get mcpConfigService() {
+    return getMcpConfigService();
+  }
+
   @Query(() => [McpServerConfigUnion])
   async mcpServers(): Promise<Array<StdioMcpServerConfigGraphql | StreamableHttpMcpServerConfigGraphql>> {
     try {
-      const domainConfigs = await mcpConfigService.getAllMcpServers();
+      const domainConfigs = await this.mcpConfigService.getAllMcpServers();
       return domainConfigs.map((config) => McpServerConverter.toGraphql(config));
     } catch (error) {
       logger.error(`Error fetching MCP server configurations: ${String(error)}`);
@@ -94,7 +98,7 @@ export class McpServerResolver {
   ): Promise<ReturnType<typeof ToolDefinitionConverter.toGraphql>[]> {
     try {
       const configObj = createDomainConfigFromInput(input);
-      const toolDefs = await mcpConfigService.previewMcpServerTools(configObj);
+      const toolDefs = await this.mcpConfigService.previewMcpServerTools(configObj);
       return toToolDefinitions(toolDefs);
     } catch (error) {
       logger.error(`Error previewing tools for MCP server config '${input.serverId}': ${String(error)}`);
@@ -108,7 +112,7 @@ export class McpServerResolver {
   ): Promise<ConfigureMcpServerResult> {
     try {
       const configObj = createDomainConfigFromInput(input);
-      const savedConfig = await mcpConfigService.configureMcpServer(configObj);
+      const savedConfig = await this.mcpConfigService.configureMcpServer(configObj);
       return {
         savedConfig: McpServerConverter.toGraphql(savedConfig),
       };
@@ -123,7 +127,7 @@ export class McpServerResolver {
     @Arg("serverId", () => String) serverId: string,
   ): Promise<DeleteMcpServerResult> {
     try {
-      const success = await mcpConfigService.deleteMcpServer(serverId);
+      const success = await this.mcpConfigService.deleteMcpServer(serverId);
       const message = success
         ? "MCP server configuration deleted successfully."
         : "Failed to delete MCP server configuration.";
@@ -139,7 +143,7 @@ export class McpServerResolver {
     @Arg("serverId", () => String) serverId: string,
   ): Promise<DiscoverAndRegisterMcpServerToolsResult> {
     try {
-      const discovered = await mcpConfigService.discoverAndRegisterToolsForServer(serverId);
+      const discovered = await this.mcpConfigService.discoverAndRegisterToolsForServer(serverId);
       return {
         success: true,
         message: `Successfully discovered and registered ${discovered.length} tools.`,
@@ -160,7 +164,7 @@ export class McpServerResolver {
     @Arg("jsonString", () => String) jsonString: string,
   ): Promise<ImportMcpServerConfigsResult> {
     try {
-      const result = await mcpConfigService.importConfigsFromJson(jsonString);
+      const result = await this.mcpConfigService.importConfigsFromJson(jsonString);
       const success = result.failed_count === 0;
       return {
         success,

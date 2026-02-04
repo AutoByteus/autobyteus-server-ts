@@ -5,7 +5,8 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { buildGraphqlSchema } from "../../../src/api/graphql/schema.js";
-import { workspaceManager } from "../../../src/workspaces/workspace-manager.js";
+import { getWorkspaceManager } from "../../../src/workspaces/workspace-manager.js";
+const workspaceManager = getWorkspaceManager();
 const closeWithTimeout = async (workspace) => {
     await Promise.race([
         workspace.close(),

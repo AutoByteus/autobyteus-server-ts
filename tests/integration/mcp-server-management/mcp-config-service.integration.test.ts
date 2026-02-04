@@ -188,7 +188,9 @@ describe("McpConfigService integration", () => {
     expect(retrieved).toBeNull();
   });
 
-  itConfigJson("applies MCP config JSON from env and persists configs", async () => {
+  itConfigJson(
+    "applies MCP config JSON from env and persists configs",
+    async () => {
     const configJson = configJsonEnv!;
     const service = McpConfigService.getInstance();
     const result = await service.applyAndRegisterConfigsFromJson(configJson);
@@ -203,5 +205,7 @@ describe("McpConfigService integration", () => {
       const persisted = await provider.getByServerId(serverId);
       expect(persisted).not.toBeNull();
     }
-  });
+    },
+    30000,
+  );
 });

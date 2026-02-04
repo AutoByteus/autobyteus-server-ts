@@ -10,10 +10,10 @@ import {
   SubTeamEventRebroadcastPayload,
   type TaskPlanEventPayload,
 } from "autobyteus-ts";
-import { agentTeamInstanceManager, AgentTeamInstanceManager } from "../../agent-team-execution/services/agent-team-instance-manager.js";
+import { AgentTeamInstanceManager } from "../../agent-team-execution/services/agent-team-instance-manager.js";
 import { AgentSession } from "./agent-session.js";
 import { AgentSessionManager } from "./agent-session-manager.js";
-import { agentStreamHandler } from "./agent-stream-handler.js";
+import { getAgentStreamHandler } from "./agent-stream-handler.js";
 import {
   ClientMessageType,
   createErrorMessage,
@@ -73,7 +73,7 @@ export class AgentTeamStreamHandler {
 
   constructor(
     sessionManager: AgentSessionManager = new AgentSessionManager(AgentTeamSession),
-    teamManager: AgentTeamInstanceManager = agentTeamInstanceManager,
+    teamManager: AgentTeamInstanceManager = AgentTeamInstanceManager.getInstance(),
   ) {
     this.sessionManager = sessionManager;
     this.teamManager = teamManager;
@@ -275,7 +275,7 @@ export class AgentTeamStreamHandler {
 
     if (sourceType === "AGENT" && event.data instanceof AgentEventRebroadcastPayload) {
       const agentEvent = event.data.agent_event;
-      const message = agentStreamHandler.convertStreamEvent(agentEvent);
+      const message = getAgentStreamHandler().convertStreamEvent(agentEvent);
       const basePayload =
         message.payload && typeof message.payload === "object" ? message.payload : {};
       return new ServerMessage(message.type, {
@@ -335,4 +335,11 @@ export class AgentTeamStreamHandler {
   }
 }
 
-export const agentTeamStreamHandler = new AgentTeamStreamHandler();
+let cachedAgentTeamStreamHandler: AgentTeamStreamHandler | null = null;
+
+export const getAgentTeamStreamHandler = (): AgentTeamStreamHandler => {
+  if (!cachedAgentTeamStreamHandler) {
+    cachedAgentTeamStreamHandler = new AgentTeamStreamHandler();
+  }
+  return cachedAgentTeamStreamHandler;
+};

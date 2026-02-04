@@ -1,10 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import {
   TerminalHandler,
-  terminalHandler,
+  getTerminalHandler,
   type WebSocketConnection,
 } from "../../services/terminal-streaming/index.js";
-import { workspaceManager } from "../../workspaces/workspace-manager.js";
+import { getWorkspaceManager } from "../../workspaces/workspace-manager.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -19,8 +19,8 @@ type TerminalParams = {
 
 export async function registerTerminalWebsocket(
   app: FastifyInstance,
-  handler: TerminalHandler = terminalHandler,
-  workspaceManagerInstance = workspaceManager,
+  handler: TerminalHandler = getTerminalHandler(),
+  workspaceManagerInstance = getWorkspaceManager(),
 ): Promise<void> {
   app.get(
     "/ws/terminal/:workspaceId/:sessionId",

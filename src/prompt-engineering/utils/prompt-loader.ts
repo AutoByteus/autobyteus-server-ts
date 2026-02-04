@@ -155,4 +155,11 @@ export class PromptLoader {
   }
 }
 
-export const promptLoader = new PromptLoader();
+let cachedPromptLoader: PromptLoader | null = null;
+
+export const getPromptLoader = (): PromptLoader => {
+  if (!cachedPromptLoader) {
+    cachedPromptLoader = new PromptLoader();
+  }
+  return cachedPromptLoader;
+};

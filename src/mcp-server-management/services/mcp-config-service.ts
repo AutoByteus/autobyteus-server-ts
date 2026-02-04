@@ -224,4 +224,4 @@ export class McpConfigService {
   }
 }
 
-export const mcpConfigService = McpConfigService.getInstance();
+export const getMcpConfigService = (): McpConfigService => McpConfigService.getInstance();

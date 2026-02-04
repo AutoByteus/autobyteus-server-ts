@@ -1,11 +1,11 @@
 import { Arg, Field, Mutation, ObjectType, Query, Resolver } from "type-graphql";
 import { GraphQLJSON } from "graphql-scalars";
 import { appConfigProvider } from "../../../config/app-config-provider.js";
-import { llmModelService } from "../../../llm-management/services/llm-model-service.js";
+import { getLlmModelService } from "../../../llm-management/services/llm-model-service.js";
 import type { ModelInfo } from "autobyteus-ts/llm/models.js";
 import { LLMProvider } from "autobyteus-ts/llm/providers.js";
-import { audioModelService } from "../../../multimedia-management/services/audio-model-service.js";
-import { imageModelService } from "../../../multimedia-management/services/image-model-service.js";
+import { getAudioModelService } from "../../../multimedia-management/services/audio-model-service.js";
+import { getImageModelService } from "../../../multimedia-management/services/image-model-service.js";
 import type { AudioModel } from "autobyteus-ts/multimedia/audio/audio-model.js";
 import type { ImageModel } from "autobyteus-ts/multimedia/image/image-model.js";
 
@@ -93,6 +93,18 @@ const sortModels = (models: ModelDetail[]): ModelDetail[] =>
 
 @Resolver()
 export class LlmProviderResolver {
+  private get llmModelService() {
+    return getLlmModelService();
+  }
+
+  private get audioModelService() {
+    return getAudioModelService();
+  }
+
+  private get imageModelService() {
+    return getImageModelService();
+  }
+
   @Query(() => String, { nullable: true })
   getLlmProviderApiKey(@Arg("provider", () => String) provider: string): string | null {
     try {
@@ -106,7 +118,7 @@ export class LlmProviderResolver {
 
   @Query(() => [ProviderWithModels])
   async availableLlmProvidersWithModels(): Promise<ProviderWithModels[]> {
-    const modelsInfo = await llmModelService.getAvailableModels();
+    const modelsInfo = await this.llmModelService.getAvailableModels();
     const modelDetails = modelsInfo.map(mapLlmModel);
     const grouped = groupModelsByProvider(modelDetails);
 
@@ -120,7 +132,7 @@ export class LlmProviderResolver {
 
   @Query(() => [ProviderWithModels])
   async availableAudioProvidersWithModels(): Promise<ProviderWithModels[]> {
-    const models = (await audioModelService.getAvailableModels()).map(mapAudioModel);
+    const models = (await this.audioModelService.getAvailableModels()).map(mapAudioModel);
     const grouped = groupModelsByProvider(models);
 
     const providers = Array.from(grouped.entries()).map(([provider, items]) => ({
@@ -133,7 +145,7 @@ export class LlmProviderResolver {
 
   @Query(() => [ProviderWithModels])
   async availableImageProvidersWithModels(): Promise<ProviderWithModels[]> {
-    const models = (await imageModelService.getAvailableModels()).map(mapImageModel);
+    const models = (await this.imageModelService.getAvailableModels()).map(mapImageModel);
     const grouped = groupModelsByProvider(models);
 
     const providers = Array.from(grouped.entries()).map(([provider, items]) => ({
@@ -163,9 +175,9 @@ export class LlmProviderResolver {
   @Mutation(() => String)
   async reloadLlmModels(): Promise<string> {
     try {
-      await llmModelService.reloadModels();
-      await audioModelService.reloadModels();
-      await imageModelService.reloadModels();
+      await this.llmModelService.reloadModels();
+      await this.audioModelService.reloadModels();
+      await this.imageModelService.reloadModels();
       return "All models (LLM and Multimedia) reloaded successfully.";
     } catch (error) {
       return `Error reloading models: ${String(error)}`;
@@ -185,7 +197,7 @@ export class LlmProviderResolver {
         return `Error reloading models for provider ${provider}: Unsupported provider.`;
       }
 
-      const count = await llmModelService.reloadModelsForProvider(providerEnum);
+      const count = await this.llmModelService.reloadModelsForProvider(providerEnum);
       return `Reloaded ${count} models for provider ${providerEnum} successfully.`;
     } catch (error) {
       return `Error reloading models for provider ${provider}: ${String(error)}`;

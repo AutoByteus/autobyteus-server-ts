@@ -41,4 +41,4 @@ export class AudioModelService {
   }
 }
 
-export const audioModelService = AudioModelService.getInstance();
+export const getAudioModelService = (): AudioModelService => AudioModelService.getInstance();

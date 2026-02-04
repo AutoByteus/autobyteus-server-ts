@@ -13,10 +13,20 @@ function getPnpmCommand(): string {
   return process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 }
 
+function getPrismaCommand(appRoot: string): { command: string; argsPrefix: string[] } {
+  const prismaBin = process.platform === "win32" ? "prisma.cmd" : "prisma";
+  const localPrisma = path.join(appRoot, "node_modules", ".bin", prismaBin);
+  if (fs.existsSync(localPrisma)) {
+    return { command: localPrisma, argsPrefix: [] };
+  }
+  return { command: getPnpmCommand(), argsPrefix: ["exec", "prisma"] };
+}
+
 const BASELINE_MIGRATION = "20260203074245_init";
 
 function runPrismaCommand(appRoot: string, args: string[]): void {
-  execFileSync(getPnpmCommand(), ["exec", "prisma", ...args], {
+  const { command, argsPrefix } = getPrismaCommand(appRoot);
+  execFileSync(command, [...argsPrefix, ...args], {
     cwd: appRoot,
     stdio: "inherit",
     env: process.env,

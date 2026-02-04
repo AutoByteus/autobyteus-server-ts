@@ -10,8 +10,8 @@ const logger = {
 
 const invalidatePromptLoaderCache = async (): Promise<void> => {
   try {
-    const { promptLoader } = await import("../utils/prompt-loader.js");
-    promptLoader.invalidateCache();
+    const { getPromptLoader } = await import("../utils/prompt-loader.js");
+    getPromptLoader().invalidateCache();
   } catch (error) {
     logger.warn(`Failed to invalidate prompt loader cache: ${String(error)}`);
   }

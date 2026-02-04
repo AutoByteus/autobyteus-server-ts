@@ -11,7 +11,7 @@ import { scheduleBackgroundTasks } from "./startup/background-runner.js";
 import { registerRestRoutes } from "./api/rest/index.js";
 import { registerGraphql } from "./api/graphql/index.js";
 import { registerWebsocketRoutes } from "./api/websocket/index.js";
-import { workspaceManager } from "./workspaces/workspace-manager.js";
+import { getWorkspaceManager } from "./workspaces/workspace-manager.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -29,9 +29,17 @@ function parseArgs(argv: string[]): ServerOptions {
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+    if (!arg.startsWith("-")) {
+      continue;
+    }
+
     if (arg === "--port" && argv[i + 1]) {
       options.port = Number(argv[i + 1]);
       i += 1;
+      continue;
+    }
+    if (arg.startsWith("--port=")) {
+      options.port = Number(arg.split("=", 2)[1]);
       continue;
     }
     if (arg === "--host" && argv[i + 1]) {
@@ -39,13 +47,30 @@ function parseArgs(argv: string[]): ServerOptions {
       i += 1;
       continue;
     }
+    if (arg.startsWith("--host=")) {
+      options.host = arg.split("=", 2)[1];
+      continue;
+    }
     if (arg === "--data-dir" && argv[i + 1]) {
       options.dataDir = argv[i + 1];
       i += 1;
+      continue;
+    }
+    if (arg.startsWith("--data-dir=")) {
+      options.dataDir = arg.split("=", 2)[1];
     }
   }
 
   return options;
+}
+
+function initializeConfig(options: ServerOptions) {
+  const config = appConfigProvider.config;
+  if (options.dataDir) {
+    config.setCustomAppDataDir(options.dataDir);
+  }
+  config.initialize();
+  return config;
 }
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -65,35 +90,60 @@ export async function buildApp(): Promise<FastifyInstance> {
   return app;
 }
 
+function registerShutdownHandlers(app: FastifyInstance): void {
+  let shuttingDown = false;
+
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    logger.info(`Received ${signal}. Shutting down server...`);
+    try {
+      await app.close();
+      logger.info("Server closed cleanly.");
+      process.exit(0);
+    } catch (error) {
+      logger.error(`Error during shutdown: ${String(error)}`);
+      process.exit(1);
+    }
+  };
+
+  process.once("SIGINT", () => void shutdown("SIGINT"));
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
+}
+
 export async function startServer(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
+  const options = parseArgs(process.argv);
 
   ensureServerHostEnvVar(options.host, options.port);
 
-  const config = appConfigProvider.config;
-  if (options.dataDir) {
-    try {
-      config.setCustomAppDataDir(options.dataDir);
-    } catch (error) {
-      logger.error(`Error setting custom app data directory: ${String(error)}`);
-      process.exit(1);
-    }
-  }
-
   try {
-    config.initialize();
+    initializeConfig(options);
   } catch (error) {
     logger.error(`Failed to initialize AppConfig: ${String(error)}`);
     process.exit(1);
   }
 
-  runMigrations();
-  await scheduleBackgroundTasks();
-  await workspaceManager.getOrCreateTempWorkspace();
+  try {
+    runMigrations();
+  } catch (error) {
+    logger.error(`Failed to run database migrations: ${String(error)}`);
+    process.exit(1);
+  }
 
   const app = await buildApp();
+  registerShutdownHandlers(app);
   await app.listen({ host: options.host, port: options.port });
   logger.info(`Server listening on ${options.host}:${options.port}`);
+
+  try {
+    await getWorkspaceManager().getOrCreateTempWorkspace();
+  } catch (error) {
+    logger.error(`Failed to create temp workspace: ${String(error)}`);
+    process.exit(1);
+  }
+  await scheduleBackgroundTasks();
 }
 
 const modulePath = pathToFileURL(process.argv[1] ?? "").href;

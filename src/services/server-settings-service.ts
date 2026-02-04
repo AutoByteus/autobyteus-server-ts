@@ -122,4 +122,11 @@ export class ServerSettingsService {
   }
 }
 
-export const serverSettingsService = new ServerSettingsService();
+let cachedServerSettingsService: ServerSettingsService | null = null;
+
+export const getServerSettingsService = (): ServerSettingsService => {
+  if (!cachedServerSettingsService) {
+    cachedServerSettingsService = new ServerSettingsService();
+  }
+  return cachedServerSettingsService;
+};

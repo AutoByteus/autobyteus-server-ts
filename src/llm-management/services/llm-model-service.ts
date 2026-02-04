@@ -49,4 +49,4 @@ export class LlmModelService {
   }
 }
 
-export const llmModelService = LlmModelService.getInstance();
+export const getLlmModelService = (): LlmModelService => LlmModelService.getInstance();

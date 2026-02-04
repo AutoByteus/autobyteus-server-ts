@@ -1,8 +1,8 @@
 import { Arg, Field, InputType, Int, Mutation, ObjectType, Query, Resolver } from "type-graphql";
 import type { Prompt as DomainPrompt } from "../../../prompt-engineering/domain/models.js";
 import { PromptService } from "../../../prompt-engineering/services/prompt-service.js";
-import { promptSyncService } from "../../../prompt-engineering/services/prompt-sync-service.js";
-import { promptLoader } from "../../../prompt-engineering/utils/prompt-loader.js";
+import { getPromptSyncService } from "../../../prompt-engineering/services/prompt-sync-service.js";
+import { getPromptLoader } from "../../../prompt-engineering/utils/prompt-loader.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -181,6 +181,9 @@ export const mapPromptToGraphql = (prompt: DomainPrompt): Prompt => ({
 
 @Resolver()
 export class PromptResolver {
+  private get promptSyncService() {
+    return getPromptSyncService();
+  }
   @Query(() => [Prompt])
   async prompts(
     @Arg("isActive", () => Boolean, { nullable: true }) isActive?: boolean | null,
@@ -334,13 +337,13 @@ export class PromptResolver {
     const initialService = new PromptService();
     const initialCount = (await initialService.getAllActivePrompts()).length;
 
-    const success = await promptSyncService.syncPrompts();
+    const success = await this.promptSyncService.syncPrompts();
 
     const finalService = new PromptService();
     const finalCount = (await finalService.getAllActivePrompts()).length;
 
     if (success) {
-      promptLoader.invalidateCache();
+      getPromptLoader().invalidateCache();
       logger.info("Prompt template cache invalidated after successful synchronization");
     }
 

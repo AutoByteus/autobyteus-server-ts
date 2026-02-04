@@ -1,5 +1,5 @@
 import { Arg, Mutation, Query, Resolver } from "type-graphql";
-import { workspaceManager } from "../../../workspaces/workspace-manager.js";
+import { getWorkspaceManager } from "../../../workspaces/workspace-manager.js";
 import { serializeChangeEvent } from "../../../file-explorer/file-system-changes.js";
 
 const logger = {
@@ -18,6 +18,10 @@ const toMessage = (error: unknown): string => {
 
 @Resolver()
 export class FileExplorerResolver {
+  private get workspaceManager() {
+    return getWorkspaceManager();
+  }
+
   @Query(() => String)
   async fileContent(
     @Arg("workspaceId", () => String) workspaceId: string,
@@ -26,7 +30,7 @@ export class FileExplorerResolver {
     try {
       let workspace;
       try {
-        workspace = await workspaceManager.getOrCreateWorkspace(workspaceId);
+        workspace = await this.workspaceManager.getOrCreateWorkspace(workspaceId);
       } catch {
         return jsonError("Workspace not found");
       }
@@ -56,7 +60,7 @@ export class FileExplorerResolver {
     try {
       let workspace;
       try {
-        workspace = await workspaceManager.getOrCreateWorkspace(workspaceId);
+        workspace = await this.workspaceManager.getOrCreateWorkspace(workspaceId);
       } catch {
         return [];
       }
@@ -80,7 +84,7 @@ export class FileExplorerResolver {
     try {
       let workspace;
       try {
-        workspace = await workspaceManager.getOrCreateWorkspace(workspaceId);
+        workspace = await this.workspaceManager.getOrCreateWorkspace(workspaceId);
       } catch {
         return jsonError("Workspace not found");
       }
@@ -124,7 +128,7 @@ export class FileExplorerResolver {
     @Arg("filePath", () => String) filePath: string,
     @Arg("content", () => String) content: string,
   ): Promise<string> {
-    const workspace = workspaceManager.getWorkspaceById(workspaceId);
+    const workspace = this.workspaceManager.getWorkspaceById(workspaceId);
     if (!workspace) {
       throw new Error("Workspace not found");
     }
@@ -139,7 +143,7 @@ export class FileExplorerResolver {
     @Arg("workspaceId", () => String) workspaceId: string,
     @Arg("path", () => String) targetPath: string,
   ): Promise<string> {
-    const workspace = workspaceManager.getWorkspaceById(workspaceId);
+    const workspace = this.workspaceManager.getWorkspaceById(workspaceId);
     if (!workspace) {
       throw new Error("Workspace not found");
     }
@@ -155,7 +159,7 @@ export class FileExplorerResolver {
     @Arg("sourcePath", () => String) sourcePath: string,
     @Arg("destinationPath", () => String) destinationPath: string,
   ): Promise<string> {
-    const workspace = workspaceManager.getWorkspaceById(workspaceId);
+    const workspace = this.workspaceManager.getWorkspaceById(workspaceId);
     if (!workspace) {
       throw new Error("Workspace not found");
     }
@@ -171,7 +175,7 @@ export class FileExplorerResolver {
     @Arg("targetPath", () => String) targetPath: string,
     @Arg("newName", () => String) newName: string,
   ): Promise<string> {
-    const workspace = workspaceManager.getWorkspaceById(workspaceId);
+    const workspace = this.workspaceManager.getWorkspaceById(workspaceId);
     if (!workspace) {
       throw new Error("Workspace not found");
     }
@@ -187,7 +191,7 @@ export class FileExplorerResolver {
     @Arg("path", () => String) targetPath: string,
     @Arg("isFile", () => Boolean) isFile: boolean,
   ): Promise<string> {
-    const workspace = workspaceManager.getWorkspaceById(workspaceId);
+    const workspace = this.workspaceManager.getWorkspaceById(workspaceId);
     if (!workspace) {
       throw new Error("Workspace not found");
     }

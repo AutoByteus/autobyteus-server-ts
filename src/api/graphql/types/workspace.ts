@@ -1,7 +1,7 @@
 import { Arg, Field, InputType, Mutation, ObjectType, Query, Resolver } from "type-graphql";
 import { GraphQLJSON } from "graphql-scalars";
 import { WorkspaceConfig } from "autobyteus-ts";
-import { workspaceManager } from "../../../workspaces/workspace-manager.js";
+import { getWorkspaceManager } from "../../../workspaces/workspace-manager.js";
 import { WorkspaceConverter } from "../converters/workspace-converter.js";
 
 const logger = {
@@ -48,10 +48,14 @@ export class CreateWorkspaceInput {
 
 @Resolver()
 export class WorkspaceResolver {
+  private get workspaceManager() {
+    return getWorkspaceManager();
+  }
+
   @Query(() => [WorkspaceInfo])
   async workspaces(): Promise<WorkspaceInfo[]> {
     try {
-      const domainWorkspaces = workspaceManager.getAllWorkspaces();
+      const domainWorkspaces = this.workspaceManager.getAllWorkspaces();
       const graphqlWorkspaces: WorkspaceInfo[] = [];
       for (const workspace of domainWorkspaces) {
         const graphqlWorkspace = await WorkspaceConverter.toGraphql(workspace);
@@ -71,7 +75,7 @@ export class WorkspaceResolver {
     logger.info("GraphQL mutation to create workspace");
     try {
       const workspaceConfig = new WorkspaceConfig({ rootPath: input.rootPath });
-      const workspace = await workspaceManager.createWorkspace(workspaceConfig);
+      const workspace = await this.workspaceManager.createWorkspace(workspaceConfig);
 
       const fileExplorer = await workspace.getFileExplorer();
       const fileExplorerJson = await fileExplorer.toJson();

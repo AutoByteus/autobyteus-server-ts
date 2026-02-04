@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import {
-  fileExplorerStreamHandler,
+  getFileExplorerStreamHandler,
   type WebSocketConnection,
 } from "../../services/file-explorer-streaming/index.js";
 
@@ -18,6 +18,7 @@ export async function registerFileExplorerWebsocket(app: FastifyInstance): Promi
     "/ws/file-explorer/:workspaceId",
     { websocket: true },
     (connection: unknown, req) => {
+      const fileExplorerStreamHandler = getFileExplorerStreamHandler();
       let sessionId: string | null = null;
       const { workspaceId } = req.params as FileExplorerParams;
       const socket = (connection as { socket?: unknown }).socket ?? connection;

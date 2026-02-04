@@ -4,7 +4,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SkillService } from "../../../../src/skills/services/skill-service.js";
 import { SkillVersion } from "../../../../src/skills/domain/skill-version.js";
-import { serverSettingsService } from "../../../../src/services/server-settings-service.js";
+import { getServerSettingsService } from "../../../../src/services/server-settings-service.js";
+const serverSettingsService = getServerSettingsService();
 const createTempRoot = () => fs.mkdtempSync(path.join(os.tmpdir(), "autobyteus-skill-src-"));
 const writeSkill = (root, name, description, content) => {
     const skillDir = path.join(root, name);

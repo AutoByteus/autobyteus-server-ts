@@ -11,6 +11,6 @@ export { FileExplorerSession } from "./file-explorer-session.js";
 export { FileExplorerSessionManager } from "./file-explorer-session-manager.js";
 export {
   FileExplorerStreamHandler,
-  fileExplorerStreamHandler,
+  getFileExplorerStreamHandler,
   type WebSocketConnection,
 } from "./file-explorer-stream-handler.js";

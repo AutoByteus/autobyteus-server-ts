@@ -9,11 +9,13 @@ import {
   type BaseLifecycleEventProcessor,
   type BaseToolExecutionResultProcessor,
   type BaseToolInvocationPreprocessor,
+  defaultSystemPromptProcessorRegistry,
   defaultInputProcessorRegistry,
   defaultLlmResponseProcessorRegistry,
   defaultLifecycleEventProcessorRegistry,
   defaultToolExecutionResultProcessorRegistry,
   defaultToolInvocationPreprocessorRegistry,
+  registerSystemPromptProcessors,
 } from "autobyteus-ts";
 import { CreateAgentConversationRecordProcessor } from "../agent-customization/lifecycle/create-agent-conversation-record-processor.js";
 import { UserInputPersistenceProcessor } from "../agent-customization/processors/persistence/user-input-persistence-processor.js";
@@ -96,8 +98,21 @@ function registerToolInvocationPreprocessor(processorClass: ToolInvocationPrepro
   logger.info(`Registered tool invocation preprocessor '${name}'.`);
 }
 
+function ensureSystemPromptProcessorsRegistered(): void {
+  const requiredNames = ["ToolManifestInjector", "AvailableSkillsProcessor"];
+  const missing = requiredNames.filter((name) => !defaultSystemPromptProcessorRegistry.contains(name));
+  if (missing.length === 0) {
+    logger.info("System prompt processors already registered.");
+    return;
+  }
+  registerSystemPromptProcessors();
+  logger.info(`Registered system prompt processors: ${requiredNames.join(", ")}`);
+}
+
 export function loadAgentCustomizations(): void {
   logger.info("Registering agent customization processors...");
+
+  ensureSystemPromptProcessorsRegistered();
 
   registerLifecycleProcessor(CreateAgentConversationRecordProcessor);
 

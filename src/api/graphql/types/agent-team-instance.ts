@@ -10,7 +10,7 @@ import {
 } from "type-graphql";
 import { GraphQLJSON } from "graphql-scalars";
 import { TaskNotificationMode } from "autobyteus-ts/agent-team/task-notification/task-notification-mode.js";
-import { agentTeamInstanceManager } from "../../../agent-team-execution/services/agent-team-instance-manager.js";
+import { AgentTeamInstanceManager } from "../../../agent-team-execution/services/agent-team-instance-manager.js";
 import { UserInputConverter } from "../converters/user-input-converter.js";
 import { AgentTeamInstanceConverter } from "../converters/agent-team-instance-converter.js";
 import { AgentUserInput } from "./agent-user-input.js";
@@ -135,10 +135,14 @@ export class SendMessageToTeamResult {
 
 @Resolver()
 export class AgentTeamInstanceResolver {
+  private get agentTeamInstanceManager(): AgentTeamInstanceManager {
+    return AgentTeamInstanceManager.getInstance();
+  }
+
   @Query(() => AgentTeamInstance, { nullable: true })
   agentTeamInstance(@Arg("id", () => String) id: string): AgentTeamInstance | null {
     try {
-      const domainTeam = agentTeamInstanceManager.getTeamInstance(id);
+      const domainTeam = this.agentTeamInstanceManager.getTeamInstance(id);
       if (!domainTeam) {
         return null;
       }
@@ -152,10 +156,10 @@ export class AgentTeamInstanceResolver {
   @Query(() => [AgentTeamInstance])
   agentTeamInstances(): AgentTeamInstance[] {
     try {
-      const instanceIds = agentTeamInstanceManager.listActiveInstances();
+      const instanceIds = this.agentTeamInstanceManager.listActiveInstances();
       const results: AgentTeamInstance[] = [];
       for (const instanceId of instanceIds) {
-        const domainTeam = agentTeamInstanceManager.getTeamInstance(instanceId);
+        const domainTeam = this.agentTeamInstanceManager.getTeamInstance(instanceId);
         if (domainTeam) {
           results.push(AgentTeamInstanceConverter.toGraphql(domainTeam as any));
         }
@@ -173,7 +177,7 @@ export class AgentTeamInstanceResolver {
     input: CreateAgentTeamInstanceInput,
   ): Promise<CreateAgentTeamInstanceResult> {
     try {
-      const teamId = await agentTeamInstanceManager.createTeamInstance(
+      const teamId = await this.agentTeamInstanceManager.createTeamInstance(
         input.teamDefinitionId,
         input.memberConfigs.map((config) => ({
           memberName: config.memberName,
@@ -200,7 +204,7 @@ export class AgentTeamInstanceResolver {
     @Arg("id", () => String) id: string,
   ): Promise<TerminateAgentTeamInstanceResult> {
     try {
-      const success = await agentTeamInstanceManager.terminateTeamInstance(id);
+      const success = await this.agentTeamInstanceManager.terminateTeamInstance(id);
       return {
         success,
         message: success
@@ -226,7 +230,7 @@ export class AgentTeamInstanceResolver {
           throw new Error("teamDefinitionId and memberConfigs are required for lazy team creation.");
         }
 
-        teamId = await agentTeamInstanceManager.createTeamInstance(
+        teamId = await this.agentTeamInstanceManager.createTeamInstance(
           input.teamDefinitionId,
           input.memberConfigs.map((config) => ({
             memberName: config.memberName,
@@ -240,7 +244,7 @@ export class AgentTeamInstanceResolver {
         logger.info(`Lazy creation successful. New team ID: ${teamId}`);
       }
 
-      const team = agentTeamInstanceManager.getTeamInstance(teamId);
+      const team = this.agentTeamInstanceManager.getTeamInstance(teamId);
       if (!team) {
         throw new Error(`Agent team with ID '${teamId}' not found.`);
       }

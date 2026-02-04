@@ -9,7 +9,8 @@ import WebSocket from "ws";
 import { WorkspaceConfig } from "autobyteus-ts";
 import { registerTerminalWebsocket } from "../../../src/api/websocket/terminal.js";
 import { PtySessionManager, TerminalHandler, } from "../../../src/services/terminal-streaming/index.js";
-import { workspaceManager } from "../../../src/workspaces/workspace-manager.js";
+import { getWorkspaceManager } from "../../../src/workspaces/workspace-manager.js";
+const workspaceManager = getWorkspaceManager();
 const isWindows = process.platform === "win32";
 const findWslExecutable = () => {
     const candidates = ["wsl.exe", "wsl"];

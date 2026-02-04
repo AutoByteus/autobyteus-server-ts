@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import {
   AgentStreamHandler,
-  agentStreamHandler,
   AgentTeamStreamHandler,
-  agentTeamStreamHandler,
+  getAgentStreamHandler,
+  getAgentTeamStreamHandler,
   type WebSocketConnection,
 } from "../../services/agent-streaming/index.js";
 
@@ -22,8 +22,8 @@ type TeamParams = {
 
 export async function registerAgentWebsocket(
   app: FastifyInstance,
-  agentHandler: AgentStreamHandler = agentStreamHandler,
-  teamHandler: AgentTeamStreamHandler = agentTeamStreamHandler,
+  agentHandler: AgentStreamHandler = getAgentStreamHandler(),
+  teamHandler: AgentTeamStreamHandler = getAgentTeamStreamHandler(),
 ): Promise<void> {
   app.get("/ws/agent/:agentId", { websocket: true }, (connection: unknown, req) => {
     let sessionId: string | null = null;
