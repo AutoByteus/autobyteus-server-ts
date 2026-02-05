@@ -94,6 +94,12 @@ Notes:
 - Tests use `.env.test` and a temporary SQLite DB at `tests/.tmp/`.
 - Some integration tests are env-gated (e.g., `AUTOBYTEUS_DOWNLOAD_TEST_URL`).
 
+Run a single test file:
+
+```bash
+pnpm -C autobyteus-server-ts exec vitest run tests/unit/config/app-config.test.ts --no-watch
+```
+
 ## Endpoints
 
 - REST: `/rest/*`

@@ -161,7 +161,7 @@ export class AppConfig {
     const dbPath = this.getSqlitePath();
     this.set("DB_NAME", dbPath);
     const expectedUrl = `file:${dbPath}`;
-    if (this.get("DATABASE_URL") !== expectedUrl) {
+    if (process.env.DATABASE_URL !== expectedUrl) {
       this.set("DATABASE_URL", expectedUrl);
     }
   }
