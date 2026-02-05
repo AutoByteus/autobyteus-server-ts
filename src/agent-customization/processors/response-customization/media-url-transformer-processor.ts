@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { BaseLLMResponseProcessor, type AgentContext } from "autobyteus-ts";
 import type { LLMCompleteResponseReceivedEvent } from "autobyteus-ts/agent/events/agent-events.js";
 import type { CompleteResponse } from "autobyteus-ts/llm/utils/response-types.js";
+import { SegmentEvent, SegmentType } from "autobyteus-ts/agent/streaming/segments/segment-events.js";
 import { MediaStorageService } from "../../../services/media-storage-service.js";
 
 const logger = {
@@ -95,6 +96,43 @@ export class MediaUrlTransformerProcessor extends BaseLLMResponseProcessor {
       );
     }
 
+    this.emitMediaSegments(context, response.image_urls, "image");
+    this.emitMediaSegments(context, response.audio_urls, "audio");
+    this.emitMediaSegments(context, response.video_urls, "video");
+
     return false;
+  }
+
+  private emitMediaSegments(
+    context: AgentContext,
+    urls: string[] | null | undefined,
+    mediaType: "image" | "audio" | "video",
+  ): void {
+    if (!urls || urls.length === 0) {
+      return;
+    }
+
+    const notifier = context.statusManager?.notifier;
+    if (!notifier) {
+      logger.debug("MediaUrlTransformerProcessor: notifier not available for media segments.");
+      return;
+    }
+
+    const cleanUrls = urls
+      .map((url) => (typeof url === "string" ? url.trim() : ""))
+      .filter((url) => url.length > 0);
+    if (cleanUrls.length === 0) {
+      return;
+    }
+
+    const segmentId = `media_${randomUUID()}`;
+    const startEvent = SegmentEvent.start(segmentId, SegmentType.MEDIA, {
+      media_type: mediaType,
+      urls: cleanUrls,
+    });
+    notifier.notifyAgentSegmentEvent(startEvent.toDict());
+
+    const endEvent = SegmentEvent.end(segmentId);
+    notifier.notifyAgentSegmentEvent(endEvent.toDict());
   }
 }

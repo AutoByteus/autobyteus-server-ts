@@ -17,6 +17,8 @@ import { FileExplorerResolver } from "./types/file-explorer.js";
 import { LlmProviderResolver } from "./types/llm-provider.js";
 import { ToolManagementResolver } from "./types/tool-management.js";
 import { McpServerResolver } from "./types/mcp-server.js";
+import { MemoryIndexResolver } from "./types/memory-index.js";
+import { MemoryViewResolver } from "./types/memory-view.js";
 import { DateTimeScalar } from "./scalars/date-time.js";
 
 export async function buildGraphqlSchema() {
@@ -40,6 +42,8 @@ export async function buildGraphqlSchema() {
       LlmProviderResolver,
       ToolManagementResolver,
       McpServerResolver,
+      MemoryIndexResolver,
+      MemoryViewResolver,
     ],
     scalarsMap: [{ type: Date, scalar: DateTimeScalar }],
   });
