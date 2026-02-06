@@ -9,7 +9,6 @@ import type { UserMessageReceivedEvent } from "autobyteus-ts/agent/events/agent-
 import { ContextFileType } from "autobyteus-ts/agent/message/context-file-type.js";
 import type { ContextFile } from "autobyteus-ts/agent/message/context-file.js";
 import { SenderType } from "autobyteus-ts/agent/sender-type.js";
-import { MediaStorageService } from "../../../services/media-storage-service.js";
 import { FileSystemWorkspace } from "../../../workspaces/filesystem-workspace.js";
 import { PromptContextBuilder } from "./prompt-context-builder.js";
 
@@ -21,11 +20,8 @@ const logger = {
 };
 
 export class UserInputContextBuildingProcessor extends BaseAgentUserInputMessageProcessor {
-  private mediaStorageService: MediaStorageService;
-
   constructor() {
     super();
-    this.mediaStorageService = new MediaStorageService();
     logger.debug("UserInputContextBuildingProcessor initialized.");
   }
 
@@ -110,18 +106,9 @@ export class UserInputContextBuildingProcessor extends BaseAgentUserInputMessage
 
       const isMediaFile = !ContextFileType.getReadableTextTypes().includes(contextFile.fileType);
       if (isRpaModel && isMediaFile) {
-        try {
-          const newUrl = await this.mediaStorageService.ingestLocalFileForContext(absolutePath);
-          logger.info(
-            `Agent '${agentId}': Ingested RPA media file '${absolutePath}' to URL '${newUrl}'.`,
-          );
-          contextFile.uri = newUrl;
-        } catch (error) {
-          logger.error(
-            `Agent '${agentId}': Failed to ingest local media file '${absolutePath}': ${String(error)}`,
-          );
-          continue;
-        }
+        logger.debug(
+          `Agent '${agentId}': Resolved RPA media file to local path '${absolutePath}'.`,
+        );
       }
 
       processed.push(contextFile);

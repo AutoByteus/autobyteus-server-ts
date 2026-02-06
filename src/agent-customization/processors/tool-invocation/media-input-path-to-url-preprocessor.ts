@@ -5,7 +5,6 @@ import type { AgentContext } from "autobyteus-ts";
 import type { ToolInvocation } from "autobyteus-ts/agent/tool-invocation.js";
 import { LLMFactory } from "autobyteus-ts/llm/llm-factory.js";
 import { LLMProvider } from "autobyteus-ts/llm/providers.js";
-import { MediaStorageService } from "../../../services/media-storage-service.js";
 import { FileSystemWorkspace } from "../../../workspaces/filesystem-workspace.js";
 
 const logger = {
@@ -17,11 +16,8 @@ const logger = {
 export class MediaInputPathToUrlPreprocessor extends BaseToolInvocationPreprocessor {
   static TARGET_TOOLS = new Set(["generate_image", "edit_image", "generate_speech"]);
 
-  private mediaStorage: MediaStorageService;
-
   constructor() {
     super();
-    this.mediaStorage = new MediaStorageService();
     logger.debug("MediaInputPathToUrlPreprocessor initialized.");
   }
 
@@ -129,14 +125,7 @@ export class MediaInputPathToUrlPreprocessor extends BaseToolInvocationPreproces
         continue;
       }
 
-      try {
-        const url = await this.mediaStorage.ingestLocalFileForContext(resolvedPath);
-        normalized.push(url);
-      } catch (error) {
-        logger.error(
-          `Agent '${agentId}': failed to ingest path '${resolvedPath}': ${String(error)}`,
-        );
-      }
+      normalized.push(resolvedPath);
     }
 
     return normalized;

@@ -102,10 +102,9 @@ describe("UserInputContextBuildingProcessor", () => {
     expect(result.content).toContain("absolute content");
   });
 
-  it("ingests media files for RPA models", async () => {
+  it("resolves media files for RPA models without ingestion", async () => {
     const imagePath = path.join(tempDir, "image.png");
     fs.writeFileSync(imagePath, "fake image data");
-    mockMediaStorage.ingestLocalFileForContext.mockResolvedValue("http://media.server/ingested.png");
 
     const workspace = new FileSystemWorkspace(new WorkspaceConfig({ rootPath: tempDir }));
     const context = buildContext({ workspace, modelName: "claude-opus-rpa" });
@@ -118,8 +117,8 @@ describe("UserInputContextBuildingProcessor", () => {
 
     const result = await processor.process(message, context, new UserMessageReceivedEvent(message));
 
-    expect(mockMediaStorage.ingestLocalFileForContext).toHaveBeenCalledWith(imagePath);
-    expect(result.contextFiles?.[0].uri).toBe("http://media.server/ingested.png");
+    expect(mockMediaStorage.ingestLocalFileForContext).not.toHaveBeenCalled();
+    expect(result.contextFiles?.[0].uri).toBe(imagePath);
     expect(result.content).not.toContain("fake image data");
   });
 

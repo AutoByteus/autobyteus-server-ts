@@ -43,7 +43,6 @@ describe("MediaInputPathToUrlPreprocessor", () => {
     });
     it("normalizes input_images with workspace", async () => {
         process.env.DEFAULT_IMAGE_GENERATION_MODEL = "rpa-model";
-        mockMediaStorage.ingestLocalFileForContext.mockResolvedValue("http://server/file.png");
         const processor = new MediaInputPathToUrlPreprocessor();
         const invocation = new ToolInvocation("generate_image", { input_images: "images/out.png" }, "3");
         const workspace = new FileSystemWorkspace(new WorkspaceConfig({ rootPath: "/tmp" }));
@@ -53,8 +52,8 @@ describe("MediaInputPathToUrlPreprocessor", () => {
             isFile: () => true,
         });
         const result = await processor.process(invocation, context);
-        expect(mockMediaStorage.ingestLocalFileForContext).toHaveBeenCalledWith("/tmp/images/out.png");
-        expect(result.arguments.input_images).toBe("http://server/file.png");
+        expect(mockMediaStorage.ingestLocalFileForContext).not.toHaveBeenCalled();
+        expect(result.arguments.input_images).toBe("/tmp/images/out.png");
         existsSpy.mockRestore();
         statSpy.mockRestore();
     });
@@ -69,7 +68,6 @@ describe("MediaInputPathToUrlPreprocessor", () => {
     });
     it("normalizes mask_image when present", async () => {
         process.env.DEFAULT_IMAGE_EDIT_MODEL = "rpa-model";
-        mockMediaStorage.ingestLocalFileForContext.mockResolvedValue("http://server/mask.png");
         const processor = new MediaInputPathToUrlPreprocessor();
         const invocation = new ToolInvocation("edit_image", { mask_image: "mask.png" }, "5");
         const workspace = new FileSystemWorkspace(new WorkspaceConfig({ rootPath: "/tmp" }));
@@ -79,8 +77,8 @@ describe("MediaInputPathToUrlPreprocessor", () => {
             isFile: () => true,
         });
         const result = await processor.process(invocation, context);
-        expect(mockMediaStorage.ingestLocalFileForContext).toHaveBeenCalledWith("/tmp/mask.png");
-        expect(result.arguments.mask_image).toBe("http://server/mask.png");
+        expect(mockMediaStorage.ingestLocalFileForContext).not.toHaveBeenCalled();
+        expect(result.arguments.mask_image).toBe("/tmp/mask.png");
         existsSpy.mockRestore();
         statSpy.mockRestore();
     });

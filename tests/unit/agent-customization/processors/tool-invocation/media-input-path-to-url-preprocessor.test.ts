@@ -65,8 +65,6 @@ describe("MediaInputPathToUrlPreprocessor", () => {
   });
 
   it("normalizes input_images with workspace", async () => {
-    mockMediaStorage.ingestLocalFileForContext.mockResolvedValue("http://server/file.png");
-
     const processor = new MediaInputPathToUrlPreprocessor();
     const invocation = new ToolInvocation(
       "generate_image",
@@ -88,10 +86,8 @@ describe("MediaInputPathToUrlPreprocessor", () => {
 
     const result = await processor.process(invocation, context);
 
-    expect(mockMediaStorage.ingestLocalFileForContext).toHaveBeenCalledWith(
-      "/tmp/images/out.png",
-    );
-    expect(result.arguments.input_images).toBe("http://server/file.png");
+    expect(mockMediaStorage.ingestLocalFileForContext).not.toHaveBeenCalled();
+    expect(result.arguments.input_images).toBe("/tmp/images/out.png");
 
     existsSpy.mockRestore();
     statSpy.mockRestore();
@@ -116,8 +112,6 @@ describe("MediaInputPathToUrlPreprocessor", () => {
   });
 
   it("normalizes mask_image when present", async () => {
-    mockMediaStorage.ingestLocalFileForContext.mockResolvedValue("http://server/mask.png");
-
     const processor = new MediaInputPathToUrlPreprocessor();
     const invocation = new ToolInvocation(
       "edit_image",
@@ -139,10 +133,8 @@ describe("MediaInputPathToUrlPreprocessor", () => {
 
     const result = await processor.process(invocation, context);
 
-    expect(mockMediaStorage.ingestLocalFileForContext).toHaveBeenCalledWith(
-      "/tmp/mask.png",
-    );
-    expect(result.arguments.mask_image).toBe("http://server/mask.png");
+    expect(mockMediaStorage.ingestLocalFileForContext).not.toHaveBeenCalled();
+    expect(result.arguments.mask_image).toBe("/tmp/mask.png");
 
     existsSpy.mockRestore();
     statSpy.mockRestore();
@@ -152,7 +144,6 @@ describe("MediaInputPathToUrlPreprocessor", () => {
     const providerSpy = vi
       .spyOn(LLMFactory, "getProvider")
       .mockResolvedValue(LLMProvider.AUTOBYTEUS);
-    mockMediaStorage.ingestLocalFileForContext.mockResolvedValue("http://server/file.png");
 
     const processor = new MediaInputPathToUrlPreprocessor();
     const invocation = new ToolInvocation(
@@ -181,7 +172,8 @@ describe("MediaInputPathToUrlPreprocessor", () => {
     const result = await processor.process(invocation, context);
 
     expect(providerSpy).toHaveBeenCalledWith("my-model-id");
-    expect(result.arguments.input_images).toBe("http://server/file.png");
+    expect(mockMediaStorage.ingestLocalFileForContext).not.toHaveBeenCalled();
+    expect(result.arguments.input_images).toBe("/tmp/images/out.png");
 
     existsSpy.mockRestore();
     statSpy.mockRestore();
