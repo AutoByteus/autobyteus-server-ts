@@ -94,6 +94,19 @@ Notes:
 - Tests use `.env.test` and a temporary SQLite DB at `tests/.tmp/`.
 - Some integration tests are env-gated (e.g., `AUTOBYTEUS_DOWNLOAD_TEST_URL`).
 
+## Documentation
+
+TypeScript server documentation is available under `autobyteus-server-ts/docs`.
+
+Recommended starting points:
+
+- `docs/README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/PROJECT_OVERVIEW.md`
+- `docs/URL_GENERATION_AND_ENV_STRATEGY.md`
+- `docs/modules/README.md`
+- `docs/design/startup_initialization_and_lazy_services.md`
+
 ## Endpoints
 
 - REST: `/rest/*`
