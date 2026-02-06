@@ -21,6 +21,24 @@ export class SqlAgentPromptMappingRepository extends BaseRepository.forModel(Pri
     }
   }
 
+  async getByAgentDefinitionIds(
+    agentDefinitionIds: number[],
+  ): Promise<PrismaAgentPromptMapping[]> {
+    if (agentDefinitionIds.length === 0) {
+      return [];
+    }
+    try {
+      return await this.findMany({
+        where: { agentDefinitionId: { in: agentDefinitionIds } },
+      });
+    } catch (error) {
+      logger.error(
+        `Failed to get prompt mappings for agent definition IDs ${agentDefinitionIds.join(", ")}: ${String(error)}`,
+      );
+      throw error;
+    }
+  }
+
   async upsertMapping(
     agentDefinitionId: number,
     data: Prisma.AgentPromptMappingCreateInput,

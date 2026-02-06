@@ -44,6 +44,7 @@ type AgentDefinitionProvider = {
 
 type AgentPromptMappingProvider = {
   getByAgentDefinitionId: (id: string) => Promise<AgentPromptMapping | null>;
+  getByAgentDefinitionIds?: (ids: string[]) => Promise<Map<string, AgentPromptMapping>>;
   upsert: (mapping: AgentPromptMapping) => Promise<AgentPromptMapping>;
   deleteByAgentDefinitionId: (id: string) => Promise<boolean>;
 };
@@ -108,7 +109,7 @@ export class AgentDefinitionService {
     this.provider = options.provider ?? new CachedAgentDefinitionProvider(persistenceProvider);
     this.mappingProvider =
       options.mappingProvider ?? new AgentPromptMappingPersistenceProvider();
-    this.promptService = options.promptService ?? new PromptService();
+    this.promptService = options.promptService ?? PromptService.getInstance();
     this.registries = {
       input: options.registries?.input ?? defaultInputProcessorRegistry,
       llmResponse: options.registries?.llmResponse ?? defaultLlmResponseProcessorRegistry,
@@ -257,14 +258,49 @@ export class AgentDefinitionService {
 
   async getAllAgentDefinitions(): Promise<AgentDefinition[]> {
     const definitions = await this.provider.getAll();
+    const definitionIds = definitions
+      .map((definition) => definition.id)
+      .filter((id): id is string => Boolean(id));
+    const mappingByAgentDefinitionId = await this.getMappingsByAgentDefinitionIds(definitionIds);
     const result: AgentDefinition[] = [];
     for (const definition of definitions) {
-      const populated = await this.populateSystemPromptFields(definition);
+      if (definition.id) {
+        const mapping = mappingByAgentDefinitionId.get(definition.id);
+        if (mapping) {
+          definition.systemPromptCategory = mapping.promptCategory;
+          definition.systemPromptName = mapping.promptName;
+        }
+      }
+      const populated = definition;
       if (populated) {
         result.push(this.stripMandatoryProcessors(populated) ?? populated);
       }
     }
     return result;
+  }
+
+  private async getMappingsByAgentDefinitionIds(
+    agentDefinitionIds: string[],
+  ): Promise<Map<string, AgentPromptMapping>> {
+    if (agentDefinitionIds.length === 0) {
+      return new Map<string, AgentPromptMapping>();
+    }
+    if (this.mappingProvider.getByAgentDefinitionIds) {
+      return this.mappingProvider.getByAgentDefinitionIds(agentDefinitionIds);
+    }
+    const mappingEntries = await Promise.all(
+      agentDefinitionIds.map(async (id) => {
+        const mapping = await this.mappingProvider.getByAgentDefinitionId(id);
+        return [id, mapping] as const;
+      }),
+    );
+    const mappingByAgentDefinitionId = new Map<string, AgentPromptMapping>();
+    for (const [id, mapping] of mappingEntries) {
+      if (mapping) {
+        mappingByAgentDefinitionId.set(id, mapping);
+      }
+    }
+    return mappingByAgentDefinitionId;
   }
 
   async updateAgentDefinition(

@@ -45,4 +45,39 @@ describe("SqlAgentPromptMappingProvider", () => {
     expect(retrieved).not.toBeNull();
     expect(retrieved?.promptName).toBe("ProviderUpdated");
   });
+
+  it("retrieves mappings in batch by agent definition IDs", async () => {
+    const promptService = new PromptService();
+    const prompt = await promptService.createPrompt({
+      name: `ProviderBatchTest-${randomUUID()}`,
+      category: "Provider",
+      promptContent: "Batch prompt content",
+    });
+
+    const service = new AgentDefinitionService();
+    const agentOne = await service.createAgentDefinition({
+      name: `Agent For Provider Batch Test One - ${randomUUID()}`,
+      role: "Test",
+      description: "Test",
+      systemPromptName: prompt.name,
+      systemPromptCategory: prompt.category,
+    });
+    const agentTwo = await service.createAgentDefinition({
+      name: `Agent For Provider Batch Test Two - ${randomUUID()}`,
+      role: "Test",
+      description: "Test",
+      systemPromptName: prompt.name,
+      systemPromptCategory: prompt.category,
+    });
+
+    const mappingProvider = new SqlAgentPromptMappingProvider();
+    const mappings = await mappingProvider.getByAgentDefinitionIds([
+      agentOne.id ?? "",
+      agentTwo.id ?? "",
+    ]);
+
+    expect(mappings.size).toBe(2);
+    expect(mappings.get(agentOne.id ?? "")?.agentDefinitionId).toBe(agentOne.id);
+    expect(mappings.get(agentTwo.id ?? "")?.agentDefinitionId).toBe(agentTwo.id);
+  });
 });

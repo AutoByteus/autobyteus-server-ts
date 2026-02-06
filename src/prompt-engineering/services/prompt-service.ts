@@ -23,12 +23,31 @@ type PromptServiceOptions = {
 };
 
 export class PromptService {
+  private static instance: PromptService | null = null;
   private provider: CachedPromptProvider;
 
   constructor(options: PromptServiceOptions = {}) {
-    const persistenceProvider =
-      options.persistenceProvider ?? new PromptPersistenceProvider();
-    this.provider = options.provider ?? new CachedPromptProvider(persistenceProvider);
+    if (options.provider) {
+      this.provider = options.provider;
+      return;
+    }
+    if (options.persistenceProvider) {
+      this.provider = CachedPromptProvider.getInstance(options.persistenceProvider);
+      return;
+    }
+    this.provider = CachedPromptProvider.getInstance();
+  }
+
+  static getInstance(options: PromptServiceOptions = {}): PromptService {
+    if (!PromptService.instance) {
+      PromptService.instance = new PromptService(options);
+    }
+    return PromptService.instance;
+  }
+
+  static resetInstance(): void {
+    PromptService.instance = null;
+    CachedPromptProvider.resetInstance();
   }
 
   async createPrompt(options: {

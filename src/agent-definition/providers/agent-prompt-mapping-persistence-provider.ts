@@ -12,6 +12,10 @@ export class AgentPromptMappingPersistenceProvider {
     return this.provider.getByAgentDefinitionId(agentDefinitionId);
   }
 
+  async getByAgentDefinitionIds(agentDefinitionIds: string[]): Promise<Map<string, AgentPromptMapping>> {
+    return this.provider.getByAgentDefinitionIds(agentDefinitionIds);
+  }
+
   async upsert(domainObj: AgentPromptMapping): Promise<AgentPromptMapping> {
     return this.provider.upsert(domainObj);
   }

@@ -9,6 +9,7 @@ const logger = {
   warn: (...args: unknown[]) => console.warn(...args),
   error: (...args: unknown[]) => console.error(...args),
 };
+const promptService = PromptService.getInstance();
 
 @ObjectType()
 export class PromptCategory {
@@ -189,8 +190,7 @@ export class PromptResolver {
     @Arg("isActive", () => Boolean, { nullable: true }) isActive?: boolean | null,
   ): Promise<Prompt[]> {
     try {
-      const service = new PromptService();
-      const domainPrompts = await service.findPrompts({
+      const domainPrompts = await promptService.findPrompts({
         isActive: isActive ?? undefined,
       });
       return domainPrompts.map(mapPromptToGraphql);
@@ -203,8 +203,7 @@ export class PromptResolver {
   @Query(() => Prompt, { nullable: true })
   async promptDetails(@Arg("id", () => String) id: string): Promise<Prompt | null> {
     try {
-      const service = new PromptService();
-      const prompt = await service.getPromptById(id);
+      const prompt = await promptService.getPromptById(id);
       return mapPromptToGraphql(prompt);
     } catch (error) {
       const message = String(error);
@@ -219,8 +218,7 @@ export class PromptResolver {
   @Query(() => [PromptCategory])
   async availablePromptCategories(): Promise<PromptCategory[]> {
     try {
-      const service = new PromptService();
-      const activePrompts = await service.getAllActivePrompts();
+      const activePrompts = await promptService.getAllActivePrompts();
       const categories = new Map<string, Set<string>>();
 
       for (const prompt of activePrompts) {
@@ -246,8 +244,7 @@ export class PromptResolver {
     @Arg("name", () => String) name: string,
   ): Promise<PromptDetails | null> {
     try {
-      const service = new PromptService();
-      const prompt = await service.getActivePromptByCategoryAndName(category, name);
+      const prompt = await promptService.getActivePromptByCategoryAndName(category, name);
       if (!prompt) {
         return null;
       }
@@ -265,8 +262,7 @@ export class PromptResolver {
   async createPrompt(
     @Arg("input", () => CreatePromptInput) input: CreatePromptInput,
   ): Promise<Prompt> {
-    const service = new PromptService();
-    const prompt = await service.createPrompt({
+    const prompt = await promptService.createPrompt({
       name: input.name,
       category: input.category,
       promptContent: input.promptContent,
@@ -280,8 +276,7 @@ export class PromptResolver {
   async updatePrompt(
     @Arg("input", () => UpdatePromptInput) input: UpdatePromptInput,
   ): Promise<Prompt> {
-    const service = new PromptService();
-    const updated = await service.updatePrompt({
+    const updated = await promptService.updatePrompt({
       promptId: input.id,
       name: input.name ?? null,
       category: input.category ?? null,
@@ -297,8 +292,7 @@ export class PromptResolver {
   async addNewPromptRevision(
     @Arg("input", () => AddNewPromptRevisionInput) input: AddNewPromptRevisionInput,
   ): Promise<Prompt> {
-    const service = new PromptService();
-    const revised = await service.addNewPromptRevision(input.id, input.newPromptContent);
+    const revised = await promptService.addNewPromptRevision(input.id, input.newPromptContent);
     return mapPromptToGraphql(revised);
   }
 
@@ -306,8 +300,7 @@ export class PromptResolver {
   async markActivePrompt(
     @Arg("input", () => MarkActivePromptInput) input: MarkActivePromptInput,
   ): Promise<Prompt> {
-    const service = new PromptService();
-    const activated = await service.markActivePrompt(input.id);
+    const activated = await promptService.markActivePrompt(input.id);
     return mapPromptToGraphql(activated);
   }
 
@@ -316,9 +309,8 @@ export class PromptResolver {
     @Arg("input", () => DeletePromptInput) input: DeletePromptInput,
   ): Promise<DeletePromptResult> {
     logger.info(`Attempting to delete prompt with ID: ${input.id}`);
-    const service = new PromptService();
     try {
-      const success = await service.deletePrompt(input.id);
+      const success = await promptService.deletePrompt(input.id);
       if (success) {
         logger.info(`Prompt with ID ${input.id} deleted successfully`);
         return { success: true, message: "Prompt deleted successfully" };
@@ -334,13 +326,11 @@ export class PromptResolver {
   @Mutation(() => SyncPromptsResult)
   async syncPrompts(): Promise<SyncPromptsResult> {
     logger.info("Manual prompt synchronization triggered via GraphQL");
-    const initialService = new PromptService();
-    const initialCount = (await initialService.getAllActivePrompts()).length;
+    const initialCount = (await promptService.getAllActivePrompts()).length;
 
     const success = await this.promptSyncService.syncPrompts();
 
-    const finalService = new PromptService();
-    const finalCount = (await finalService.getAllActivePrompts()).length;
+    const finalCount = (await promptService.getAllActivePrompts()).length;
 
     if (success) {
       getPromptLoader().invalidateCache();

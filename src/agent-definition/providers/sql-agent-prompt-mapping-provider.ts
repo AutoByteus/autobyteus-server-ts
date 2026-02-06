@@ -14,6 +14,19 @@ export class SqlAgentPromptMappingProvider {
     return mapping ? PrismaAgentPromptMappingConverter.toDomain(mapping) : null;
   }
 
+  async getByAgentDefinitionIds(agentDefinitionIds: string[]): Promise<Map<string, AgentPromptMapping>> {
+    const numericIds = agentDefinitionIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    const mappings = await this.repository.getByAgentDefinitionIds(numericIds);
+    const mappingByAgentDefinitionId = new Map<string, AgentPromptMapping>();
+    for (const mapping of mappings) {
+      const domain = PrismaAgentPromptMappingConverter.toDomain(mapping);
+      mappingByAgentDefinitionId.set(domain.agentDefinitionId, domain);
+    }
+    return mappingByAgentDefinitionId;
+  }
+
   async upsert(domainObj: AgentPromptMapping): Promise<AgentPromptMapping> {
     const agentDefinitionId = Number(domainObj.agentDefinitionId);
     const createInput = PrismaAgentPromptMappingConverter.toCreateInput(domainObj);

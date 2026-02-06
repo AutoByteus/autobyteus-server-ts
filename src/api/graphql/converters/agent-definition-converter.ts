@@ -6,6 +6,7 @@ import { AgentDefinition as GraphqlAgentDefinition } from "../types/agent-defini
 const logger = {
   error: (...args: unknown[]) => console.error(...args),
 };
+const promptService = PromptService.getInstance();
 
 export class AgentDefinitionConverter {
   static async toGraphql(
@@ -14,7 +15,6 @@ export class AgentDefinitionConverter {
     try {
       let graphqlPrompts: GraphqlPrompt[] = [];
       if (domainDefinition.systemPromptCategory && domainDefinition.systemPromptName) {
-        const promptService = new PromptService();
         const domainPrompts = await promptService.findAllByNameAndCategory(
           domainDefinition.systemPromptName,
           domainDefinition.systemPromptCategory,
