@@ -27,7 +27,7 @@ export class AssistantResponsePersistenceProcessor extends BaseLLMResponseProces
   }
 
   static override isMandatory(): boolean {
-    return true;
+    return false;
   }
 
   async processResponse(

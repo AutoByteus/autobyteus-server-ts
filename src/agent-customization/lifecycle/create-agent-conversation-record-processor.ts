@@ -22,7 +22,7 @@ export class CreateAgentConversationRecordProcessor extends BaseLifecycleEventPr
   }
 
   static override isMandatory(): boolean {
-    return true;
+    return false;
   }
 
   get event(): LifecycleEvent {

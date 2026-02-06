@@ -126,4 +126,8 @@ describe("AssistantResponsePersistenceProcessor", () => {
       "AssistantResponsePersistenceProcessor",
     );
   });
+
+  it("is optional", () => {
+    expect(AssistantResponsePersistenceProcessor.isMandatory()).toBe(false);
+  });
 });

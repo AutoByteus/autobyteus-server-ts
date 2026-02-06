@@ -114,4 +114,8 @@ describe("TokenUsagePersistenceProcessor", () => {
       "TokenUsagePersistenceProcessor",
     );
   });
+
+  it("is optional", () => {
+    expect(TokenUsagePersistenceProcessor.isMandatory()).toBe(false);
+  });
 });

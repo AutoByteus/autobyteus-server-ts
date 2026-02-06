@@ -95,4 +95,8 @@ describe("UserInputPersistenceProcessor", () => {
   it("exposes name", () => {
     expect(UserInputPersistenceProcessor.getName()).toBe("UserInputPersistenceProcessor");
   });
+
+  it("is optional", () => {
+    expect(UserInputPersistenceProcessor.isMandatory()).toBe(false);
+  });
 });
