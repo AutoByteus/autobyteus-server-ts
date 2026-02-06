@@ -3,6 +3,8 @@ import path from "node:path";
 import { BaseToolInvocationPreprocessor } from "autobyteus-ts";
 import type { AgentContext } from "autobyteus-ts";
 import type { ToolInvocation } from "autobyteus-ts/agent/tool-invocation.js";
+import { LLMFactory } from "autobyteus-ts/llm/llm-factory.js";
+import { LLMProvider } from "autobyteus-ts/llm/providers.js";
 import { MediaStorageService } from "../../../services/media-storage-service.js";
 import { FileSystemWorkspace } from "../../../workspaces/filesystem-workspace.js";
 
@@ -35,27 +37,45 @@ export class MediaInputPathToUrlPreprocessor extends BaseToolInvocationPreproces
     return true;
   }
 
-  private isRpaModel(modelName?: string | null): boolean {
-    if (!modelName) {
+  private isAutobyteusProvider(provider?: unknown): boolean {
+    if (provider === null || provider === undefined) {
       return false;
     }
-    return modelName.toLowerCase().includes("rpa");
+    const providerValue =
+      typeof provider === "object" && provider && "value" in provider
+        ? String((provider as { value: unknown }).value)
+        : String(provider);
+    return providerValue.toUpperCase() === LLMProvider.AUTOBYTEUS;
   }
 
-  private modelIsRpaForTool(toolName: string): boolean {
-    const envVarMap: Record<string, string> = {
-      generate_image: "DEFAULT_IMAGE_GENERATION_MODEL",
-      edit_image: "DEFAULT_IMAGE_EDIT_MODEL",
-      generate_speech: "DEFAULT_SPEECH_GENERATION_MODEL",
-    };
-
-    const envVar = envVarMap[toolName];
-    if (!envVar) {
-      return false;
+  private async resolveLlmProvider(context: AgentContext): Promise<unknown | null> {
+    const llmModel = context?.llmInstance?.model as
+      | { modelIdentifier?: string; provider?: unknown }
+      | undefined;
+    if (!llmModel) {
+      return null;
     }
 
-    const configured = process.env[envVar] ?? "";
-    return this.isRpaModel(configured);
+    const modelIdentifier = llmModel.modelIdentifier;
+    if (typeof modelIdentifier === "string" && modelIdentifier.trim().length > 0) {
+      try {
+        const provider = await LLMFactory.getProvider(modelIdentifier);
+        if (provider) {
+          return provider;
+        }
+      } catch (error) {
+        logger.debug(
+          `Failed to resolve provider from LLMFactory for model '${modelIdentifier}': ${String(error)}`,
+        );
+      }
+    }
+
+    return llmModel.provider ?? null;
+  }
+
+  private async modelProviderIsAutobyteus(context: AgentContext): Promise<boolean> {
+    const provider = await this.resolveLlmProvider(context);
+    return this.isAutobyteusProvider(provider);
   }
 
   private isUrl(value: string): boolean {
@@ -128,7 +148,7 @@ export class MediaInputPathToUrlPreprocessor extends BaseToolInvocationPreproces
       return invocation;
     }
 
-    if (!this.modelIsRpaForTool(toolName)) {
+    if (!(await this.modelProviderIsAutobyteus(context))) {
       return invocation;
     }
 
