@@ -31,7 +31,7 @@ export class UserInputPersistenceProcessor extends BaseAgentUserInputMessageProc
   }
 
   static override isMandatory(): boolean {
-    return true;
+    return false;
   }
 
   private getPersistenceRole(senderType: SenderType): string {

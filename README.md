@@ -100,6 +100,19 @@ Run a single test file:
 pnpm -C autobyteus-server-ts exec vitest run tests/unit/config/app-config.test.ts --no-watch
 ```
 
+## Documentation
+
+TypeScript server documentation is available under `autobyteus-server-ts/docs`.
+
+Recommended starting points:
+
+- `docs/README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/PROJECT_OVERVIEW.md`
+- `docs/URL_GENERATION_AND_ENV_STRATEGY.md`
+- `docs/modules/README.md`
+- `docs/design/startup_initialization_and_lazy_services.md`
+
 ## Endpoints
 
 - REST: `/rest/*`

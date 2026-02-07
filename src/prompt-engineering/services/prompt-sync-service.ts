@@ -21,7 +21,7 @@ type MarketplacePrompt = {
 export class PromptSyncService {
   private promptService: PromptService;
 
-  constructor(promptService: PromptService = new PromptService()) {
+  constructor(promptService: PromptService = PromptService.getInstance()) {
     this.promptService = promptService;
     logger.info(
       `PromptSyncService initialized. Marketplace URL will be determined from AUTOBYTEUS_MARKETPLACE_HOST or default to '${DEFAULT_MARKETPLACE_HOST_URL}'.`,

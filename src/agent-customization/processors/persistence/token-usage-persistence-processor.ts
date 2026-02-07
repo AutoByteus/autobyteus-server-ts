@@ -31,7 +31,7 @@ export class TokenUsagePersistenceProcessor extends BaseLLMResponseProcessor {
   }
 
   static override isMandatory(): boolean {
-    return true;
+    return false;
   }
 
   async processResponse(

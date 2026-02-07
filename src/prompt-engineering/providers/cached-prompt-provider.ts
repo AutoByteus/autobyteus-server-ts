@@ -8,6 +8,7 @@ const logger = {
 };
 
 export class CachedPromptProvider {
+  private static instance: CachedPromptProvider | null = null;
   private persistenceProvider: PromptPersistenceProvider;
   private cache: Map<string, Prompt> = new Map();
   private cachePopulated = false;
@@ -16,6 +17,19 @@ export class CachedPromptProvider {
   constructor(persistenceProvider: PromptPersistenceProvider) {
     this.persistenceProvider = persistenceProvider;
     logger.info("CachedPromptProvider initialized with a full in-memory cache strategy.");
+  }
+
+  static getInstance(
+    persistenceProvider: PromptPersistenceProvider = new PromptPersistenceProvider(),
+  ): CachedPromptProvider {
+    if (!CachedPromptProvider.instance) {
+      CachedPromptProvider.instance = new CachedPromptProvider(persistenceProvider);
+    }
+    return CachedPromptProvider.instance;
+  }
+
+  static resetInstance(): void {
+    CachedPromptProvider.instance = null;
   }
 
   private async populateCache(): Promise<void> {

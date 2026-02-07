@@ -9,7 +9,6 @@ import { WorkspaceResolver } from "./types/workspace.js";
 import { PromptResolver } from "./types/prompt.js";
 import { AgentDefinitionResolver } from "./types/agent-definition.js";
 import { AgentTeamDefinitionResolver } from "./types/agent-team-definition.js";
-import { ConversationResolver } from "./types/conversation.js";
 import { TokenUsageStatisticsResolver } from "./types/token-usage-stats.js";
 import { AgentArtifactResolver } from "./types/agent-artifact.js";
 import { AgentCustomizationOptionsResolver } from "./types/agent-customization-options.js";
@@ -34,7 +33,6 @@ export async function buildGraphqlSchema() {
       PromptResolver,
       AgentDefinitionResolver,
       AgentTeamDefinitionResolver,
-      ConversationResolver,
       TokenUsageStatisticsResolver,
       AgentArtifactResolver,
       AgentCustomizationOptionsResolver,

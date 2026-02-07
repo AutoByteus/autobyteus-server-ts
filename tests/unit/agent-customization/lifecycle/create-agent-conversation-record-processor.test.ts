@@ -115,4 +115,8 @@ describe("CreateAgentConversationRecordProcessor", () => {
     const processor = new CreateAgentConversationRecordProcessor();
     expect(processor.event).toBe(LifecycleEvent.AGENT_READY);
   });
+
+  it("is optional", () => {
+    expect(CreateAgentConversationRecordProcessor.isMandatory()).toBe(false);
+  });
 });
