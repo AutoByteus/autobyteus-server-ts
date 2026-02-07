@@ -9,6 +9,8 @@ import type { UserMessageReceivedEvent } from "autobyteus-ts/agent/events/agent-
 import { ContextFileType } from "autobyteus-ts/agent/message/context-file-type.js";
 import type { ContextFile } from "autobyteus-ts/agent/message/context-file.js";
 import { SenderType } from "autobyteus-ts/agent/sender-type.js";
+import { LLMFactory } from "autobyteus-ts/llm/llm-factory.js";
+import { LLMProvider } from "autobyteus-ts/llm/providers.js";
 import { FileSystemWorkspace } from "../../../workspaces/filesystem-workspace.js";
 import { PromptContextBuilder } from "./prompt-context-builder.js";
 
@@ -46,6 +48,47 @@ export class UserInputContextBuildingProcessor extends BaseAgentUserInputMessage
     }
   }
 
+  private isAutobyteusProvider(provider?: unknown): boolean {
+    if (provider === null || provider === undefined) {
+      return false;
+    }
+    const providerValue =
+      typeof provider === "object" && provider && "value" in provider
+        ? String((provider as { value: unknown }).value)
+        : String(provider);
+    return providerValue.toUpperCase() === LLMProvider.AUTOBYTEUS;
+  }
+
+  private async resolveLlmProvider(context: AgentContext): Promise<unknown | null> {
+    const llmModel = context?.llmInstance?.model as
+      | { modelIdentifier?: string; provider?: unknown }
+      | undefined;
+    if (!llmModel) {
+      return null;
+    }
+
+    const modelIdentifier = llmModel.modelIdentifier;
+    if (typeof modelIdentifier === "string" && modelIdentifier.trim().length > 0) {
+      try {
+        const provider = await LLMFactory.getProvider(modelIdentifier);
+        if (provider) {
+          return provider;
+        }
+      } catch (error) {
+        logger.debug(
+          `Failed to resolve provider from LLMFactory for model '${modelIdentifier}': ${String(error)}`,
+        );
+      }
+    }
+
+    return llmModel.provider ?? null;
+  }
+
+  private async modelProviderIsAutobyteus(context: AgentContext): Promise<boolean> {
+    const provider = await this.resolveLlmProvider(context);
+    return this.isAutobyteusProvider(provider);
+  }
+
   private async unifyAndTransformPaths(
     message: AgentInputUserMessage,
     context: AgentContext,
@@ -55,8 +98,6 @@ export class UserInputContextBuildingProcessor extends BaseAgentUserInputMessage
     }
 
     const agentId = context.agentId;
-    const llmModelName = context.llmInstance?.model?.name ?? "";
-    const isRpaModel = llmModelName.toLowerCase().endsWith("-rpa");
     const processed: ContextFile[] = [];
 
     for (const contextFile of message.contextFiles) {
@@ -103,14 +144,6 @@ export class UserInputContextBuildingProcessor extends BaseAgentUserInputMessage
       }
 
       contextFile.uri = absolutePath;
-
-      const isMediaFile = !ContextFileType.getReadableTextTypes().includes(contextFile.fileType);
-      if (isRpaModel && isMediaFile) {
-        logger.debug(
-          `Agent '${agentId}': Resolved RPA media file to local path '${absolutePath}'.`,
-        );
-      }
-
       processed.push(contextFile);
     }
 
@@ -171,12 +204,12 @@ export class UserInputContextBuildingProcessor extends BaseAgentUserInputMessage
     );
 
     let finalContent = formattedMessage;
+    const isAutobyteusModel = await this.modelProviderIsAutobyteus(context);
     const llmModelName = context.llmInstance?.model?.name ?? "";
-    const isRpaModel = llmModelName.toLowerCase().endsWith("-rpa");
 
-    if (isFirstTurn && isRpaModel) {
+    if (isFirstTurn && isAutobyteusModel) {
       logger.debug(
-        `Agent '${agentId}': First turn for RPA model '${llmModelName}'. Prepending system prompt.`,
+        `Agent '${agentId}': First turn for AUTOBYTEUS model '${llmModelName}'. Prepending system prompt.`,
       );
       const systemPrompt =
         context.llmInstance?.systemMessage ?? context.config?.systemPrompt ?? "";
@@ -184,12 +217,12 @@ export class UserInputContextBuildingProcessor extends BaseAgentUserInputMessage
         finalContent = `${systemPrompt}\n\n${formattedMessage}`;
       } else {
         logger.warn(
-          `Agent '${agentId}': RPA model's first turn, but system prompt is empty. Not prepending.`,
+          `Agent '${agentId}': AUTOBYTEUS model's first turn, but system prompt is empty. Not prepending.`,
         );
       }
     } else {
       logger.debug(
-        `Agent '${agentId}': Standard prompt processing. isFirstTurn=${isFirstTurn}, isRpaModel=${isRpaModel}.`,
+        `Agent '${agentId}': Standard prompt processing. isFirstTurn=${isFirstTurn}, isAutobyteusModel=${isAutobyteusModel}.`,
       );
     }
 

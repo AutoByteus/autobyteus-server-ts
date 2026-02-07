@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
-import { MediaInputPathToUrlPreprocessor } from "../../../../../src/agent-customization/processors/tool-invocation/media-input-path-to-url-preprocessor.js";
+import { MediaInputPathNormalizationPreprocessor } from "../../../../../src/agent-customization/processors/tool-invocation/media-input-path-normalization-preprocessor.js";
 import { ToolInvocation } from "autobyteus-ts/agent/tool-invocation.js";
 import type { AgentContext } from "autobyteus-ts";
 import { LLMFactory } from "autobyteus-ts/llm/llm-factory.js";
@@ -22,7 +22,7 @@ vi.mock("../../../../../src/services/media-storage-service.js", () => {
   };
 });
 
-describe("MediaInputPathToUrlPreprocessor", () => {
+describe("MediaInputPathNormalizationPreprocessor", () => {
   beforeEach(() => {
     mockMediaStorage.ingestLocalFileForContext.mockReset();
     vi.restoreAllMocks();
@@ -33,7 +33,7 @@ describe("MediaInputPathToUrlPreprocessor", () => {
   });
 
   it("skips non-target tools", async () => {
-    const processor = new MediaInputPathToUrlPreprocessor();
+    const processor = new MediaInputPathNormalizationPreprocessor();
     const invocation = new ToolInvocation("other_tool", { input_images: "foo.png" }, "1");
     const context = {
       agentId: "agent-1",
@@ -46,8 +46,26 @@ describe("MediaInputPathToUrlPreprocessor", () => {
     expect(mockMediaStorage.ingestLocalFileForContext).not.toHaveBeenCalled();
   });
 
+  it("skips generate_speech as it has no image path arguments", async () => {
+    const processor = new MediaInputPathNormalizationPreprocessor();
+    const invocation = new ToolInvocation(
+      "generate_speech",
+      { prompt: "hello", output_file_path: "out.wav" },
+      "1b",
+    );
+    const context = {
+      agentId: "agent-1",
+      llmInstance: { model: { provider: LLMProvider.AUTOBYTEUS } },
+    } as AgentContext;
+
+    const result = await processor.process(invocation, context);
+
+    expect(result).toBe(invocation);
+    expect(result.arguments).toEqual({ prompt: "hello", output_file_path: "out.wav" });
+  });
+
   it("skips when provider is not AUTOBYTEUS", async () => {
-    const processor = new MediaInputPathToUrlPreprocessor();
+    const processor = new MediaInputPathNormalizationPreprocessor();
     const invocation = new ToolInvocation(
       "generate_image",
       { input_images: "foo.png" },
@@ -65,7 +83,7 @@ describe("MediaInputPathToUrlPreprocessor", () => {
   });
 
   it("normalizes input_images with workspace", async () => {
-    const processor = new MediaInputPathToUrlPreprocessor();
+    const processor = new MediaInputPathNormalizationPreprocessor();
     const invocation = new ToolInvocation(
       "generate_image",
       { input_images: "images/out.png" },
@@ -94,7 +112,7 @@ describe("MediaInputPathToUrlPreprocessor", () => {
   });
 
   it("keeps URL entries unchanged", async () => {
-    const processor = new MediaInputPathToUrlPreprocessor();
+    const processor = new MediaInputPathNormalizationPreprocessor();
     const invocation = new ToolInvocation(
       "generate_image",
       { input_images: "http://example.com/img.png" },
@@ -112,7 +130,7 @@ describe("MediaInputPathToUrlPreprocessor", () => {
   });
 
   it("normalizes mask_image when present", async () => {
-    const processor = new MediaInputPathToUrlPreprocessor();
+    const processor = new MediaInputPathNormalizationPreprocessor();
     const invocation = new ToolInvocation(
       "edit_image",
       { mask_image: "mask.png" },
@@ -145,7 +163,7 @@ describe("MediaInputPathToUrlPreprocessor", () => {
       .spyOn(LLMFactory, "getProvider")
       .mockResolvedValue(LLMProvider.AUTOBYTEUS);
 
-    const processor = new MediaInputPathToUrlPreprocessor();
+    const processor = new MediaInputPathNormalizationPreprocessor();
     const invocation = new ToolInvocation(
       "generate_image",
       { input_images: "images/out.png" },

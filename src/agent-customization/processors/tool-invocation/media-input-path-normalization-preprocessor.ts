@@ -13,16 +13,16 @@ const logger = {
   error: (...args: unknown[]) => console.error(...args),
 };
 
-export class MediaInputPathToUrlPreprocessor extends BaseToolInvocationPreprocessor {
-  static TARGET_TOOLS = new Set(["generate_image", "edit_image", "generate_speech"]);
+export class MediaInputPathNormalizationPreprocessor extends BaseToolInvocationPreprocessor {
+  static TARGET_TOOLS = new Set(["generate_image", "edit_image"]);
 
   constructor() {
     super();
-    logger.debug("MediaInputPathToUrlPreprocessor initialized.");
+    logger.debug("MediaInputPathNormalizationPreprocessor initialized.");
   }
 
   static override getName(): string {
-    return "MediaInputPathToUrlPreprocessor";
+    return "MediaInputPathNormalizationPreprocessor";
   }
 
   static override getOrder(): number {
@@ -133,7 +133,7 @@ export class MediaInputPathToUrlPreprocessor extends BaseToolInvocationPreproces
 
   async process(invocation: ToolInvocation, context: AgentContext): Promise<ToolInvocation> {
     const toolName = invocation.name ?? "";
-    if (!MediaInputPathToUrlPreprocessor.TARGET_TOOLS.has(toolName)) {
+    if (!MediaInputPathNormalizationPreprocessor.TARGET_TOOLS.has(toolName)) {
       return invocation;
     }
 

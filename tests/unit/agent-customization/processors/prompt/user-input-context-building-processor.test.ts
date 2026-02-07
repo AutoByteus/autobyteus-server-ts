@@ -8,36 +8,27 @@ import { ContextFile } from "autobyteus-ts/agent/message/context-file.js";
 import { SenderType } from "autobyteus-ts/agent/sender-type.js";
 import { UserMessageReceivedEvent } from "autobyteus-ts/agent/events/agent-events.js";
 import type { AgentContext } from "autobyteus-ts";
+import { LLMProvider } from "autobyteus-ts/llm/providers.js";
 import { FileSystemWorkspace } from "../../../../../src/workspaces/filesystem-workspace.js";
 import { WorkspaceConfig } from "autobyteus-ts/agent/workspace/workspace-config.js";
 
-const mockMediaStorage = vi.hoisted(() => ({
-  ingestLocalFileForContext: vi.fn(),
-}));
-
-vi.mock("../../../../../src/services/media-storage-service.js", () => {
-  class MockMediaStorageService {
-    ingestLocalFileForContext = mockMediaStorage.ingestLocalFileForContext;
-  }
-
-  return {
-    MediaStorageService: MockMediaStorageService,
-  };
-});
-
 type MockLlm = {
-  model: { name: string };
+  model: { name: string; provider?: unknown; modelIdentifier?: string };
   systemMessage: string;
 };
 
 const buildContext = (options: {
   workspace?: FileSystemWorkspace | null;
   modelName?: string;
+  provider?: unknown;
   systemMessage?: string;
   customData?: Record<string, any>;
 } = {}): AgentContext => {
   const llmInstance: MockLlm = {
-    model: { name: options.modelName ?? "test-model" },
+    model: {
+      name: options.modelName ?? "test-model",
+      provider: options.provider ?? LLMProvider.OPENAI,
+    },
     systemMessage: options.systemMessage ?? "System Prompt.",
   };
 
@@ -55,7 +46,6 @@ describe("UserInputContextBuildingProcessor", () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "autobyteus-user-input-"));
-    mockMediaStorage.ingestLocalFileForContext.mockReset();
   });
 
   afterEach(() => {
@@ -117,7 +107,6 @@ describe("UserInputContextBuildingProcessor", () => {
 
     const result = await processor.process(message, context, new UserMessageReceivedEvent(message));
 
-    expect(mockMediaStorage.ingestLocalFileForContext).not.toHaveBeenCalled();
     expect(result.contextFiles?.[0].uri).toBe(imagePath);
     expect(result.content).not.toContain("fake image data");
   });
@@ -137,15 +126,15 @@ describe("UserInputContextBuildingProcessor", () => {
 
     const result = await processor.process(message, context, new UserMessageReceivedEvent(message));
 
-    expect(mockMediaStorage.ingestLocalFileForContext).not.toHaveBeenCalled();
     expect(result.contextFiles?.[0].uri).toBe(imagePath);
   });
 
-  it("prepends system prompt for first-turn RPA models", async () => {
+  it("prepends system prompt for first-turn AUTOBYTEUS models", async () => {
     const workspace = new FileSystemWorkspace(new WorkspaceConfig({ rootPath: tempDir }));
     const context = buildContext({
       workspace,
-      modelName: "test-rpa",
+      modelName: "test-model",
+      provider: LLMProvider.AUTOBYTEUS,
       systemMessage: "RPA System Message.",
       customData: { is_on_first_turn: true },
     });
@@ -163,7 +152,8 @@ describe("UserInputContextBuildingProcessor", () => {
     const workspace = new FileSystemWorkspace(new WorkspaceConfig({ rootPath: tempDir }));
     const context = buildContext({
       workspace,
-      modelName: "test-rpa",
+      modelName: "test-model",
+      provider: LLMProvider.AUTOBYTEUS,
       systemMessage: "RPA System Message.",
       customData: { is_on_first_turn: false },
     });
@@ -174,6 +164,25 @@ describe("UserInputContextBuildingProcessor", () => {
 
     expect(result.content.startsWith("RPA System Message.")).toBe(false);
     expect(result.content.endsWith("**[User Requirement]**\nMy Requirement")).toBe(true);
+  });
+
+  it("does not prepend system prompt for non-AUTOBYTEUS model on first turn", async () => {
+    const workspace = new FileSystemWorkspace(new WorkspaceConfig({ rootPath: tempDir }));
+    const context = buildContext({
+      workspace,
+      modelName: "test-model",
+      provider: LLMProvider.OPENAI,
+      systemMessage: "RPA System Message.",
+      customData: { is_on_first_turn: true },
+    });
+    const message = new AgentInputUserMessage("My Requirement", SenderType.USER);
+    const processor = new UserInputContextBuildingProcessor();
+
+    const result = await processor.process(message, context, new UserMessageReceivedEvent(message));
+
+    expect(result.content.startsWith("RPA System Message.")).toBe(false);
+    expect(result.content.endsWith("**[User Requirement]**\nMy Requirement")).toBe(true);
+    expect(context.customData.is_on_first_turn).toBe(false);
   });
 
   it("skips missing files gracefully", async () => {

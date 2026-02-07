@@ -25,7 +25,7 @@ import { UserInputContextBuildingProcessor } from "../agent-customization/proces
 import { WorkspacePathSanitizationProcessor } from "../agent-customization/processors/security-processor/workspace-path-sanitization-processor.js";
 import { MediaToolResultUrlTransformerProcessor } from "../agent-customization/processors/tool-result/media-tool-result-url-transformer-processor.js";
 import { AgentArtifactPersistenceProcessor } from "../agent-customization/processors/tool-result/agent-artifact-persistence-processor.js";
-import { MediaInputPathToUrlPreprocessor } from "../agent-customization/processors/tool-invocation/media-input-path-to-url-preprocessor.js";
+import { MediaInputPathNormalizationPreprocessor } from "../agent-customization/processors/tool-invocation/media-input-path-normalization-preprocessor.js";
 import { MediaUrlTransformerProcessor } from "../agent-customization/processors/response-customization/media-url-transformer-processor.js";
 
 const logger = {
@@ -124,7 +124,7 @@ export function loadAgentCustomizations(): void {
   registerLlmResponseProcessor(TokenUsagePersistenceProcessor);
   registerLlmResponseProcessor(MediaUrlTransformerProcessor);
 
-  registerToolInvocationPreprocessor(MediaInputPathToUrlPreprocessor);
+  registerToolInvocationPreprocessor(MediaInputPathNormalizationPreprocessor);
   registerToolResultProcessor(MediaToolResultUrlTransformerProcessor);
   registerToolResultProcessor(AgentArtifactPersistenceProcessor);
 
