@@ -30,7 +30,7 @@ Major domains under `src/`:
 - MCP server management
 - LLM and multimedia model management
 - Workspaces and file explorer
-- Token usage and conversation persistence
+- Token usage and memory-centric conversation state
 - Agent artifacts
 
 ## Configuration Model

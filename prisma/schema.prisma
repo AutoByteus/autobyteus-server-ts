@@ -54,39 +54,6 @@ model Prompt {
   @@map("prompts")
 }
 
-model AgentConversation {
-  id               Int     @id @default(autoincrement())
-  agentId          String  @unique @map("agent_id")
-  agentDefinitionId String @map("agent_definition_id")
-  createdAt        DateTime @default(now()) @map("created_at")
-  llmModel         String? @map("llm_model")
-  useXmlToolFormat Boolean @default(false) @map("use_xml_tool_format")
-
-  messages AgentConversationMessage[]
-
-  @@map("agent_conversations")
-}
-
-model AgentConversationMessage {
-  id                  Int      @id @default(autoincrement())
-  agentConversationId Int      @map("agent_conversation_id")
-  role                String
-  message             String
-  originalMessage     String?  @map("original_message")
-  contextPaths        String?  @map("context_paths")
-  timestamp           DateTime @default(now())
-  tokenCount          Int?     @map("token_count")
-  cost                Float?
-  reasoning           String?
-  imageUrls           String?  @map("image_urls")
-  audioUrls           String?  @map("audio_urls")
-  videoUrls           String?  @map("video_urls")
-
-  conversation AgentConversation @relation(fields: [agentConversationId], references: [id], onDelete: Cascade)
-
-  @@map("agent_conversation_messages")
-}
-
 model AgentTeamDefinition {
   id                     Int    @id @default(autoincrement())
   name                   String @unique

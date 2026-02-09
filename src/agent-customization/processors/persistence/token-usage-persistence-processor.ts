@@ -1,7 +1,6 @@
 import { BaseLLMResponseProcessor, type AgentContext } from "autobyteus-ts";
 import type { LLMCompleteResponseReceivedEvent } from "autobyteus-ts/agent/events/agent-events.js";
 import type { CompleteResponse } from "autobyteus-ts/llm/utils/response-types.js";
-import { PersistenceProxy as ConversationPersistenceProxy } from "../../../agent-conversation/providers/persistence-proxy.js";
 import { PersistenceProxy as TokenUsagePersistenceProxy } from "../../../token-usage/providers/persistence-proxy.js";
 
 const logger = {
@@ -12,12 +11,10 @@ const logger = {
 };
 
 export class TokenUsagePersistenceProcessor extends BaseLLMResponseProcessor {
-  private conversationProxy: ConversationPersistenceProxy;
   private tokenUsageProxy: TokenUsagePersistenceProxy;
 
   constructor() {
     super();
-    this.conversationProxy = new ConversationPersistenceProxy();
     this.tokenUsageProxy = new TokenUsagePersistenceProxy();
     logger.debug("TokenUsagePersistenceProcessor initialized.");
   }
@@ -65,23 +62,6 @@ export class TokenUsagePersistenceProcessor extends BaseLLMResponseProcessor {
       logger.info(
         `Agent '${agentId}': Successfully created detailed token usage records.`,
       );
-
-      const promptCost = usage.prompt_cost;
-      if (promptCost != null) {
-        logger.debug(
-          `Agent '${agentId}': Updating last user message with prompt token usage for agent '${agentId}'.`,
-        );
-
-        await this.conversationProxy.updateLastUserMessageUsage(
-          agentId,
-          usage.prompt_tokens,
-          promptCost,
-        );
-
-        logger.info(
-          `Agent '${agentId}': Successfully updated user message with prompt token usage.`,
-        );
-      }
     } catch (error) {
       logger.error(
         `Agent '${agentId}': Failed to persist token usage for agent '${agentId}': ${String(

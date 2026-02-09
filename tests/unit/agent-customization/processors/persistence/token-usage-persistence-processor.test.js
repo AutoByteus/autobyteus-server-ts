@@ -2,20 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TokenUsagePersistenceProcessor } from "../../../../../src/agent-customization/processors/persistence/token-usage-persistence-processor.js";
 import { LLMCompleteResponseReceivedEvent } from "autobyteus-ts/agent/events/agent-events.js";
 import { CompleteResponse } from "autobyteus-ts/llm/utils/response-types.js";
-const mockConversationProxy = vi.hoisted(() => ({
-    updateLastUserMessageUsage: vi.fn(),
-}));
 const mockTokenUsageProxy = vi.hoisted(() => ({
     createConversationTokenUsageRecords: vi.fn(),
 }));
-vi.mock("../../../../../src/agent-conversation/providers/persistence-proxy.js", () => {
-    class MockConversationProxy {
-        updateLastUserMessageUsage = mockConversationProxy.updateLastUserMessageUsage;
-    }
-    return {
-        PersistenceProxy: MockConversationProxy,
-    };
-});
 vi.mock("../../../../../src/token-usage/providers/persistence-proxy.js", () => {
     class MockTokenUsageProxy {
         createConversationTokenUsageRecords = mockTokenUsageProxy.createConversationTokenUsageRecords;
@@ -26,7 +15,6 @@ vi.mock("../../../../../src/token-usage/providers/persistence-proxy.js", () => {
 });
 describe("TokenUsagePersistenceProcessor", () => {
     beforeEach(() => {
-        mockConversationProxy.updateLastUserMessageUsage.mockReset();
         mockTokenUsageProxy.createConversationTokenUsageRecords.mockReset();
     });
     it("persists detailed token usage", async () => {
@@ -51,7 +39,6 @@ describe("TokenUsagePersistenceProcessor", () => {
         const result = await processor.processResponse(completeResponse, context, triggeringEvent);
         expect(result).toBe(false);
         expect(mockTokenUsageProxy.createConversationTokenUsageRecords).toHaveBeenCalledWith("agent_xyz", tokenUsage, "test-llm-v1");
-        expect(mockConversationProxy.updateLastUserMessageUsage).toHaveBeenCalledWith("agent_xyz", 100, 0.001);
     });
     it("skips persistence without usage", async () => {
         const processor = new TokenUsagePersistenceProcessor();
@@ -65,7 +52,6 @@ describe("TokenUsagePersistenceProcessor", () => {
         const result = await processor.processResponse(completeResponse, context, triggeringEvent);
         expect(result).toBe(false);
         expect(mockTokenUsageProxy.createConversationTokenUsageRecords).not.toHaveBeenCalled();
-        expect(mockConversationProxy.updateLastUserMessageUsage).not.toHaveBeenCalled();
         expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("No token usage data in response"));
         warnSpy.mockRestore();
     });
