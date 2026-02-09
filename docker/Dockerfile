@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM autobyteus/chrome-vnc:latest
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git openssh-client ca-certificates \

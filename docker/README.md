@@ -41,6 +41,26 @@ cp .env.example .env
 docker compose logs -f autobyteus-server
 ```
 
+## Multi-Arch Release Image
+
+For a publishable image that is fully built at image-build time (does not clone repos at container startup), use the monorepo Dockerfile:
+
+```bash
+./build-multi-arch.sh --push
+```
+
+Default target image is:
+
+- `autobyteus/autobyteus-server:<version-from-package-json>`
+- `autobyteus/autobyteus-server:latest`
+
+Optional overrides:
+
+```bash
+./build-multi-arch.sh --push --version 1.4.3
+./build-multi-arch.sh --push --image-name autobyteus/autobyteus-server-ts
+```
+
 ## Endpoints
 
 With default port mapping:
