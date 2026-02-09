@@ -29,14 +29,6 @@ export class ServerSettingsService {
     );
 
     this.settingsInfo.set(
-      "AUTOBYTEUS_LLM_SERVER_URL",
-      new ServerSettingDescription(
-        "AUTOBYTEUS_LLM_SERVER_URL",
-        "URL of the AUTOBYTEUS LLM server",
-      ),
-    );
-
-    this.settingsInfo.set(
       "AUTOBYTEUS_SERVER_HOST",
       new ServerSettingDescription(
         "AUTOBYTEUS_SERVER_HOST",
@@ -53,18 +45,18 @@ export class ServerSettingsService {
     );
 
     this.settingsInfo.set(
-      "DEFAULT_OLLAMA_HOST",
+      "OLLAMA_HOSTS",
       new ServerSettingDescription(
-        "DEFAULT_OLLAMA_HOST",
-        "Host URL for the Ollama server (e.g., http://localhost:11434)",
+        "OLLAMA_HOSTS",
+        "Comma-separated host URLs for Ollama servers (e.g., http://localhost:11434)",
       ),
     );
 
     this.settingsInfo.set(
-      "LMSTUDIO_HOST",
+      "LMSTUDIO_HOSTS",
       new ServerSettingDescription(
-        "LMSTUDIO_HOST",
-        "Host URL for the LM Studio server (e.g., http://localhost:1234)",
+        "LMSTUDIO_HOSTS",
+        "Comma-separated host URLs for LM Studio servers (e.g., http://localhost:1234)",
       ),
     );
 
