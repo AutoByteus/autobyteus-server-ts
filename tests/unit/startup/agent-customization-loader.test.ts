@@ -18,9 +18,11 @@ import { CreateAgentConversationRecordProcessor } from "../../../src/agent-custo
 import { WorkspacePathSanitizationProcessor } from "../../../src/agent-customization/processors/security-processor/workspace-path-sanitization-processor.js";
 import { UserInputContextBuildingProcessor } from "../../../src/agent-customization/processors/prompt/user-input-context-building-processor.js";
 import { UserInputPersistenceProcessor } from "../../../src/agent-customization/processors/persistence/user-input-persistence-processor.js";
+import { ExternalChannelTurnReceiptBindingProcessor } from "../../../src/agent-customization/processors/persistence/external-channel-turn-receipt-binding-processor.js";
 import { AssistantResponsePersistenceProcessor } from "../../../src/agent-customization/processors/persistence/assistant-response-persistence-processor.js";
 import { TokenUsagePersistenceProcessor } from "../../../src/agent-customization/processors/persistence/token-usage-persistence-processor.js";
 import { MediaUrlTransformerProcessor } from "../../../src/agent-customization/processors/response-customization/media-url-transformer-processor.js";
+import { ExternalChannelAssistantReplyProcessor } from "../../../src/agent-customization/processors/response-customization/external-channel-assistant-reply-processor.js";
 import { MediaInputPathNormalizationPreprocessor } from "../../../src/agent-customization/processors/tool-invocation/media-input-path-normalization-preprocessor.js";
 import { MediaToolResultUrlTransformerProcessor } from "../../../src/agent-customization/processors/tool-result/media-tool-result-url-transformer-processor.js";
 import { AgentArtifactPersistenceProcessor } from "../../../src/agent-customization/processors/tool-result/agent-artifact-persistence-processor.js";
@@ -95,11 +97,13 @@ describe("loadAgentCustomizations", () => {
 
     expect(defaultInputProcessorRegistry.contains(WorkspacePathSanitizationProcessor.getName())).toBe(true);
     expect(defaultInputProcessorRegistry.contains(UserInputContextBuildingProcessor.getName())).toBe(true);
+    expect(defaultInputProcessorRegistry.contains(ExternalChannelTurnReceiptBindingProcessor.getName())).toBe(true);
     expect(defaultInputProcessorRegistry.contains(UserInputPersistenceProcessor.getName())).toBe(true);
 
     expect(defaultLlmResponseProcessorRegistry.contains(AssistantResponsePersistenceProcessor.getName())).toBe(true);
     expect(defaultLlmResponseProcessorRegistry.contains(TokenUsagePersistenceProcessor.getName())).toBe(true);
     expect(defaultLlmResponseProcessorRegistry.contains(MediaUrlTransformerProcessor.getName())).toBe(true);
+    expect(defaultLlmResponseProcessorRegistry.contains(ExternalChannelAssistantReplyProcessor.getName())).toBe(true);
 
     expect(
       defaultToolInvocationPreprocessorRegistry.contains(MediaInputPathNormalizationPreprocessor.getName()),

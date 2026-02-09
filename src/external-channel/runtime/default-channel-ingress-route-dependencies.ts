@@ -1,0 +1,67 @@
+import { AgentInstanceManager } from "../../agent-execution/services/agent-instance-manager.js";
+import { AgentTeamInstanceManager } from "../../agent-team-execution/services/agent-team-instance-manager.js";
+import type { ChannelIngressRouteDependencies } from "../../api/rest/channel-ingress.js";
+import { SqlChannelBindingProvider } from "../providers/sql-channel-binding-provider.js";
+import { SqlChannelIdempotencyProvider } from "../providers/sql-channel-idempotency-provider.js";
+import { SqlChannelMessageReceiptProvider } from "../providers/sql-channel-message-receipt-provider.js";
+import { SqlDeliveryEventProvider } from "../providers/sql-delivery-event-provider.js";
+import { ChannelBindingService } from "../services/channel-binding-service.js";
+import { ChannelIdempotencyService } from "../services/channel-idempotency-service.js";
+import { ChannelIngressService } from "../services/channel-ingress-service.js";
+import { ChannelMessageReceiptService } from "../services/channel-message-receipt-service.js";
+import { ChannelThreadLockService } from "../services/channel-thread-lock-service.js";
+import { DeliveryEventService } from "../services/delivery-event-service.js";
+import { DefaultChannelRuntimeFacade } from "./default-channel-runtime-facade.js";
+
+let cachedDependencies: ChannelIngressRouteDependencies | null = null;
+
+export const getDefaultChannelIngressRouteDependencies =
+  (): ChannelIngressRouteDependencies => {
+    if (cachedDependencies) {
+      return cachedDependencies;
+    }
+
+    const bindingService = new ChannelBindingService(new SqlChannelBindingProvider());
+    const idempotencyService = new ChannelIdempotencyService(
+      new SqlChannelIdempotencyProvider(),
+    );
+    const messageReceiptService = new ChannelMessageReceiptService(
+      new SqlChannelMessageReceiptProvider(),
+    );
+    const runtimeFacade = new DefaultChannelRuntimeFacade({
+      agentInstanceManager: {
+        getAgentInstance: (agentId: string) =>
+          AgentInstanceManager.getInstance().getAgentInstance(agentId) as {
+            postUserMessage: (
+              message: import("autobyteus-ts").AgentInputUserMessage,
+            ) => Promise<void>;
+          } | null,
+      },
+      agentTeamInstanceManager: {
+        getTeamInstance: (teamId: string) =>
+          AgentTeamInstanceManager.getInstance().getTeamInstance(teamId) as {
+            postMessage: (
+              message: import("autobyteus-ts").AgentInputUserMessage,
+              targetNodeName?: string | null,
+            ) => Promise<void>;
+          } | null,
+      },
+    });
+    const ingressService = new ChannelIngressService({
+      idempotencyService,
+      bindingService,
+      threadLockService: new ChannelThreadLockService(),
+      runtimeFacade,
+      messageReceiptService,
+    });
+    const deliveryEventService = new DeliveryEventService(
+      new SqlDeliveryEventProvider(),
+    );
+
+    cachedDependencies = {
+      ingressService,
+      deliveryEventService,
+      gatewaySecret: process.env.CHANNEL_GATEWAY_SHARED_SECRET ?? null,
+    };
+    return cachedDependencies;
+  };

@@ -75,13 +75,28 @@ You can also run it manually.
 Build from repo root (required so workspace packages are available):
 
 ```bash
-docker build -f autobyteus-server-ts/docker/Dockerfile -t autobyteus-server-ts .
+docker build -f autobyteus-server-ts/docker/Dockerfile.monorepo -t autobyteus-server-ts .
 ```
 
 Run:
 
 ```bash
 docker run --rm -p 8000:8000 autobyteus-server-ts
+```
+
+Server-only development stack (compose + bootstrap scripts) is in:
+
+```bash
+autobyteus-server-ts/docker
+```
+
+Quick start:
+
+```bash
+cd autobyteus-server-ts/docker
+cp .env.example .env
+./build.sh
+./start.sh
 ```
 
 ## Tests

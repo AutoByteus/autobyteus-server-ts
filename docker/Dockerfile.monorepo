@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1
+
+FROM node:20-bookworm AS builder
+WORKDIR /app
+
+RUN corepack enable
+
+COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY autobyteus-ts/package.json autobyteus-ts/tsconfig.build.json autobyteus-ts/tsconfig.json ./autobyteus-ts/
+COPY repository_prisma/package.json repository_prisma/tsconfig.json ./repository_prisma/
+COPY autobyteus-server-ts/package.json autobyteus-server-ts/tsconfig.json ./autobyteus-server-ts/
+
+COPY autobyteus-ts ./autobyteus-ts
+COPY repository_prisma ./repository_prisma
+COPY autobyteus-server-ts ./autobyteus-server-ts
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm -C autobyteus-server-ts build
+
+FROM node:20-bookworm-slim AS runtime
+WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git ripgrep \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/autobyteus-ts/dist ./autobyteus-ts/dist
+COPY --from=builder /app/autobyteus-ts/package.json ./autobyteus-ts/package.json
+COPY --from=builder /app/repository_prisma/dist ./repository_prisma/dist
+COPY --from=builder /app/repository_prisma/package.json ./repository_prisma/package.json
+COPY --from=builder /app/autobyteus-server-ts/dist ./autobyteus-server-ts/dist
+COPY --from=builder /app/autobyteus-server-ts/prisma ./autobyteus-server-ts/prisma
+COPY --from=builder /app/autobyteus-server-ts/package.json ./autobyteus-server-ts/package.json
+
+ENV NODE_ENV=production
+
+WORKDIR /app/autobyteus-server-ts
+CMD ["node", "dist/app.js", "--host", "0.0.0.0", "--port", "8000"]

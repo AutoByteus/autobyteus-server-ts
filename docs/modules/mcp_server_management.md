@@ -14,3 +14,8 @@ MCP server configuration persistence, discovery, and tool registration.
 ## Main Service
 
 - `src/mcp-server-management/services/mcp-config-service.ts`
+
+## Codex Example
+
+- See `docs/modules/codex_integration.md`
+- Import-ready MCP config template: `docs/examples/codex_mcp_import.json`
