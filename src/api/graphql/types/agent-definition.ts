@@ -21,6 +21,9 @@ export class AgentDefinition {
   @Field(() => String)
   description!: string;
 
+  @Field(() => String, { nullable: true })
+  avatarUrl?: string | null;
+
   @Field(() => [String])
   toolNames!: string[];
 
@@ -66,6 +69,9 @@ export class CreateAgentDefinitionInput {
   @Field(() => String)
   description!: string;
 
+  @Field(() => String, { nullable: true })
+  avatarUrl?: string | null;
+
   @Field(() => String)
   systemPromptCategory!: string;
 
@@ -110,6 +116,9 @@ export class UpdateAgentDefinitionInput {
 
   @Field(() => String, { nullable: true })
   description?: string | null;
+
+  @Field(() => String, { nullable: true })
+  avatarUrl?: string | null;
 
   @Field(() => String, { nullable: true })
   systemPromptCategory?: string | null;
@@ -192,6 +201,7 @@ export class AgentDefinitionResolver {
         name: input.name,
         role: input.role,
         description: input.description,
+        avatarUrl: input.avatarUrl ?? undefined,
         systemPromptCategory: input.systemPromptCategory,
         systemPromptName: input.systemPromptName,
         toolNames: input.toolNames ?? undefined,

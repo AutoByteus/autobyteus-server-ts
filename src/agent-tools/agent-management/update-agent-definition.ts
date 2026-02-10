@@ -40,6 +40,14 @@ argumentSchema.addParameter(
 );
 argumentSchema.addParameter(
   new ParameterDefinition({
+    name: "avatar_url",
+    type: ParameterType.STRING,
+    description: "The new avatar URL. Pass an empty string to clear the avatar.",
+    required: false,
+  }),
+);
+argumentSchema.addParameter(
+  new ParameterDefinition({
     name: "system_prompt_category",
     type: ParameterType.STRING,
     description: "The new system prompt category. Must be provided with system_prompt_name.",
@@ -116,6 +124,7 @@ export async function updateAgentDefinition(
   name?: string | null,
   role?: string | null,
   description?: string | null,
+  avatar_url?: string | null,
   system_prompt_category?: string | null,
   system_prompt_name?: string | null,
   tool_names?: string | null,
@@ -131,6 +140,7 @@ export async function updateAgentDefinition(
   if (name !== null && name !== undefined) updateData.name = name;
   if (role !== null && role !== undefined) updateData.role = role;
   if (description !== null && description !== undefined) updateData.description = description;
+  if (avatar_url !== null && avatar_url !== undefined) updateData.avatarUrl = avatar_url;
   if (system_prompt_category !== null && system_prompt_category !== undefined) {
     updateData.systemPromptCategory = system_prompt_category;
   }

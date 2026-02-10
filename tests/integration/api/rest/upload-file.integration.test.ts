@@ -79,14 +79,17 @@ const buildMultipartPayload = (options: {
   content: string | Buffer;
 }): { boundary: string; payload: Buffer } => {
   const boundary = "----autobyteus-upload-boundary";
-  const body =
+  const header = Buffer.from(
     `--${boundary}\r\n` +
-    `Content-Disposition: form-data; name=\"${options.fieldName}\"; filename=\"${options.filename}\"\r\n` +
-    `Content-Type: ${options.contentType}\r\n\r\n` +
-    `${options.content}\r\n` +
-    `--${boundary}--\r\n`;
-
-  return { boundary, payload: Buffer.from(body) };
+      `Content-Disposition: form-data; name=\"${options.fieldName}\"; filename=\"${options.filename}\"\r\n` +
+      `Content-Type: ${options.contentType}\r\n\r\n`,
+    "utf8",
+  );
+  const contentBuffer = Buffer.isBuffer(options.content)
+    ? options.content
+    : Buffer.from(options.content, "utf8");
+  const footer = Buffer.from(`\r\n--${boundary}--\r\n`, "utf8");
+  return { boundary, payload: Buffer.concat([header, contentBuffer, footer]) };
 };
 
 describe("REST upload-file route", () => {
@@ -140,6 +143,56 @@ describe("REST upload-file route", () => {
 
     expect(fileResponse.statusCode).toBe(200);
     expect(fileResponse.payload).toBe("Hello, world");
+
+    await app.close();
+  });
+
+  it("uploads a dummy PNG image and stores it under /images", async () => {
+    const app = fastify();
+    await app.register(multipart);
+    await app.register(
+      async (instance) => {
+        await registerUploadRoutes(instance);
+        await registerFileRoutes(instance);
+      },
+      { prefix: "/rest" },
+    );
+
+    // 1x1 PNG
+    const onePixelPng = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Yt9sAAAAASUVORK5CYII=",
+      "base64",
+    );
+    const { boundary, payload } = buildMultipartPayload({
+      fieldName: "file",
+      filename: "avatar.png",
+      contentType: "image/png",
+      content: onePixelPng,
+    });
+
+    const uploadResponse = await app.inject({
+      method: "POST",
+      url: "/rest/upload-file",
+      headers: {
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+      },
+      payload,
+    });
+
+    expect(uploadResponse.statusCode).toBe(200);
+    const uploadJson = uploadResponse.json() as { fileUrl: string };
+    expect(uploadJson.fileUrl).toContain("/rest/files/images/");
+    expect(uploadJson.fileUrl.endsWith(".png")).toBe(true);
+
+    const imagePath = new URL(uploadJson.fileUrl).pathname;
+    const fileResponse = await app.inject({
+      method: "GET",
+      url: imagePath,
+    });
+
+    expect(fileResponse.statusCode).toBe(200);
+    expect(fileResponse.headers["content-type"]).toContain("image/png");
+    expect(fileResponse.rawPayload.length).toBeGreaterThan(0);
 
     await app.close();
   });
@@ -199,6 +252,48 @@ describe("REST upload-file route", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ detail: "No file uploaded." });
+
+    await app.close();
+  });
+
+  it("returns 413 and does not persist truncated files when upload exceeds file size limit", async () => {
+    const app = fastify();
+    await app.register(multipart, {
+      limits: {
+        fileSize: 1024,
+      },
+      throwFileSizeLimit: false,
+    });
+    await app.register(
+      async (instance) => {
+        await registerUploadRoutes(instance);
+      },
+      { prefix: "/rest" },
+    );
+
+    const oversizedPngPayload = Buffer.alloc(4096, 0x89);
+    const { boundary, payload } = buildMultipartPayload({
+      fieldName: "file",
+      filename: "oversized-avatar.png",
+      contentType: "image/png",
+      content: oversizedPngPayload,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/rest/upload-file",
+      headers: {
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+      },
+      payload,
+    });
+
+    expect(response.statusCode).toBe(413);
+    expect(response.json()).toEqual({
+      detail: "Uploaded file is too large.",
+    });
+
+    expect(fs.readdirSync(mediaState.imagesDir)).toHaveLength(0);
 
     await app.close();
   });

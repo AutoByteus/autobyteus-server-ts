@@ -10,6 +10,7 @@ describe("SqlAgentDefinitionRepository", () => {
       name: "SQL Agent Def Repo Test",
       role: "Tester",
       description: "A test agent definition",
+      avatarUrl: "http://localhost:8000/rest/files/images/repo-avatar.png",
       toolNames: emptyList,
       inputProcessorNames: emptyList,
       llmResponseProcessorNames: emptyList,
@@ -22,11 +23,13 @@ describe("SqlAgentDefinitionRepository", () => {
 
     expect(created.id).toBeDefined();
     expect(created.name).toBe("SQL Agent Def Repo Test");
+    expect(created.avatarUrl).toBe("http://localhost:8000/rest/files/images/repo-avatar.png");
     expect(JSON.parse(created.skillNames)).toEqual(["test_skill_1", "test_skill_2"]);
 
     const found = await repo.findById(created.id);
     expect(found).not.toBeNull();
     expect(found?.id).toBe(created.id);
+    expect(found?.avatarUrl).toBe("http://localhost:8000/rest/files/images/repo-avatar.png");
     expect(JSON.parse(found?.skillNames ?? "[]")).toEqual(["test_skill_1", "test_skill_2"]);
   });
 });

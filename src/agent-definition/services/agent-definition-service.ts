@@ -57,10 +57,19 @@ type PromptServiceLike = {
   ) => Promise<unknown[]>;
 };
 
+const normalizeOptionalString = (value: unknown): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 export type AgentDefinitionCreateInput = {
   name: string;
   role: string;
   description: string;
+  avatarUrl?: string | null;
   systemPromptCategory: string;
   systemPromptName: string;
   toolNames?: string[];
@@ -194,6 +203,7 @@ export class AgentDefinitionService {
       name: data.name,
       role: data.role,
       description: data.description,
+      avatarUrl: normalizeOptionalString(data.avatarUrl),
       toolNames: data.toolNames ?? [],
       inputProcessorNames: filterOptionalProcessorNames(
         data.inputProcessorNames ?? [],
@@ -363,6 +373,9 @@ export class AgentDefinitionService {
             value as string[],
             this.registries.lifecycle,
           );
+          break;
+        case "avatarUrl":
+          nextValue = normalizeOptionalString(value);
           break;
         default:
           break;

@@ -27,6 +27,7 @@ const serializeDefinition = (definition: AgentDefinition): Record<string, unknow
   name: definition.name,
   role: definition.role,
   description: definition.description,
+  avatar_url: definition.avatarUrl ?? null,
   tool_names: definition.toolNames,
   input_processor_names: definition.inputProcessorNames,
   llm_response_processor_names: definition.llmResponseProcessorNames,

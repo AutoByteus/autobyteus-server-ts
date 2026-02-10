@@ -98,6 +98,13 @@ export async function registerUploadRoutes(app: FastifyInstance): Promise<void> 
 
     try {
       await pipeline(file.file, fs.createWriteStream(filePath));
+      if (file.file.truncated) {
+        logger.error(`Uploaded file exceeded multipart size limit and was truncated: ${file.filename}`);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+        return reply.code(413).send({ detail: "Uploaded file is too large." });
+      }
       logger.info(`File saved successfully to persistent storage: ${filePath}`);
     } catch (error) {
       logger.error(`Failed to save uploaded file: ${String(error)}`);

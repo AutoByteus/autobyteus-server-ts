@@ -48,6 +48,14 @@ argumentSchema.addParameter(
 );
 argumentSchema.addParameter(
   new ParameterDefinition({
+    name: "avatar_url",
+    type: ParameterType.STRING,
+    description: "Optional avatar URL for this agent.",
+    required: false,
+  }),
+);
+argumentSchema.addParameter(
+  new ParameterDefinition({
     name: "tool_names",
     type: ParameterType.STRING,
     description: "A comma-separated string of tool names for this agent.",
@@ -117,6 +125,7 @@ export async function createAgentDefinition(
   description: string,
   system_prompt_category: string,
   system_prompt_name: string,
+  avatar_url?: string | null,
   tool_names?: string | null,
   system_prompt_processor_names?: string | null,
   input_processor_names?: string | null,
@@ -133,6 +142,7 @@ export async function createAgentDefinition(
       name,
       role,
       description,
+      avatarUrl: avatar_url ?? undefined,
       systemPromptCategory: system_prompt_category,
       systemPromptName: system_prompt_name,
       toolNames: parseCsvList(tool_names),

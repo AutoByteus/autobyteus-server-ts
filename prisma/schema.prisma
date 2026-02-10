@@ -12,6 +12,7 @@ model AgentDefinition {
   name                              String @unique
   role                              String
   description                       String
+  avatarUrl                         String? @map("avatar_url")
   toolNames                         String @default("[]") @map("tool_names")
   inputProcessorNames               String @default("[]") @map("input_processor_names")
   llmResponseProcessorNames         String @default("[]") @map("llm_response_processor_names")

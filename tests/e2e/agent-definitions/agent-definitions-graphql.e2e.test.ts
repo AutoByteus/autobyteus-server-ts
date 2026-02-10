@@ -63,6 +63,7 @@ describe("Agent definitions GraphQL e2e", () => {
           name
           role
           description
+          avatarUrl
           toolNames
           systemPromptCategory
           systemPromptName
@@ -81,6 +82,7 @@ describe("Agent definitions GraphQL e2e", () => {
         name: string;
         role: string;
         description: string;
+        avatarUrl: string | null;
         toolNames: string[];
         systemPromptCategory: string | null;
         systemPromptName: string | null;
@@ -91,6 +93,7 @@ describe("Agent definitions GraphQL e2e", () => {
         name: `agent_${unique}`,
         role: "assistant",
         description: "Agent definition for e2e",
+        avatarUrl: "http://localhost:8000/rest/files/images/e2e-avatar.png",
         systemPromptCategory: promptCategory,
         systemPromptName: promptName,
         toolNames: ["tool_a", "tool_b"],
@@ -101,6 +104,9 @@ describe("Agent definitions GraphQL e2e", () => {
     expect(created.createAgentDefinition.name).toBe(`agent_${unique}`);
     expect(created.createAgentDefinition.systemPromptCategory).toBe(promptCategory);
     expect(created.createAgentDefinition.systemPromptName).toBe(promptName);
+    expect(created.createAgentDefinition.avatarUrl).toBe(
+      "http://localhost:8000/rest/files/images/e2e-avatar.png",
+    );
     expect(created.createAgentDefinition.prompts.length).toBeGreaterThan(0);
     expect(
       created.createAgentDefinition.prompts.some(
@@ -113,20 +119,28 @@ describe("Agent definitions GraphQL e2e", () => {
         updateAgentDefinition(input: $input) {
           id
           description
+          avatarUrl
           skillNames
         }
       }
     `;
     const updated = await execGraphql<{
-      updateAgentDefinition: { id: string; description: string; skillNames: string[] };
+      updateAgentDefinition: {
+        id: string;
+        description: string;
+        avatarUrl: string | null;
+        skillNames: string[];
+      };
     }>(updateMutation, {
       input: {
         id: created.createAgentDefinition.id,
         description: "Updated description",
+        avatarUrl: "",
         skillNames: ["skill_one", "skill_two"],
       },
     });
     expect(updated.updateAgentDefinition.description).toBe("Updated description");
+    expect(updated.updateAgentDefinition.avatarUrl).toBeNull();
     expect(updated.updateAgentDefinition.skillNames).toContain("skill_two");
 
     const query = `
@@ -134,14 +148,15 @@ describe("Agent definitions GraphQL e2e", () => {
         agentDefinition(id: $id) {
           id
           name
+          avatarUrl
         }
       }
     `;
-    const fetched = await execGraphql<{ agentDefinition: { id: string; name: string } | null }>(
-      query,
-      { id: created.createAgentDefinition.id },
-    );
+    const fetched = await execGraphql<{
+      agentDefinition: { id: string; name: string; avatarUrl: string | null } | null;
+    }>(query, { id: created.createAgentDefinition.id });
     expect(fetched.agentDefinition?.id).toBe(created.createAgentDefinition.id);
+    expect(fetched.agentDefinition?.avatarUrl).toBeNull();
 
     const deleteMutation = `
       mutation DeleteAgentDefinition($id: String!) {

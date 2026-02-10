@@ -18,6 +18,14 @@ const toStringArray = (value: unknown): string[] => {
   return [];
 };
 
+const normalizeOptionalString = (value: string | null | undefined): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 export class PrismaAgentDefinitionConverter {
   static toDomain(prismaObj: PrismaAgentDefinition): AgentDefinition {
     return new AgentDefinition({
@@ -25,6 +33,7 @@ export class PrismaAgentDefinitionConverter {
       name: prismaObj.name,
       role: prismaObj.role,
       description: prismaObj.description,
+      avatarUrl: normalizeOptionalString(prismaObj.avatarUrl),
       toolNames: toStringArray(prismaObj.toolNames),
       inputProcessorNames: toStringArray(prismaObj.inputProcessorNames),
       llmResponseProcessorNames: toStringArray(prismaObj.llmResponseProcessorNames),
@@ -41,6 +50,7 @@ export class PrismaAgentDefinitionConverter {
       name: domainObj.name,
       role: domainObj.role,
       description: domainObj.description,
+      avatarUrl: normalizeOptionalString(domainObj.avatarUrl),
       toolNames: JSON.stringify(domainObj.toolNames),
       inputProcessorNames: JSON.stringify(domainObj.inputProcessorNames),
       llmResponseProcessorNames: JSON.stringify(domainObj.llmResponseProcessorNames),
@@ -63,6 +73,7 @@ export class PrismaAgentDefinitionConverter {
         name: domainObj.name,
         role: domainObj.role,
         description: domainObj.description,
+        avatarUrl: normalizeOptionalString(domainObj.avatarUrl),
         toolNames: JSON.stringify(domainObj.toolNames),
         inputProcessorNames: JSON.stringify(domainObj.inputProcessorNames),
         llmResponseProcessorNames: JSON.stringify(domainObj.llmResponseProcessorNames),
