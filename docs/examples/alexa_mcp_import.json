@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "alexa-home": {
+      "transport_type": "stdio",
+      "enabled": true,
+      "tool_name_prefix": "alexa",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/normy/autobyteus_org/autobyteus_mcps/alexa-mcp",
+        "run",
+        "python",
+        "-m",
+        "alexa_mcp.server"
+      ],
+      "env": {
+        "ALEXA_COMMAND": "/Users/normy/autobyteus_org/autobyteus_mcps/alexa-mcp/scripts/alexa_adapter.sh",
+        "ALEXA_COMMAND_BASE_ARGS": "",
+        "ALEXA_REMOTE_CONTROL_SCRIPT": "/Users/normy/autobyteus_org/autobyteus_mcps/alexa-mcp/scripts/vendor/alexa-remote-control/alexa_remote_control.sh",
+        "ALEXA_REFRESH_TOKEN_FILE": "/Users/normy/autobyteus_org/autobyteus_mcps/alexa-mcp/.secrets/refresh_token",
+        "AMAZON": "amazon.de",
+        "ALEXA": "alexa.amazon.de",
+        "ALEXA_ALLOWED_ROUTINES": "plug_on,plug_off,play_focus_music,stop_music",
+        "ALEXA_ALLOWED_MUSIC_ACTIONS": "play,stop",
+        "ALEXA_DEFAULT_DEVICE": "REPLACE_WITH_DEFAULT_ECHO_NAME"
+      }
+    }
+  }
+}
