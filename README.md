@@ -75,13 +75,28 @@ You can also run it manually.
 Build from repo root (required so workspace packages are available):
 
 ```bash
-docker build -f autobyteus-server-ts/docker/Dockerfile -t autobyteus-server-ts .
+docker build -f autobyteus-server-ts/docker/Dockerfile.monorepo -t autobyteus-server-ts .
 ```
 
 Run:
 
 ```bash
 docker run --rm -p 8000:8000 autobyteus-server-ts
+```
+
+Server-only development stack (compose + bootstrap scripts) is in:
+
+```bash
+autobyteus-server-ts/docker
+```
+
+Quick start:
+
+```bash
+cd autobyteus-server-ts/docker
+cp .env.example .env
+./build.sh
+./start.sh
 ```
 
 ## Tests
@@ -93,6 +108,12 @@ pnpm -C autobyteus-server-ts exec vitest
 Notes:
 - Tests use `.env.test` and a temporary SQLite DB at `tests/.tmp/`.
 - Some integration tests are env-gated (e.g., `AUTOBYTEUS_DOWNLOAD_TEST_URL`).
+
+Run a single test file:
+
+```bash
+pnpm -C autobyteus-server-ts exec vitest run tests/unit/config/app-config.test.ts --no-watch
+```
 
 ## Documentation
 

@@ -54,39 +54,6 @@ model Prompt {
   @@map("prompts")
 }
 
-model AgentConversation {
-  id               Int     @id @default(autoincrement())
-  agentId          String  @unique @map("agent_id")
-  agentDefinitionId String @map("agent_definition_id")
-  createdAt        DateTime @default(now()) @map("created_at")
-  llmModel         String? @map("llm_model")
-  useXmlToolFormat Boolean @default(false) @map("use_xml_tool_format")
-
-  messages AgentConversationMessage[]
-
-  @@map("agent_conversations")
-}
-
-model AgentConversationMessage {
-  id                  Int      @id @default(autoincrement())
-  agentConversationId Int      @map("agent_conversation_id")
-  role                String
-  message             String
-  originalMessage     String?  @map("original_message")
-  contextPaths        String?  @map("context_paths")
-  timestamp           DateTime @default(now())
-  tokenCount          Int?     @map("token_count")
-  cost                Float?
-  reasoning           String?
-  imageUrls           String?  @map("image_urls")
-  audioUrls           String?  @map("audio_urls")
-  videoUrls           String?  @map("video_urls")
-
-  conversation AgentConversation @relation(fields: [agentConversationId], references: [id], onDelete: Cascade)
-
-  @@map("agent_conversation_messages")
-}
-
 model AgentTeamDefinition {
   id                     Int    @id @default(autoincrement())
   name                   String @unique
@@ -147,4 +114,87 @@ model McpServerConfiguration {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("mcp_server_configurations")
+}
+
+model ChannelBinding {
+  id                     Int      @id @default(autoincrement())
+  provider               String
+  transport              String
+  accountId              String   @map("account_id")
+  peerId                 String   @map("peer_id")
+  threadId               String   @default("") @map("thread_id")
+  targetType             String   @map("target_type")
+  agentId                String?  @map("agent_id")
+  teamId                 String?  @map("team_id")
+  targetNodeName         String?  @map("target_node_name")
+  allowTransportFallback Boolean  @default(false) @map("allow_transport_fallback")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, transport, accountId, peerId, threadId], map: "uq_channel_binding_route")
+  @@index([agentId], map: "idx_channel_bindings_agent_id")
+  @@index([teamId], map: "idx_channel_bindings_team_id")
+  @@map("channel_bindings")
+}
+
+model ChannelIngressIdempotencyKey {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  expiresAt   DateTime? @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("channel_ingress_idempotency_keys")
+}
+
+model ChannelCallbackIdempotencyKey {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  expiresAt   DateTime? @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("channel_callback_idempotency_keys")
+}
+
+model ChannelMessageReceipt {
+  id                Int      @id @default(autoincrement())
+  provider          String
+  transport         String
+  accountId         String   @map("account_id")
+  peerId            String   @map("peer_id")
+  threadId          String   @default("") @map("thread_id")
+  externalMessageId String   @map("external_message_id")
+  turnId            String?  @map("turn_id")
+  agentId           String?  @map("agent_id")
+  teamId            String?  @map("team_id")
+  receivedAt        DateTime @map("received_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, transport, accountId, peerId, threadId, externalMessageId], map: "uq_channel_message_receipt_dedupe")
+  @@index([agentId, receivedAt], map: "idx_channel_message_receipts_agent_received_at")
+  @@index([agentId, turnId], map: "idx_channel_message_receipts_agent_turn_id")
+  @@index([teamId, receivedAt], map: "idx_channel_message_receipts_team_received_at")
+  @@map("channel_message_receipts")
+}
+
+model ChannelDeliveryEvent {
+  id                    Int      @id @default(autoincrement())
+  provider              String
+  transport             String
+  accountId             String   @map("account_id")
+  peerId                String   @map("peer_id")
+  threadId              String   @default("") @map("thread_id")
+  correlationMessageId  String?  @map("correlation_message_id")
+  callbackIdempotencyKey String  @map("callback_idempotency_key")
+  status                String
+  errorMessage          String?  @map("error_message")
+  metadataJson          String?  @map("metadata_json")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@unique([callbackIdempotencyKey], map: "uq_channel_delivery_events_callback_key")
+  @@index([provider, transport, accountId, peerId, threadId], map: "idx_channel_delivery_events_route")
+  @@map("channel_delivery_events")
 }

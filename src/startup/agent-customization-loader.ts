@@ -1,25 +1,20 @@
 import {
   AgentUserInputMessageProcessorDefinition,
   LLMResponseProcessorDefinition,
-  LifecycleEventProcessorDefinition,
   ToolExecutionResultProcessorDefinition,
   ToolInvocationPreprocessorDefinition,
   type BaseAgentUserInputMessageProcessor,
   type BaseLLMResponseProcessor,
-  type BaseLifecycleEventProcessor,
   type BaseToolExecutionResultProcessor,
   type BaseToolInvocationPreprocessor,
   defaultSystemPromptProcessorRegistry,
   defaultInputProcessorRegistry,
   defaultLlmResponseProcessorRegistry,
-  defaultLifecycleEventProcessorRegistry,
   defaultToolExecutionResultProcessorRegistry,
   defaultToolInvocationPreprocessorRegistry,
   registerSystemPromptProcessors,
 } from "autobyteus-ts";
-import { CreateAgentConversationRecordProcessor } from "../agent-customization/lifecycle/create-agent-conversation-record-processor.js";
-import { UserInputPersistenceProcessor } from "../agent-customization/processors/persistence/user-input-persistence-processor.js";
-import { AssistantResponsePersistenceProcessor } from "../agent-customization/processors/persistence/assistant-response-persistence-processor.js";
+import { ExternalChannelTurnReceiptBindingProcessor } from "../agent-customization/processors/persistence/external-channel-turn-receipt-binding-processor.js";
 import { TokenUsagePersistenceProcessor } from "../agent-customization/processors/persistence/token-usage-persistence-processor.js";
 import { UserInputContextBuildingProcessor } from "../agent-customization/processors/prompt/user-input-context-building-processor.js";
 import { WorkspacePathSanitizationProcessor } from "../agent-customization/processors/security-processor/workspace-path-sanitization-processor.js";
@@ -27,6 +22,7 @@ import { MediaToolResultUrlTransformerProcessor } from "../agent-customization/p
 import { AgentArtifactPersistenceProcessor } from "../agent-customization/processors/tool-result/agent-artifact-persistence-processor.js";
 import { MediaInputPathNormalizationPreprocessor } from "../agent-customization/processors/tool-invocation/media-input-path-normalization-preprocessor.js";
 import { MediaUrlTransformerProcessor } from "../agent-customization/processors/response-customization/media-url-transformer-processor.js";
+import { ExternalChannelAssistantReplyProcessor } from "../agent-customization/processors/response-customization/external-channel-assistant-reply-processor.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -36,8 +32,6 @@ const logger = {
 type InputProcessorClass = typeof BaseAgentUserInputMessageProcessor &
   (new () => BaseAgentUserInputMessageProcessor);
 type LlmResponseProcessorClass = typeof BaseLLMResponseProcessor & (new () => BaseLLMResponseProcessor);
-type LifecycleProcessorClass = typeof BaseLifecycleEventProcessor &
-  (new () => BaseLifecycleEventProcessor);
 type ToolResultProcessorClass = typeof BaseToolExecutionResultProcessor &
   (new () => BaseToolExecutionResultProcessor);
 type ToolInvocationPreprocessorClass = typeof BaseToolInvocationPreprocessor &
@@ -63,17 +57,6 @@ function registerLlmResponseProcessor(processorClass: LlmResponseProcessorClass)
     new LLMResponseProcessorDefinition(name, processorClass),
   );
   logger.info(`Registered LLM response processor '${name}'.`);
-}
-
-function registerLifecycleProcessor(processorClass: LifecycleProcessorClass): void {
-  const name = processorClass.getName();
-  if (defaultLifecycleEventProcessorRegistry.has(name)) {
-    return;
-  }
-  defaultLifecycleEventProcessorRegistry.registerProcessor(
-    new LifecycleEventProcessorDefinition(name, processorClass),
-  );
-  logger.info(`Registered lifecycle processor '${name}'.`);
 }
 
 function registerToolResultProcessor(processorClass: ToolResultProcessorClass): void {
@@ -114,15 +97,13 @@ export function loadAgentCustomizations(): void {
 
   ensureSystemPromptProcessorsRegistered();
 
-  registerLifecycleProcessor(CreateAgentConversationRecordProcessor);
-
   registerInputProcessor(WorkspacePathSanitizationProcessor);
   registerInputProcessor(UserInputContextBuildingProcessor);
-  registerInputProcessor(UserInputPersistenceProcessor);
+  registerInputProcessor(ExternalChannelTurnReceiptBindingProcessor);
 
-  registerLlmResponseProcessor(AssistantResponsePersistenceProcessor);
   registerLlmResponseProcessor(TokenUsagePersistenceProcessor);
   registerLlmResponseProcessor(MediaUrlTransformerProcessor);
+  registerLlmResponseProcessor(ExternalChannelAssistantReplyProcessor);
 
   registerToolInvocationPreprocessor(MediaInputPathNormalizationPreprocessor);
   registerToolResultProcessor(MediaToolResultUrlTransformerProcessor);

@@ -1,39 +1,39 @@
-# syntax=docker/dockerfile:1
+FROM autobyteus/chrome-vnc:latest
 
-FROM node:20-bookworm AS builder
-WORKDIR /app
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git openssh-client ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable
 
-COPY pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY autobyteus-ts/package.json autobyteus-ts/tsconfig.build.json autobyteus-ts/tsconfig.json ./autobyteus-ts/
-COPY repository_prisma/package.json repository_prisma/tsconfig.json ./repository_prisma/
-COPY autobyteus-server-ts/package.json autobyteus-server-ts/tsconfig.json ./autobyteus-server-ts/
+RUN useradd --create-home --shell /bin/bash autobyteus
 
-COPY autobyteus-ts ./autobyteus-ts
-COPY repository_prisma ./repository_prisma
-COPY autobyteus-server-ts ./autobyteus-server-ts
+RUN mkdir -p /home/autobyteus/workspace /home/autobyteus/data /home/autobyteus/.ssh \
+  && ssh-keyscan github.com >> /home/autobyteus/.ssh/known_hosts \
+  && chown -R autobyteus:autobyteus /home/autobyteus
 
-RUN pnpm install --frozen-lockfile
-RUN pnpm -C autobyteus-server-ts build
+COPY bootstrap.sh /usr/local/bin/autobyteus-bootstrap.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 
-FROM node:20-bookworm-slim AS runtime
-WORKDIR /app
+RUN chmod +x /usr/local/bin/autobyteus-bootstrap.sh /usr/local/bin/entrypoint.sh
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends git ripgrep \
-  && rm -rf /var/lib/apt/lists/*
+USER autobyteus
+WORKDIR /home/autobyteus/workspace
 
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/autobyteus-ts/dist ./autobyteus-ts/dist
-COPY --from=builder /app/autobyteus-ts/package.json ./autobyteus-ts/package.json
-COPY --from=builder /app/repository_prisma/dist ./repository_prisma/dist
-COPY --from=builder /app/repository_prisma/package.json ./repository_prisma/package.json
-COPY --from=builder /app/autobyteus-server-ts/dist ./autobyteus-server-ts/dist
-COPY --from=builder /app/autobyteus-server-ts/prisma ./autobyteus-server-ts/prisma
-COPY --from=builder /app/autobyteus-server-ts/package.json ./autobyteus-server-ts/package.json
+ENV AUTOBYTEUS_WORKSPACE_ROOT=/home/autobyteus/workspace \
+    AUTOBYTEUS_DATA_DIR=/home/autobyteus/data \
+    AUTOBYTEUS_SERVER_PORT=8000 \
+    AUTOBYTEUS_BIND_HOST=0.0.0.0 \
+    AUTOBYTEUS_GIT_AUTH_MODE=pat \
+    AUTOBYTEUS_REF=main \
+    AUTOBYTEUS_SERVER_REF=main \
+    AUTOBYTEUS_TS_REF=main \
+    AUTOBYTEUS_REPOSITORY_PRISMA_REF=main \
+    APP_ENV=production \
+    PERSISTENCE_PROVIDER=sqlite \
+    DB_TYPE=sqlite \
+    LOG_LEVEL=INFO
 
-ENV NODE_ENV=production
+EXPOSE 8000
 
-WORKDIR /app/autobyteus-server-ts
-CMD ["node", "dist/app.js", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

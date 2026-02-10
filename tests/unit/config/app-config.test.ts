@@ -64,6 +64,7 @@ describe("AppConfig", () => {
     const expectedDbPath = path.resolve(configDir, "db", "test.db");
     expect(config.get("DB_NAME")).toBe(expectedDbPath);
     expect(config.get("DATABASE_URL")).toBe(`file:${expectedDbPath}`);
+    expect(process.env.DATABASE_URL).toBe(`file:${expectedDbPath}`);
     expect(fs.existsSync(path.join(configDir, "logs"))).toBe(true);
 
     await fsPromises.rm(configDir, { recursive: true, force: true });

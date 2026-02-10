@@ -5,23 +5,9 @@ import { CompleteResponse } from "autobyteus-ts/llm/utils/response-types.js";
 import type { TokenUsage } from "autobyteus-ts";
 import type { AgentContext } from "autobyteus-ts";
 
-const mockConversationProxy = vi.hoisted(() => ({
-  updateLastUserMessageUsage: vi.fn(),
-}));
-
 const mockTokenUsageProxy = vi.hoisted(() => ({
   createConversationTokenUsageRecords: vi.fn(),
 }));
-
-vi.mock("../../../../../src/agent-conversation/providers/persistence-proxy.js", () => {
-  class MockConversationProxy {
-    updateLastUserMessageUsage = mockConversationProxy.updateLastUserMessageUsage;
-  }
-
-  return {
-    PersistenceProxy: MockConversationProxy,
-  };
-});
 
 vi.mock("../../../../../src/token-usage/providers/persistence-proxy.js", () => {
   class MockTokenUsageProxy {
@@ -35,7 +21,6 @@ vi.mock("../../../../../src/token-usage/providers/persistence-proxy.js", () => {
 
 describe("TokenUsagePersistenceProcessor", () => {
   beforeEach(() => {
-    mockConversationProxy.updateLastUserMessageUsage.mockReset();
     mockTokenUsageProxy.createConversationTokenUsageRecords.mockReset();
   });
 
@@ -74,11 +59,6 @@ describe("TokenUsagePersistenceProcessor", () => {
       tokenUsage,
       "test-llm-v1",
     );
-    expect(mockConversationProxy.updateLastUserMessageUsage).toHaveBeenCalledWith(
-      "agent_xyz",
-      100,
-      0.001,
-    );
   });
 
   it("skips persistence without usage", async () => {
@@ -101,7 +81,6 @@ describe("TokenUsagePersistenceProcessor", () => {
 
     expect(result).toBe(false);
     expect(mockTokenUsageProxy.createConversationTokenUsageRecords).not.toHaveBeenCalled();
-    expect(mockConversationProxy.updateLastUserMessageUsage).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("No token usage data in response"),
     );

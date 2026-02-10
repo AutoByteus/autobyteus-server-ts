@@ -161,7 +161,7 @@ export class AppConfig {
     const dbPath = this.getSqlitePath();
     this.set("DB_NAME", dbPath);
     const expectedUrl = `file:${dbPath}`;
-    if (this.get("DATABASE_URL") !== expectedUrl) {
+    if (process.env.DATABASE_URL !== expectedUrl) {
       this.set("DATABASE_URL", expectedUrl);
     }
   }
@@ -314,6 +314,36 @@ export class AppConfig {
     }
 
     return paths;
+  }
+
+  getChannelCallbackBaseUrl(): string | null {
+    const raw = this.get("CHANNEL_CALLBACK_BASE_URL");
+    if (!raw) {
+      return null;
+    }
+    const normalized = raw.trim().replace(/\/+$/, "");
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  getChannelCallbackSharedSecret(): string | null {
+    const raw = this.get("CHANNEL_CALLBACK_SHARED_SECRET");
+    if (!raw) {
+      return null;
+    }
+    const normalized = raw.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  getChannelCallbackTimeoutMs(defaultValue = 5000): number {
+    const raw = this.get("CHANNEL_CALLBACK_TIMEOUT_MS");
+    if (!raw) {
+      return defaultValue;
+    }
+    const parsed = Number(raw.trim());
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      throw new AppConfigError("CHANNEL_CALLBACK_TIMEOUT_MS must be a positive number.");
+    }
+    return parsed;
   }
 
   loadEnvironment(): boolean {

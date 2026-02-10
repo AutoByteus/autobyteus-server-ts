@@ -7,7 +7,6 @@ This directory mirrors the module documentation layout used in `autobyteus-serve
 | Module | TS Documentation |
 | --- | --- |
 | Agent Artifacts | [agent_artifacts.md](./agent_artifacts.md) |
-| Agent Conversation | [agent_conversation.md](./agent_conversation.md) |
 | Agent Customization | [agent_customization.md](./agent_customization.md) |
 | Agent Definition | [agent_definition.md](./agent_definition.md) |
 | Agent Execution | [agent_execution.md](./agent_execution.md) |
@@ -16,6 +15,7 @@ This directory mirrors the module documentation layout used in `autobyteus-serve
 | Agent Team Execution | [agent_team_execution.md](./agent_team_execution.md) |
 | Agent Tools | [agent_tools.md](./agent_tools.md) |
 | Applications | [applications.md](./applications.md) |
+| Codex Integration | [codex_integration.md](./codex_integration.md) |
 | File Explorer | [file_explorer.md](./file_explorer.md) |
 | File Search | [file_search.md](./file_search.md) |
 | LLM Management | [llm_management.md](./llm_management.md) |

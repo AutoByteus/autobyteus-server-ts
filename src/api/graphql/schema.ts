@@ -18,6 +18,7 @@ import { ToolManagementResolver } from "./types/tool-management.js";
 import { McpServerResolver } from "./types/mcp-server.js";
 import { MemoryIndexResolver } from "./types/memory-index.js";
 import { MemoryViewResolver } from "./types/memory-view.js";
+import { ExternalChannelSetupResolver } from "./types/external-channel-setup.js";
 import { DateTimeScalar } from "./scalars/date-time.js";
 
 export async function buildGraphqlSchema() {
@@ -42,6 +43,7 @@ export async function buildGraphqlSchema() {
       McpServerResolver,
       MemoryIndexResolver,
       MemoryViewResolver,
+      ExternalChannelSetupResolver,
     ],
     scalarsMap: [{ type: Date, scalar: DateTimeScalar }],
   });

@@ -1,0 +1,39 @@
+services:
+  autobyteus-server:
+    container_name: autobyteus-server-only
+    image: autobyteus-server-only-dev:${AUTOBYTEUS_IMAGE_TAG:-latest}
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      AUTOBYTEUS_GIT_AUTH_MODE: ${AUTOBYTEUS_GIT_AUTH_MODE:-pat}
+      GITHUB_USERNAME: ${GITHUB_USERNAME:-x-access-token}
+      GITHUB_EMAIL: ${GITHUB_EMAIL:-autobyteus-bot@autobyteus.dev}
+      GITHUB_PAT: ${GITHUB_PAT:-}
+      AUTOBYTEUS_GITHUB_ORG: ${AUTOBYTEUS_GITHUB_ORG:-AutoByteus}
+      AUTOBYTEUS_REF: ${AUTOBYTEUS_REF:-main}
+      AUTOBYTEUS_SERVER_REF: ${AUTOBYTEUS_SERVER_REF:-main}
+      AUTOBYTEUS_TS_REF: ${AUTOBYTEUS_TS_REF:-main}
+      AUTOBYTEUS_REPOSITORY_PRISMA_REF: ${AUTOBYTEUS_REPOSITORY_PRISMA_REF:-main}
+      AUTOBYTEUS_SERVER_TS_REPO_URL: ${AUTOBYTEUS_SERVER_TS_REPO_URL:-}
+      AUTOBYTEUS_TS_REPO_URL: ${AUTOBYTEUS_TS_REPO_URL:-}
+      AUTOBYTEUS_REPOSITORY_PRISMA_REPO_URL: ${AUTOBYTEUS_REPOSITORY_PRISMA_REPO_URL:-}
+      AUTOBYTEUS_SKIP_SYNC: ${AUTOBYTEUS_SKIP_SYNC:-0}
+      AUTOBYTEUS_BIND_HOST: 0.0.0.0
+      AUTOBYTEUS_SERVER_PORT: 8000
+      AUTOBYTEUS_SERVER_HOST: ${AUTOBYTEUS_SERVER_HOST:-http://localhost:${AUTOBYTEUS_BACKEND_PORT:-8001}}
+      APP_ENV: ${APP_ENV:-production}
+      PERSISTENCE_PROVIDER: ${PERSISTENCE_PROVIDER:-sqlite}
+      DB_TYPE: ${DB_TYPE:-sqlite}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${AUTOBYTEUS_BACKEND_PORT:-8001}:8000"
+    volumes:
+      - autobyteus-server-workspace:/home/autobyteus/workspace
+      - autobyteus-server-data:/home/autobyteus/data
+    restart: unless-stopped
+
+volumes:
+  autobyteus-server-workspace:
+  autobyteus-server-data:
