@@ -19,11 +19,11 @@ const serializeDefinition = (definition: AgentTeamDefinition): Record<string, un
   name: definition.name,
   description: definition.description,
   role: definition.role ?? null,
+  avatar_url: definition.avatarUrl ?? null,
   nodes: definition.nodes.map((node) => ({
     member_name: node.memberName,
     reference_id: node.referenceId,
     reference_type: node.referenceType,
-    dependencies: node.dependencies,
   })),
   coordinator_member_name: definition.coordinatorMemberName,
 });

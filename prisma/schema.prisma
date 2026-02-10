@@ -60,6 +60,7 @@ model AgentTeamDefinition {
   name                   String @unique
   description            String
   role                   String?
+  avatarUrl              String? @map("avatar_url")
   nodes                  String
   coordinatorMemberName  String @map("coordinator_member_name")
 

@@ -14,7 +14,6 @@ export class AgentTeamDefinitionConverter {
         memberName: member.memberName,
         referenceId: member.referenceId,
         referenceType: member.referenceType,
-        dependencies: member.dependencies,
       }));
 
       return {
@@ -22,6 +21,7 @@ export class AgentTeamDefinitionConverter {
         name: domainDefinition.name,
         description: domainDefinition.description,
         role: domainDefinition.role ?? null,
+        avatarUrl: domainDefinition.avatarUrl ?? null,
         nodes: graphqlNodes,
         coordinatorMemberName: domainDefinition.coordinatorMemberName,
       };

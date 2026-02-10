@@ -33,9 +33,6 @@ export class TeamMember {
 
   @Field(() => NodeType)
   referenceType!: NodeType;
-
-  @Field(() => [String])
-  dependencies!: string[];
 }
 
 @ObjectType()
@@ -57,6 +54,9 @@ export class AgentTeamDefinition {
 
   @Field(() => String, { nullable: true })
   role?: string | null;
+
+  @Field(() => String, { nullable: true })
+  avatarUrl?: string | null;
 }
 
 @InputType()
@@ -69,9 +69,6 @@ export class TeamMemberInput {
 
   @Field(() => NodeType)
   referenceType!: NodeType;
-
-  @Field(() => [String], { nullable: true })
-  dependencies?: string[] | null;
 }
 
 @InputType()
@@ -90,6 +87,9 @@ export class CreateAgentTeamDefinitionInput {
 
   @Field(() => String, { nullable: true })
   role?: string | null;
+
+  @Field(() => String, { nullable: true })
+  avatarUrl?: string | null;
 }
 
 @InputType()
@@ -111,6 +111,9 @@ export class UpdateAgentTeamDefinitionInput {
 
   @Field(() => String, { nullable: true })
   coordinatorMemberName?: string | null;
+
+  @Field(() => String, { nullable: true })
+  avatarUrl?: string | null;
 }
 
 @ObjectType()
@@ -165,7 +168,6 @@ export class AgentTeamDefinitionResolver {
             memberName: node.memberName,
             referenceId: node.referenceId,
             referenceType: node.referenceType,
-            dependencies: node.dependencies ?? [],
           }),
       );
 
@@ -173,6 +175,7 @@ export class AgentTeamDefinitionResolver {
         name: input.name,
         description: input.description,
         role: input.role ?? null,
+        avatarUrl: input.avatarUrl ?? null,
         nodes: domainNodes,
         coordinatorMemberName: input.coordinatorMemberName,
       });
@@ -200,7 +203,6 @@ export class AgentTeamDefinitionResolver {
                   memberName: node.memberName,
                   referenceId: node.referenceId,
                   referenceType: node.referenceType,
-                  dependencies: node.dependencies ?? [],
                 }),
             );
 
@@ -210,6 +212,7 @@ export class AgentTeamDefinitionResolver {
         role: input.role ?? null,
         nodes: nodesUpdate,
         coordinatorMemberName: input.coordinatorMemberName ?? null,
+        avatarUrl: input.avatarUrl ?? null,
       });
 
       const updated = await service.updateDefinition(input.id, update);

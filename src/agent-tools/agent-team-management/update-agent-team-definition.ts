@@ -56,6 +56,14 @@ argumentSchema.addParameter(
     required: false,
   }),
 );
+argumentSchema.addParameter(
+  new ParameterDefinition({
+    name: "avatar_url",
+    type: ParameterType.STRING,
+    description: "Optional avatar URL for the team.",
+    required: false,
+  }),
+);
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -74,9 +82,6 @@ const parseTeamMembers = (nodes: string): TeamMember[] => {
     const memberName = node.member_name as string | undefined;
     const referenceId = node.reference_id as string | undefined;
     const referenceTypeRaw = node.reference_type as string | undefined;
-    const dependencies = Array.isArray(node.dependencies)
-      ? node.dependencies.filter((item): item is string => typeof item === "string")
-      : [];
 
     if (!memberName || !referenceId || !referenceTypeRaw) {
       throw new Error("Each node must include member_name, reference_id, and reference_type.");
@@ -97,7 +102,6 @@ const parseTeamMembers = (nodes: string): TeamMember[] => {
       memberName,
       referenceId,
       referenceType,
-      dependencies,
     });
   });
 };
@@ -110,13 +114,14 @@ export async function updateAgentTeamDefinition(
   role?: string | null,
   nodes?: string | null,
   coordinator_member_name?: string | null,
+  avatar_url?: string | null,
 ): Promise<string> {
   const agentId = context?.agentId ?? "unknown";
   logger.info(
     `update_agent_team_definition tool invoked by agent ${agentId} for ID '${definition_id}'.`,
   );
 
-  const hasUpdates = [name, description, role, nodes, coordinator_member_name].some(
+  const hasUpdates = [name, description, role, nodes, coordinator_member_name, avatar_url].some(
     (value) => value !== null && value !== undefined,
   );
   if (!hasUpdates) {
@@ -131,6 +136,7 @@ export async function updateAgentTeamDefinition(
       role: role ?? null,
       nodes: teamMembers,
       coordinatorMemberName: coordinator_member_name ?? null,
+      avatarUrl: avatar_url ?? null,
     });
 
     const service = AgentTeamDefinitionService.getInstance();

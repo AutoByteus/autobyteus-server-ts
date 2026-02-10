@@ -4,18 +4,15 @@ export class TeamMember {
   memberName: string;
   referenceId: string;
   referenceType: NodeType;
-  dependencies: string[];
 
   constructor(options: {
     memberName: string;
     referenceId: string;
     referenceType: NodeType;
-    dependencies?: string[];
   }) {
     this.memberName = options.memberName;
     this.referenceId = options.referenceId;
     this.referenceType = options.referenceType;
-    this.dependencies = options.dependencies ?? [];
   }
 }
 
@@ -26,6 +23,7 @@ export class AgentTeamDefinition {
   nodes: TeamMember[];
   coordinatorMemberName: string;
   role?: string | null;
+  avatarUrl?: string | null;
 
   constructor(options: {
     name: string;
@@ -34,6 +32,7 @@ export class AgentTeamDefinition {
     coordinatorMemberName: string;
     id?: string | null;
     role?: string | null;
+    avatarUrl?: string | null;
   }) {
     this.name = options.name;
     this.description = options.description;
@@ -41,6 +40,7 @@ export class AgentTeamDefinition {
     this.coordinatorMemberName = options.coordinatorMemberName;
     this.id = options.id ?? null;
     this.role = options.role ?? null;
+    this.avatarUrl = options.avatarUrl ?? null;
   }
 }
 
@@ -50,6 +50,7 @@ export class AgentTeamDefinitionUpdate {
   role?: string | null;
   nodes?: TeamMember[] | null;
   coordinatorMemberName?: string | null;
+  avatarUrl?: string | null;
 
   constructor(options: {
     name?: string | null;
@@ -57,11 +58,13 @@ export class AgentTeamDefinitionUpdate {
     role?: string | null;
     nodes?: TeamMember[] | null;
     coordinatorMemberName?: string | null;
+    avatarUrl?: string | null;
   } = {}) {
     this.name = options.name ?? null;
     this.description = options.description ?? null;
     this.role = options.role ?? null;
     this.nodes = options.nodes ?? null;
     this.coordinatorMemberName = options.coordinatorMemberName ?? null;
+    this.avatarUrl = options.avatarUrl ?? null;
   }
 }
