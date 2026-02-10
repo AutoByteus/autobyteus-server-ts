@@ -7,6 +7,93 @@ import { SqlChannelBindingProvider } from "../../../../src/external-channel/prov
 const unique = (prefix: string): string => `${prefix}-${randomUUID()}`;
 
 describe("SqlChannelBindingProvider", () => {
+  it("upserts and resolves Discord channel-thread bindings", async () => {
+    const provider = new SqlChannelBindingProvider();
+    const accountId = "discord-app-123456";
+    const peerId = "channel:111222333444555";
+    const threadId = "999888777666555";
+
+    const binding = await provider.upsertBinding({
+      provider: ExternalChannelProvider.DISCORD,
+      transport: ExternalChannelTransport.BUSINESS_API,
+      accountId,
+      peerId,
+      threadId,
+      targetType: "AGENT",
+      agentId: "discord-agent-1",
+    });
+
+    const resolved = await provider.findBinding({
+      provider: ExternalChannelProvider.DISCORD,
+      transport: ExternalChannelTransport.BUSINESS_API,
+      accountId,
+      peerId,
+      threadId,
+    });
+
+    expect(binding.id).toBeTruthy();
+    expect(resolved?.id).toBe(binding.id);
+    expect(resolved?.threadId).toBe(threadId);
+    expect(resolved?.agentId).toBe("discord-agent-1");
+  });
+
+  it("supports Discord provider-default fallback lookup and bound-target checks", async () => {
+    const provider = new SqlChannelBindingProvider();
+    const accountId = "discord-app-654321";
+    const peerId = "user:123123123123123";
+
+    const binding = await provider.upsertBinding({
+      provider: ExternalChannelProvider.DISCORD,
+      transport: ExternalChannelTransport.BUSINESS_API,
+      accountId,
+      peerId,
+      threadId: null,
+      targetType: "AGENT",
+      agentId: "discord-agent-fallback",
+      allowTransportFallback: true,
+    });
+
+    const fallback = await provider.findProviderDefaultBinding({
+      provider: ExternalChannelProvider.DISCORD,
+      accountId,
+      peerId,
+      threadId: null,
+    });
+
+    const boundToAgent = await provider.isRouteBoundToTarget(
+      {
+        provider: ExternalChannelProvider.DISCORD,
+        transport: ExternalChannelTransport.BUSINESS_API,
+        accountId,
+        peerId,
+        threadId: null,
+      },
+      {
+        agentId: "discord-agent-fallback",
+        teamId: null,
+      },
+    );
+
+    const boundToDifferentAgent = await provider.isRouteBoundToTarget(
+      {
+        provider: ExternalChannelProvider.DISCORD,
+        transport: ExternalChannelTransport.BUSINESS_API,
+        accountId,
+        peerId,
+        threadId: null,
+      },
+      {
+        agentId: "discord-agent-mismatch",
+        teamId: null,
+      },
+    );
+
+    expect(fallback?.id).toBe(binding.id);
+    expect(fallback?.allowTransportFallback).toBe(true);
+    expect(boundToAgent).toBe(true);
+    expect(boundToDifferentAgent).toBe(false);
+  });
+
   it("upserts and resolves exact route binding", async () => {
     const provider = new SqlChannelBindingProvider();
     const accountId = unique("acct");

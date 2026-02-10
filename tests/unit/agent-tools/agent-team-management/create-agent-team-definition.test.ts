@@ -30,7 +30,6 @@ describe("createAgentTeamDefinitionTool", () => {
         member_name: "coder",
         reference_id: "1",
         reference_type: "AGENT",
-        dependencies: [],
       },
     ]);
 

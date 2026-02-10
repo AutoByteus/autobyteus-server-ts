@@ -393,23 +393,6 @@ export class AgentTeamInstanceManager {
       teamNodeMap.set(memberName, new TeamNodeConfig({ nodeDefinition: config }));
     }
 
-    for (const memberDef of teamDef.nodes) {
-      const currentNode = teamNodeMap.get(memberDef.memberName);
-      if (!currentNode) {
-        continue;
-      }
-      const dependencies = memberDef.dependencies.map((depName) => {
-        const depNode = teamNodeMap.get(depName);
-        if (!depNode) {
-          throw new AgentTeamCreationError(
-            `Dependency '${depName}' for team member '${memberDef.memberName}' was not found.`,
-          );
-        }
-        return depNode;
-      });
-      currentNode.dependencies = dependencies;
-    }
-
     const coordinatorNode = teamNodeMap.get(teamDef.coordinatorMemberName);
     if (!coordinatorNode) {
       throw new Error(

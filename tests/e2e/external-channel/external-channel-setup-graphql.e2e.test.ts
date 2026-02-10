@@ -87,6 +87,7 @@ describe("External channel setup GraphQL e2e", () => {
     expect(data.externalChannelCapabilities.bindingCrudEnabled).toBe(true);
     expect(data.externalChannelCapabilities.reason).toBeNull();
     expect(data.externalChannelCapabilities.acceptedProviderTransportPairs).toEqual([
+      "DISCORD:BUSINESS_API",
       "WHATSAPP:BUSINESS_API",
       "WHATSAPP:PERSONAL_SESSION",
       "WECOM:BUSINESS_API",
@@ -311,6 +312,129 @@ describe("External channel setup GraphQL e2e", () => {
       transport: "PERSONAL_SESSION",
       targetType: "AGENT",
       targetId: activeAgentId,
+    });
+  });
+
+  it("accepts supported DISCORD + BUSINESS_API binding combinations", async () => {
+    const upsertMutation = `
+      mutation Upsert($input: UpsertExternalChannelBindingInput!) {
+        upsertExternalChannelBinding(input: $input) {
+          provider
+          transport
+          accountId
+          peerId
+          threadId
+          targetType
+          targetId
+        }
+      }
+    `;
+
+    const result = await execGraphql<{
+      upsertExternalChannelBinding: {
+        provider: string;
+        transport: string;
+        accountId: string;
+        peerId: string;
+        threadId: string | null;
+        targetType: string;
+        targetId: string;
+      };
+    }>(upsertMutation, {
+      input: {
+        provider: "DISCORD",
+        transport: "BUSINESS_API",
+        accountId: "1234567890",
+        peerId: "channel:111222333444",
+        threadId: "777888999000",
+        targetType: "AGENT",
+        targetId: activeAgentId,
+        allowTransportFallback: false,
+      },
+    });
+
+    expect(result.upsertExternalChannelBinding).toMatchObject({
+      provider: "DISCORD",
+      transport: "BUSINESS_API",
+      accountId: "1234567890",
+      peerId: "channel:111222333444",
+      threadId: "777888999000",
+      targetType: "AGENT",
+      targetId: activeAgentId,
+    });
+  });
+
+  it("rejects malformed Discord peerId with typed field-aware error", async () => {
+    const upsertMutation = `
+      mutation Upsert($input: UpsertExternalChannelBindingInput!) {
+        upsertExternalChannelBinding(input: $input) {
+          id
+        }
+      }
+    `;
+
+    const result = await graphql({
+      schema,
+      source: upsertMutation,
+      variableValues: {
+        input: {
+          provider: "DISCORD",
+          transport: "BUSINESS_API",
+          accountId: "1234567890",
+          peerId: "invalid-peer",
+          threadId: null,
+          targetType: "AGENT",
+          targetId: activeAgentId,
+          allowTransportFallback: false,
+        },
+      },
+    });
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors?.[0]?.message).toBe(
+      "Discord peerId must match user:<snowflake> or channel:<snowflake>.",
+    );
+    expect(result.errors?.[0]?.extensions).toMatchObject({
+      code: "INVALID_DISCORD_PEER_ID",
+      field: "peerId",
+      detail: "Discord peerId must match user:<snowflake> or channel:<snowflake>.",
+    });
+  });
+
+  it("rejects Discord user peer with threadId using typed thread error", async () => {
+    const upsertMutation = `
+      mutation Upsert($input: UpsertExternalChannelBindingInput!) {
+        upsertExternalChannelBinding(input: $input) {
+          id
+        }
+      }
+    `;
+
+    const result = await graphql({
+      schema,
+      source: upsertMutation,
+      variableValues: {
+        input: {
+          provider: "DISCORD",
+          transport: "BUSINESS_API",
+          accountId: "1234567890",
+          peerId: "user:111222333444",
+          threadId: "777888999000",
+          targetType: "AGENT",
+          targetId: activeAgentId,
+          allowTransportFallback: false,
+        },
+      },
+    });
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors?.[0]?.message).toBe(
+      "Discord threadId can only be used with channel:<snowflake> peerId targets.",
+    );
+    expect(result.errors?.[0]?.extensions).toMatchObject({
+      code: "INVALID_DISCORD_THREAD_TARGET_COMBINATION",
+      field: "threadId",
+      detail: "Discord threadId can only be used with channel:<snowflake> peerId targets.",
     });
   });
 });

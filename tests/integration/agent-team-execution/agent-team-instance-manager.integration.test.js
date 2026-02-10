@@ -118,13 +118,11 @@ describe("AgentTeamInstanceManager integration", () => {
                     memberName: "TheCoordinator",
                     referenceId: "1",
                     referenceType: NodeType.AGENT,
-                    dependencies: [],
                 }),
                 new TeamMember({
                     memberName: "TheWorker",
                     referenceId: "2",
                     referenceType: NodeType.AGENT,
-                    dependencies: ["TheCoordinator"],
                 }),
             ],
             coordinatorMemberName: "TheCoordinator",

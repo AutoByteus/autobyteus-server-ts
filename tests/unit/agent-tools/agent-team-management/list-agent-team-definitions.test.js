@@ -29,7 +29,6 @@ describe("listAgentTeamDefinitionsTool", () => {
                     memberName: "coord1",
                     referenceId: "agent1",
                     referenceType: NodeType.AGENT,
-                    dependencies: [],
                 }),
             ],
             coordinatorMemberName: "coord1",

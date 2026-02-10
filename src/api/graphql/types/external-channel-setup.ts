@@ -9,12 +9,13 @@ import {
 } from "type-graphql";
 import {
   parseExternalChannelProvider,
-  type ExternalChannelProvider,
+  ExternalChannelProvider,
 } from "autobyteus-ts/external-channel/provider.js";
 import {
   parseExternalChannelTransport,
   type ExternalChannelTransport,
 } from "autobyteus-ts/external-channel/channel-transport.js";
+import { GraphQLError } from "graphql";
 import type {
   ChannelBinding,
   ChannelBindingTargetOption,
@@ -24,10 +25,15 @@ import { SqlChannelBindingProvider } from "../../../external-channel/providers/s
 import { ChannelBindingService } from "../../../external-channel/services/channel-binding-service.js";
 import { ChannelBindingConstraintService } from "../../../external-channel/services/channel-binding-constraint-service.js";
 import { ChannelBindingTargetOptionsService } from "../../../external-channel/services/channel-binding-target-options-service.js";
+import {
+  DiscordBindingIdentityValidationError,
+  DiscordBindingIdentityValidator,
+} from "../../../external-channel/services/discord-binding-identity-validator.js";
 
 let cachedBindingService: ChannelBindingService | null = null;
 let cachedTargetOptionsService: ChannelBindingTargetOptionsService | null = null;
 let cachedConstraintService: ChannelBindingConstraintService | null = null;
+let cachedDiscordBindingIdentityValidator: DiscordBindingIdentityValidator | null = null;
 
 const getBindingService = (): ChannelBindingService => {
   if (!cachedBindingService) {
@@ -48,6 +54,13 @@ const getConstraintService = (): ChannelBindingConstraintService => {
     cachedConstraintService = new ChannelBindingConstraintService();
   }
   return cachedConstraintService;
+};
+
+const getDiscordBindingIdentityValidator = (): DiscordBindingIdentityValidator => {
+  if (!cachedDiscordBindingIdentityValidator) {
+    cachedDiscordBindingIdentityValidator = new DiscordBindingIdentityValidator();
+  }
+  return cachedDiscordBindingIdentityValidator;
 };
 
 @ObjectType()
@@ -173,6 +186,9 @@ export class ExternalChannelSetupResolver {
     const provider = parseProvider(input.provider);
     const transport = parseTransport(input.transport);
     getConstraintService().validateProviderTransport(provider, transport);
+    const accountId = normalizeRequiredString(input.accountId, "accountId");
+    const peerId = normalizeRequiredString(input.peerId, "peerId");
+    const threadId = normalizeOptionalString(input.threadId ?? null);
 
     const targetType = parseTargetType(input.targetType);
     const targetId = normalizeRequiredString(input.targetId, "targetId");
@@ -187,12 +203,20 @@ export class ExternalChannelSetupResolver {
       );
     }
 
+    if (provider === ExternalChannelProvider.DISCORD) {
+      validateDiscordIdentityOrThrow({
+        accountId,
+        peerId,
+        threadId,
+      });
+    }
+
     const binding = await getBindingService().upsertBinding({
       provider,
       transport,
-      accountId: normalizeRequiredString(input.accountId, "accountId"),
-      peerId: normalizeRequiredString(input.peerId, "peerId"),
-      threadId: normalizeOptionalString(input.threadId ?? null),
+      accountId,
+      peerId,
+      threadId,
       targetType,
       agentId: targetType === "AGENT" ? targetId : null,
       teamId: targetType === "TEAM" ? targetId : null,
@@ -260,6 +284,24 @@ const parseProvider = (value: string): ExternalChannelProvider =>
 
 const parseTransport = (value: string): ExternalChannelTransport =>
   parseExternalChannelTransport(normalizeRequiredString(value, "transport"));
+
+const validateDiscordIdentityOrThrow = (input: {
+  accountId: string;
+  peerId: string;
+  threadId: string | null;
+}): void => {
+  try {
+    getDiscordBindingIdentityValidator().validate(input);
+  } catch (error) {
+    if (error instanceof DiscordBindingIdentityValidationError) {
+      const payload = error.toPayload();
+      throw new GraphQLError(payload.detail, {
+        extensions: payload,
+      });
+    }
+    throw error;
+  }
+};
 
 const normalizeRequiredString = (value: string, field: string): string => {
   const normalized = value.trim();

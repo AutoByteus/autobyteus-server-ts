@@ -15,13 +15,11 @@ const buildTeamDefinition = (): AgentTeamDefinition =>
         memberName: "coord1",
         referenceId: "agent1",
         referenceType: NodeType.AGENT,
-        dependencies: [],
       }),
       new TeamMember({
         memberName: "subteam2",
         referenceId: "sub_team_1",
         referenceType: NodeType.AGENT_TEAM,
-        dependencies: ["coord1"],
       }),
     ],
     coordinatorMemberName: "coord1",
