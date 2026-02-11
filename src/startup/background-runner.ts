@@ -17,7 +17,6 @@ const taskSpecs: TaskSpec[] = [
   { name: "Agent Customizations", modulePath: "./agent-customization-loader.js", exportName: "loadAgentCustomizations" },
   { name: "Workspaces", modulePath: "./workspace-loader.js", exportName: "loadWorkspaces" },
   { name: "Agent Tools", modulePath: "./agent-tool-loader.js", exportName: "loadAllAgentTools" },
-  { name: "Prompt Synchronization", modulePath: "./prompt-sync.js", exportName: "runPromptSynchronization" },
   { name: "MCP Tool Registration", modulePath: "./mcp-loader.js", exportName: "runMcpToolRegistration" },
 ];
 

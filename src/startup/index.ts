@@ -4,4 +4,3 @@ export { loadAllAgentTools } from "./agent-tool-loader.js";
 export { loadAgentCustomizations } from "./agent-customization-loader.js";
 export { runCachePreloading } from "./cache-preloader.js";
 export { loadWorkspaces } from "./workspace-loader.js";
-export { runPromptSynchronization } from "./prompt-sync.js";

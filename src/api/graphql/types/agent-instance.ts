@@ -9,7 +9,7 @@ import {
   Resolver,
 } from "type-graphql";
 import { GraphQLJSON } from "graphql-scalars";
-import { SkillAccessMode } from "autobyteus-ts";
+import { SkillAccessMode } from "autobyteus-ts/agent/context/skill-access-mode.js";
 import { AgentInstanceManager } from "../../../agent-execution/services/agent-instance-manager.js";
 import { UserInputConverter } from "../converters/user-input-converter.js";
 import { AgentInstanceConverter } from "../converters/agent-instance-converter.js";

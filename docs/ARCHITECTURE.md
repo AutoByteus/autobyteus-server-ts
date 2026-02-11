@@ -51,7 +51,6 @@ Current task groups include:
 - Agent customization registration
 - Workspace package loading
 - Tool loading
-- Prompt sync
 - MCP tool registration
 
 ## Persistence

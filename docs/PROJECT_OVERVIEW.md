@@ -51,7 +51,7 @@ Important behavior:
 ## Startup Philosophy
 
 - Critical: config initialization + migrations.
-- Deferred/non-critical: cache preloading, registration, prompt sync, tool discovery.
+- Deferred/non-critical: cache preloading, registration, tool discovery.
 
 This keeps startup robust while still warming caches shortly after boot.
 

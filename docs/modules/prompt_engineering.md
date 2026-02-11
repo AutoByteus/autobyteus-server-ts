@@ -2,7 +2,7 @@
 
 ## Scope
 
-Versioned prompt management, caching, lookup, and synchronization.
+Versioned prompt management, caching, and lookup.
 
 ## TS Source
 
@@ -13,7 +13,6 @@ Versioned prompt management, caching, lookup, and synchronization.
 ## Main Services
 
 - `src/prompt-engineering/services/prompt-service.ts`
-- `src/prompt-engineering/services/prompt-sync-service.ts`
 
 ## Notes
 

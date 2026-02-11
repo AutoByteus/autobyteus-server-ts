@@ -1,5 +1,5 @@
 import { Field, InputType, registerEnumType } from "type-graphql";
-import { ContextFileType } from "autobyteus-ts";
+import { ContextFileType } from "autobyteus-ts/agent/message/context-file-type.js";
 
 registerEnumType(ContextFileType, {
   name: "ContextFileType",

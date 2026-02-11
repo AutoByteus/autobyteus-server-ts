@@ -1,8 +1,6 @@
 import { Arg, Field, InputType, Int, Mutation, ObjectType, Query, Resolver } from "type-graphql";
 import type { Prompt as DomainPrompt } from "../../../prompt-engineering/domain/models.js";
 import { PromptService } from "../../../prompt-engineering/services/prompt-service.js";
-import { getPromptSyncService } from "../../../prompt-engineering/services/prompt-sync-service.js";
-import { getPromptLoader } from "../../../prompt-engineering/utils/prompt-loader.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -137,24 +135,6 @@ export class DeletePromptResult {
   message!: string;
 }
 
-@ObjectType()
-export class SyncPromptsResult {
-  @Field(() => Boolean)
-  success!: boolean;
-
-  @Field(() => String)
-  message!: string;
-
-  @Field(() => Int)
-  initialCount!: number;
-
-  @Field(() => Int)
-  finalCount!: number;
-
-  @Field(() => Int)
-  syncedCount!: number;
-}
-
 const ensurePromptId = (promptId: string | null | undefined): string => {
   if (!promptId) {
     return "";
@@ -182,9 +162,6 @@ export const mapPromptToGraphql = (prompt: DomainPrompt): Prompt => ({
 
 @Resolver()
 export class PromptResolver {
-  private get promptSyncService() {
-    return getPromptSyncService();
-  }
   @Query(() => [Prompt])
   async prompts(
     @Arg("isActive", () => Boolean, { nullable: true }) isActive?: boolean | null,
@@ -321,30 +298,5 @@ export class PromptResolver {
       logger.error(`Error deleting prompt: ${String(error)}`);
       return { success: false, message: String(error) };
     }
-  }
-
-  @Mutation(() => SyncPromptsResult)
-  async syncPrompts(): Promise<SyncPromptsResult> {
-    logger.info("Manual prompt synchronization triggered via GraphQL");
-    const initialCount = (await promptService.getAllActivePrompts()).length;
-
-    const success = await this.promptSyncService.syncPrompts();
-
-    const finalCount = (await promptService.getAllActivePrompts()).length;
-
-    if (success) {
-      getPromptLoader().invalidateCache();
-      logger.info("Prompt template cache invalidated after successful synchronization");
-    }
-
-    return {
-      success,
-      message: success
-        ? "Prompt synchronization completed successfully"
-        : "Sync failed. Check server logs for details.",
-      initialCount,
-      finalCount,
-      syncedCount: success ? finalCount - initialCount : 0,
-    };
   }
 }

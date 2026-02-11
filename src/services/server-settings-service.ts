@@ -60,14 +60,6 @@ export class ServerSettingsService {
       ),
     );
 
-    this.settingsInfo.set(
-      "AUTOBYTEUS_PROMPT_SYNC_ON_STARTUP",
-      new ServerSettingDescription(
-        "AUTOBYTEUS_PROMPT_SYNC_ON_STARTUP",
-        "Enable automatic prompt synchronization from the marketplace on server startup. Set to 'true' to enable. Default is 'false' (disabled).",
-      ),
-    );
-
     logger.info(
       `Initialized server settings service with ${this.settingsInfo.size} predefined settings`,
     );
