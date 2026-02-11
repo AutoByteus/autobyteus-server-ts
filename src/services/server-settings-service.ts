@@ -40,7 +40,7 @@ export class ServerSettingsService {
       "AUTOBYTEUS_VNC_SERVER_HOSTS",
       new ServerSettingDescription(
         "AUTOBYTEUS_VNC_SERVER_HOSTS",
-        "Comma-separated host:port values for AutoByteus VNC WebSocket endpoints (e.g., localhost:6088,localhost:6089)",
+        "Comma-separated host:port values for AutoByteus VNC WebSocket endpoints (e.g., localhost:6080,localhost:6081)",
       ),
     );
 

@@ -17,7 +17,7 @@ It automatically clones and builds the required workspace dependencies:
 - Single service: TypeScript server on port `8000` (mapped to host `AUTOBYTEUS_BACKEND_PORT`, default `8001`).
 - VNC-related ports are exposed for base-image desktop access:
   - VNC: container `5900` -> host `AUTOBYTEUS_VNC_PORT` (default `5908`)
-  - noVNC: container `6080` -> host `AUTOBYTEUS_WEB_VNC_PORT` (default `6088`)
+  - noVNC: container `6080` -> host `AUTOBYTEUS_WEB_VNC_PORT` (default `6080`)
   - Chrome debug proxy: container `9223` -> host `AUTOBYTEUS_CHROME_DEBUG_PORT` (default `9228`)
 
 ## Quick Start
@@ -133,10 +133,10 @@ With default port mapping:
 - REST: `http://localhost:8001/rest/*`
 - WS: `ws://localhost:8001/ws/...`
 - VNC: `localhost:5908`
-- noVNC: `http://localhost:6088`
+- noVNC: `http://localhost:6080`
 - Chrome debug proxy: `localhost:9228`
 
-For `autobyteus-web`'s built-in VNC viewer, set `AUTOBYTEUS_VNC_SERVER_HOSTS` to comma-separated WebSocket endpoint host:port values (default `localhost:6088`), not raw VNC TCP ports.
+For `autobyteus-web`'s built-in VNC viewer, set `AUTOBYTEUS_VNC_SERVER_HOSTS` to comma-separated WebSocket endpoint host:port values (default `localhost:6080`), not raw VNC TCP ports.
 
 ## Authentication for Git Clones
 
