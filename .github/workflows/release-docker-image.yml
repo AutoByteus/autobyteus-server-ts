@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Docker tag to publish (for example v0.1.0). If empty, uses package.json version."
+        description: "Docker tag to publish (for example 0.1.0 or v0.1.0). Published as 0.1.0 format. If empty, uses package.json version."
         required: false
         type: string
       image_name:
@@ -76,21 +76,19 @@ jobs:
 
           IMAGE_NAME="${IMAGE_NAME_INPUT:-$DEFAULT_IMAGE_NAME}"
 
-          RELEASE_TAG="${RELEASE_TAG_INPUT}"
-          if [[ -z "${RELEASE_TAG}" ]]; then
-            RELEASE_TAG="$(node -p "require('./autobyteus-server-ts/package.json').version")"
+          RAW_RELEASE_TAG="${RELEASE_TAG_INPUT}"
+          if [[ -z "${RAW_RELEASE_TAG}" ]]; then
+            RAW_RELEASE_TAG="$(node -p "require('./autobyteus-server-ts/package.json').version")"
           fi
 
-          CLEAN_TAG="${RELEASE_TAG#v}"
+          # Normalize version tags to one Docker tag style: X.Y.Z (no leading v).
+          RELEASE_TAG="${RAW_RELEASE_TAG#v}"
 
           {
             echo "image_name=${IMAGE_NAME}"
             echo "release_tag=${RELEASE_TAG}"
             echo "tags<<EOF"
             echo "${IMAGE_NAME}:${RELEASE_TAG}"
-            if [[ "${CLEAN_TAG}" != "${RELEASE_TAG}" ]]; then
-              echo "${IMAGE_NAME}:${CLEAN_TAG}"
-            fi
             echo "${IMAGE_NAME}:latest"
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"

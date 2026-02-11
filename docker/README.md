@@ -104,7 +104,7 @@ What it does:
   - `AutoByteus/autobyteus-ts`
   - `ryan-zheng-teki/repository_prisma`
 - Builds `docker/Dockerfile.monorepo` for `linux/amd64,linux/arm64`.
-- Pushes Docker tags to Docker Hub (`latest` + release tag).
+- Pushes Docker tags to Docker Hub (`latest` + one normalized release tag in `X.Y.Z` format).
 
 Required repository secrets:
 
@@ -122,7 +122,7 @@ Tag patterns currently matched:
 
 Manual run inputs:
 
-- `release_tag` (optional, recommended for re-running a released tag build like `v0.1.0`)
+- `release_tag` (optional, for re-running a released build like `0.1.0` or `v0.1.0`; published as `0.1.0`)
 - `image_name` (optional)
 
 ## Endpoints
