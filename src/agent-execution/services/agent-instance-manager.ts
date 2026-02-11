@@ -7,6 +7,7 @@ import {
   BaseSystemPromptProcessor,
   BaseToolExecutionResultProcessor,
   BaseToolInvocationPreprocessor,
+  SkillAccessMode,
   defaultAgentFactory,
   defaultInputProcessorRegistry,
   defaultLlmResponseProcessorRegistry,
@@ -127,6 +128,7 @@ export class AgentInstanceManager {
     autoExecuteTools: boolean;
     workspaceId?: string | null;
     llmConfig?: Record<string, unknown> | null;
+    skillAccessMode?: SkillAccessMode | null;
   }): Promise<string> {
     const {
       agentDefinitionId,
@@ -134,6 +136,7 @@ export class AgentInstanceManager {
       autoExecuteTools,
       workspaceId,
       llmConfig,
+      skillAccessMode,
     } = options;
 
     let agentDef: AgentDefinition | null = null;
@@ -327,6 +330,7 @@ export class AgentInstanceManager {
       initialCustomData,
       skillPaths,
       appConfigProvider.config.getMemoryDir(),
+      skillAccessMode ?? null,
     );
 
     const agent = this.agentFactory.createAgent(agentConfig) as AgentLike & {

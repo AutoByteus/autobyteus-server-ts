@@ -5,9 +5,11 @@ import {
   Mutation,
   ObjectType,
   Query,
+  registerEnumType,
   Resolver,
 } from "type-graphql";
 import { GraphQLJSON } from "graphql-scalars";
+import { SkillAccessMode } from "autobyteus-ts";
 import { AgentInstanceManager } from "../../../agent-execution/services/agent-instance-manager.js";
 import { UserInputConverter } from "../converters/user-input-converter.js";
 import { AgentInstanceConverter } from "../converters/agent-instance-converter.js";
@@ -19,6 +21,10 @@ const logger = {
   warn: (...args: unknown[]) => console.warn(...args),
   error: (...args: unknown[]) => console.error(...args),
 };
+
+registerEnumType(SkillAccessMode, {
+  name: "SkillAccessModeEnum",
+});
 
 @ObjectType()
 export class AgentInstance {
@@ -75,6 +81,9 @@ export class SendAgentUserInputInput {
 
   @Field(() => GraphQLJSON, { nullable: true })
   llmConfig?: Record<string, unknown> | null;
+
+  @Field(() => SkillAccessMode, { nullable: true })
+  skillAccessMode?: SkillAccessMode | null;
 }
 
 @ObjectType()
@@ -213,6 +222,7 @@ export class AgentInstanceResolver {
           autoExecuteTools: input.autoExecuteTools ?? false,
           workspaceId: input.workspaceId ?? null,
           llmConfig: input.llmConfig ?? null,
+          skillAccessMode: input.skillAccessMode ?? null,
         });
 
         agent = this.agentInstanceManager.getAgentInstance(agentId);
