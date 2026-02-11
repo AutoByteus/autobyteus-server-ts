@@ -65,7 +65,7 @@ export class AgentArtifactPersistenceProcessor extends BaseToolExecutionResultPr
         return event;
       }
 
-      if (event.toolName === "patch_file") {
+      if (event.toolName === "edit_file") {
         const pathValue = event.toolArgs?.path;
         if (typeof pathValue === "string") {
           const artifactType = inferArtifactType(pathValue) ?? "file";

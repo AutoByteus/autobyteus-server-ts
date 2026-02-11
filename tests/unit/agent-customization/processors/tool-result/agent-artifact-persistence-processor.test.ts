@@ -146,13 +146,13 @@ describe("AgentArtifactPersistenceProcessor", () => {
     expect(notifier.notifyAgentArtifactPersisted).not.toHaveBeenCalled();
   });
 
-  it("notifies patch_file artifact updates", async () => {
+  it("notifies edit_file artifact updates", async () => {
     const artifactService = createMockService();
     const notifier = { notifyAgentArtifactPersisted: vi.fn(), notifyAgentArtifactUpdated: vi.fn() };
     const context = buildContext(notifier);
 
     const processor = new AgentArtifactPersistenceProcessor(artifactService);
-    const event = new ToolResultEvent("patch_file", null, undefined, undefined, {
+    const event = new ToolResultEvent("edit_file", null, undefined, undefined, {
       path: "src/app.py",
       patch: "@@ -1 +1 @@",
     });
