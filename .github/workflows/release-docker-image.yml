@@ -5,6 +5,16 @@ on:
     tags:
       - "v*.*.*"
       - "*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Docker tag to publish (for example v0.1.0). If empty, uses package.json version."
+        required: false
+        type: string
+      image_name:
+        description: "Docker image name (default: autobyteus/autobyteus-server)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -56,8 +66,8 @@ jobs:
       - name: Compute Docker tags
         id: tags
         env:
-          IMAGE_NAME_INPUT: ""
-          RELEASE_TAG_INPUT: ${{ github.ref_name }}
+          IMAGE_NAME_INPUT: ${{ github.event.inputs.image_name || '' }}
+          RELEASE_TAG_INPUT: ${{ github.event.inputs.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
 

@@ -98,6 +98,7 @@ Workflow file:
 What it does:
 
 - Triggers only when a Git tag is pushed (for example `v1.2.3`).
+- Also supports manual run via GitHub Actions `workflow_dispatch`.
 - Checks out `autobyteus-server-ts` + public dependencies:
   - `AutoByteus/autobyteus-ts`
   - `ryan-zheng-teki/repository_prisma`
@@ -113,6 +114,11 @@ Tag patterns currently matched:
 
 - `v*.*.*` (recommended, e.g. `v1.2.3`)
 - `*.*.*` (e.g. `1.2.3`)
+
+Manual run inputs:
+
+- `release_tag` (optional, recommended for re-running a released tag build like `v0.1.0`)
+- `image_name` (optional)
 
 ## Endpoints
 
