@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_NAME="autobyteus-server-only-dev"
+IMAGE_NAME="autobyteus-server-dev"
 TAG="${AUTOBYTEUS_IMAGE_TAG:-latest}"
 BUILD_ARGS=()
 PLATFORMS="linux/amd64,linux/arm64"

@@ -1,10 +1,10 @@
-# AutoByteus Server-Only Docker
+# AutoByteus Server Docker
 
-This is the server-only Docker stack for `autobyteus-server-ts`.
+This is the Docker stack for `autobyteus-server-ts`.
 It was moved from `autobyteus_dev_docker/server-only` so the runtime config
 now lives with the TypeScript server codebase.
 
-The `server-only` setup starts only `autobyteus-server-ts` in Docker.
+This setup runs `autobyteus-server-ts` in Docker.
 It automatically clones and builds the required workspace dependencies:
 
 - `autobyteus-server-ts`
@@ -43,6 +43,32 @@ cp .env.example .env
 docker compose logs -f autobyteus-server
 ```
 
+## Rebuild After Base Image Update
+
+If `autobyteus/chrome-vnc:latest` (or any Docker base layer) was updated, run:
+
+```bash
+cd autobyteus-server-ts/docker
+test -f .env || cp .env.example .env
+docker pull autobyteus/chrome-vnc:latest
+docker compose down
+./build.sh --no-cache
+./start.sh
+docker compose logs -f autobyteus-server
+```
+
+This keeps existing data volumes.
+
+For a fully clean rebuild (remove cached source and server data too):
+
+```bash
+cd autobyteus-server-ts/docker
+docker compose down --volumes --remove-orphans
+docker pull autobyteus/chrome-vnc:latest
+./build.sh --no-cache
+./start.sh
+```
+
 ## Multi-Arch Release Image
 
 For a publishable image that is fully built at image-build time (does not clone repos at container startup), use the monorepo Dockerfile:
@@ -62,6 +88,31 @@ Optional overrides:
 ./build-multi-arch.sh --push --version 1.4.3
 ./build-multi-arch.sh --push --image-name autobyteus/autobyteus-server-ts
 ```
+
+## GitHub Release Automation
+
+Workflow file:
+
+- `.github/workflows/release-docker-image.yml`
+
+What it does:
+
+- Triggers only when a Git tag is pushed (for example `v1.2.3`).
+- Checks out `autobyteus-server-ts` + public dependencies:
+  - `AutoByteus/autobyteus-ts`
+  - `ryan-zheng-teki/repository_prisma`
+- Builds `docker/Dockerfile.monorepo` for `linux/amd64,linux/arm64`.
+- Pushes Docker tags to Docker Hub (`latest` + release tag).
+
+Required repository secrets:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Tag patterns currently matched:
+
+- `v*.*.*` (recommended, e.g. `v1.2.3`)
+- `*.*.*` (e.g. `1.2.3`)
 
 ## Endpoints
 

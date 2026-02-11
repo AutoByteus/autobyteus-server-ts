@@ -1,7 +1,7 @@
 services:
   autobyteus-server:
-    container_name: autobyteus-server-only
-    image: autobyteus-server-only-dev:${AUTOBYTEUS_IMAGE_TAG:-latest}
+    container_name: autobyteus-server
+    image: autobyteus-server-dev:${AUTOBYTEUS_IMAGE_TAG:-latest}
     build:
       context: .
     env_file:

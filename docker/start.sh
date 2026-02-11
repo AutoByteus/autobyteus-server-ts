@@ -6,7 +6,7 @@ if [[ ! -f .env ]]; then
   echo "Created .env from .env.example. Update GITHUB_PAT if needed."
 fi
 
-echo "Starting AutoByteus server-only container..."
+echo "Starting AutoByteus server container..."
 docker compose up -d --force-recreate
 
 echo
