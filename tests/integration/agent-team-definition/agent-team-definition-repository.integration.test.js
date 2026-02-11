@@ -5,7 +5,6 @@ const buildNodesPayload = () => JSON.stringify([
         member_name: "member1",
         reference_id: "agent1",
         reference_type: "AGENT",
-        dependencies: [],
     },
 ]);
 const uniqueName = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;

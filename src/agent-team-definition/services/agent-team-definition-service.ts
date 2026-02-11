@@ -70,6 +70,7 @@ export class AgentTeamDefinitionService {
       role: updateData.role,
       nodes: updateData.nodes,
       coordinatorMemberName: updateData.coordinatorMemberName,
+      avatarUrl: updateData.avatarUrl,
     };
 
     const updateRecord = existing as unknown as Record<string, unknown>;

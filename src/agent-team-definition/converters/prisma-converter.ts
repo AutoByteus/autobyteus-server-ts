@@ -41,9 +41,6 @@ const parseNodes = (value: unknown): TeamMember[] => {
       const referenceId = (record.referenceId ?? record.reference_id) as string | undefined;
       const referenceTypeRaw = record.referenceType ?? record.reference_type;
       const referenceType = parseNodeType(referenceTypeRaw);
-      const dependencies = Array.isArray(record.dependencies)
-        ? record.dependencies.filter((item): item is string => typeof item === "string")
-        : [];
 
       if (!memberName || !referenceId || !referenceType) {
         return null;
@@ -53,7 +50,6 @@ const parseNodes = (value: unknown): TeamMember[] => {
         memberName,
         referenceId,
         referenceType,
-        dependencies,
       });
     })
     .filter((node): node is TeamMember => node !== null);
@@ -63,8 +59,15 @@ const toNodePayload = (node: TeamMember): Record<string, unknown> => ({
   member_name: node.memberName,
   reference_id: node.referenceId,
   reference_type: node.referenceType,
-  dependencies: node.dependencies,
 });
+
+const normalizeOptionalString = (value: string | null | undefined): string | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
+};
 
 export class PrismaAgentTeamDefinitionConverter {
   static toDomain(prismaObj: PrismaAgentTeamDefinition): AgentTeamDefinition {
@@ -73,6 +76,7 @@ export class PrismaAgentTeamDefinitionConverter {
       name: prismaObj.name,
       description: prismaObj.description,
       role: prismaObj.role ?? null,
+      avatarUrl: normalizeOptionalString(prismaObj.avatarUrl),
       nodes: parseNodes(prismaObj.nodes),
       coordinatorMemberName: prismaObj.coordinatorMemberName,
     });
@@ -83,6 +87,7 @@ export class PrismaAgentTeamDefinitionConverter {
       name: domainObj.name,
       description: domainObj.description,
       role: domainObj.role ?? undefined,
+      avatarUrl: normalizeOptionalString(domainObj.avatarUrl),
       nodes: JSON.stringify(domainObj.nodes.map(toNodePayload)),
       coordinatorMemberName: domainObj.coordinatorMemberName,
     };
@@ -99,6 +104,7 @@ export class PrismaAgentTeamDefinitionConverter {
         name: domainObj.name,
         description: domainObj.description,
         role: domainObj.role ?? undefined,
+        avatarUrl: normalizeOptionalString(domainObj.avatarUrl),
         nodes: JSON.stringify(domainObj.nodes.map(toNodePayload)),
         coordinatorMemberName: domainObj.coordinatorMemberName,
       },

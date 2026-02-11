@@ -23,13 +23,11 @@ describe("AgentTeamDefinitionService", () => {
           memberName: "coord1",
           referenceId: "agent1",
           referenceType: NodeType.AGENT,
-          dependencies: [],
         }),
         new TeamMember({
           memberName: "subteam2",
           referenceId: "team2",
           referenceType: NodeType.AGENT_TEAM,
-          dependencies: ["coord1"],
         }),
       ],
       coordinatorMemberName: "coord1",
@@ -119,6 +117,7 @@ describe("AgentTeamDefinitionService", () => {
     const updateData = new AgentTeamDefinitionUpdate({
       description: "Updated Description",
       role: "New Role",
+      avatarUrl: "http://localhost:8000/rest/files/images/updated-team-avatar.png",
     });
 
     const updated = await service.updateDefinition("def-123", updateData);
@@ -127,6 +126,7 @@ describe("AgentTeamDefinitionService", () => {
     expect(provider.update).toHaveBeenCalledOnce();
     expect(updated.description).toBe("Updated Description");
     expect(updated.role).toBe("New Role");
+    expect(updated.avatarUrl).toBe("http://localhost:8000/rest/files/images/updated-team-avatar.png");
     expect(updated.nodes[1].referenceType).toBe(NodeType.AGENT_TEAM);
   });
 

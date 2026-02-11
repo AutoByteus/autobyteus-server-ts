@@ -54,15 +54,18 @@ describe("AgentDefinitionService skill names", () => {
       name: "Skill Agent",
       role: "Tester",
       description: "Tests skills",
+      avatarUrl: "http://localhost:8000/rest/files/images/skill-avatar.png",
       systemPromptName: "Default",
       systemPromptCategory: "Default",
       skillNames: ["skill_a", "skill_b"],
     });
 
     expect(created.skillNames).toEqual(["skill_a", "skill_b"]);
+    expect(created.avatarUrl).toBe("http://localhost:8000/rest/files/images/skill-avatar.png");
 
     const persisted = provider.create.mock.calls[0]?.[0] as AgentDefinition;
     expect(persisted.skillNames).toEqual(["skill_a", "skill_b"]);
+    expect(persisted.avatarUrl).toBe("http://localhost:8000/rest/files/images/skill-avatar.png");
   });
 
   it("persists skill names on update", async () => {
@@ -79,9 +82,11 @@ describe("AgentDefinitionService skill names", () => {
 
     const updated = await service.updateAgentDefinition("test-id", {
       skillNames: ["new_skill"],
+      avatarUrl: "",
     });
 
     expect(updated.skillNames).toEqual(["new_skill"]);
+    expect(updated.avatarUrl).toBeNull();
     expect(provider.update).toHaveBeenCalledOnce();
   });
 });

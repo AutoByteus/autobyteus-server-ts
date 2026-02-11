@@ -27,6 +27,28 @@ const createEnvelope = () => ({
   }),
 });
 
+const createEnvelopeWithAttachments = () => ({
+  ...createEnvelope(),
+  attachments: [
+    {
+      kind: "audio",
+      url: "data:audio/wav;base64,ZmFrZQ==",
+      mimeType: "audio/wav",
+      fileName: "voice.wav",
+      sizeBytes: 4,
+      metadata: { ptt: true },
+    },
+    {
+      kind: "image",
+      url: "https://example.com/image.jpg",
+      mimeType: "image/jpeg",
+      fileName: "image.jpg",
+      sizeBytes: 42,
+      metadata: { source: "wa" },
+    },
+  ],
+});
+
 const createAgentBinding = (): ChannelBinding => ({
   id: "binding-1",
   provider: ExternalChannelProvider.WHATSAPP,
@@ -104,6 +126,34 @@ describe("DefaultChannelRuntimeFacade", () => {
       }),
       "support-node",
     );
+  });
+
+  it("maps inbound attachments to context files", async () => {
+    const postUserMessage = vi.fn().mockResolvedValue(undefined);
+    const facade = new DefaultChannelRuntimeFacade({
+      agentInstanceManager: {
+        getAgentInstance: vi.fn().mockReturnValue({
+          postUserMessage,
+        }),
+      },
+      agentTeamInstanceManager: {
+        getTeamInstance: vi.fn(),
+      },
+    });
+
+    await facade.dispatchToBinding(createAgentBinding(), createEnvelopeWithAttachments());
+
+    expect(postUserMessage).toHaveBeenCalledOnce();
+    const sentMessage = postUserMessage.mock.calls[0][0];
+    expect(sentMessage.contextFiles).toHaveLength(2);
+    expect(sentMessage.contextFiles?.[0]?.toDict()).toMatchObject({
+      file_type: "audio",
+      file_name: "voice.wav",
+    });
+    expect(sentMessage.contextFiles?.[1]?.toDict()).toMatchObject({
+      file_type: "image",
+      file_name: "image.jpg",
+    });
   });
 
   it("throws when agent binding has no agentId", async () => {

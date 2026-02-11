@@ -28,12 +28,12 @@ describe("listAgentTeamDefinitionsTool", () => {
       name: "Team1",
       description: "Desc1",
       role: "Role1",
+      avatarUrl: "http://localhost:8000/rest/files/images/team-avatar-1.png",
       nodes: [
         new TeamMember({
           memberName: "coord1",
           referenceId: "agent1",
           referenceType: NodeType.AGENT,
-          dependencies: [],
         }),
       ],
       coordinatorMemberName: "coord1",
@@ -46,6 +46,7 @@ describe("listAgentTeamDefinitionsTool", () => {
     const data = JSON.parse(result) as Array<Record<string, unknown>>;
     expect(data).toHaveLength(1);
     expect(data[0]?.name).toBe("Team1");
+    expect(data[0]?.avatar_url).toBe("http://localhost:8000/rest/files/images/team-avatar-1.png");
     const nodes = data[0]?.nodes as Array<Record<string, unknown>>;
     expect(nodes[0]?.member_name).toBe("coord1");
   });

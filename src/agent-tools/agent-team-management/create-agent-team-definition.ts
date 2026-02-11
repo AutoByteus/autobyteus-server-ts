@@ -29,7 +29,7 @@ argumentSchema.addParameter(
     name: "nodes",
     type: ParameterType.STRING,
     description:
-      "A JSON string representing the list of team members (member_name, reference_id, reference_type, dependencies).",
+      "A JSON string representing the list of team members (member_name, reference_id, reference_type).",
     required: true,
   }),
 );
@@ -46,6 +46,14 @@ argumentSchema.addParameter(
     name: "role",
     type: ParameterType.STRING,
     description: "The role of this team if it's nested inside another team.",
+    required: false,
+  }),
+);
+argumentSchema.addParameter(
+  new ParameterDefinition({
+    name: "avatar_url",
+    type: ParameterType.STRING,
+    description: "Optional avatar URL for the team.",
     required: false,
   }),
 );
@@ -67,9 +75,6 @@ const parseTeamMembers = (nodes: string): TeamMember[] => {
     const memberName = node.member_name as string | undefined;
     const referenceId = node.reference_id as string | undefined;
     const referenceTypeRaw = node.reference_type as string | undefined;
-    const dependencies = Array.isArray(node.dependencies)
-      ? node.dependencies.filter((item): item is string => typeof item === "string")
-      : [];
 
     if (!memberName || !referenceId || !referenceTypeRaw) {
       throw new Error("Each node must include member_name, reference_id, and reference_type.");
@@ -90,7 +95,6 @@ const parseTeamMembers = (nodes: string): TeamMember[] => {
       memberName,
       referenceId,
       referenceType,
-      dependencies,
     });
   });
 };
@@ -102,6 +106,7 @@ export async function createAgentTeamDefinition(
   nodes: string,
   coordinator_member_name: string,
   role?: string | null,
+  avatar_url?: string | null,
 ): Promise<string> {
   const agentId = context?.agentId ?? "unknown";
   logger.info(
@@ -114,6 +119,7 @@ export async function createAgentTeamDefinition(
       name,
       description,
       role: role ?? null,
+      avatarUrl: avatar_url ?? null,
       nodes: teamMembers,
       coordinatorMemberName: coordinator_member_name,
     });

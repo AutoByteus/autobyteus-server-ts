@@ -44,12 +44,12 @@ describe("Agent team definitions GraphQL e2e", () => {
           name
           description
           role
+          avatarUrl
           coordinatorMemberName
           nodes {
             memberName
             referenceId
             referenceType
-            dependencies
           }
         }
       }
@@ -61,12 +61,12 @@ describe("Agent team definitions GraphQL e2e", () => {
         name: string;
         description: string;
         role: string | null;
+        avatarUrl: string | null;
         coordinatorMemberName: string;
         nodes: Array<{
           memberName: string;
           referenceId: string;
           referenceType: string;
-          dependencies: string[];
         }>;
       };
     }>(createMutation, {
@@ -74,25 +74,27 @@ describe("Agent team definitions GraphQL e2e", () => {
         name: teamName,
         description: "Team definition for e2e",
         role: "Coordinator",
+        avatarUrl: "http://localhost:8000/rest/files/images/e2e-team-avatar.png",
         coordinatorMemberName: "leader",
         nodes: [
           {
             memberName: "leader",
             referenceId: "agent-1",
             referenceType: "AGENT",
-            dependencies: [],
           },
           {
             memberName: "helper",
             referenceId: "agent-2",
             referenceType: "AGENT",
-            dependencies: ["leader"],
           },
         ],
       },
     });
 
     expect(created.createAgentTeamDefinition.name).toBe(teamName);
+    expect(created.createAgentTeamDefinition.avatarUrl).toBe(
+      "http://localhost:8000/rest/files/images/e2e-team-avatar.png",
+    );
     expect(created.createAgentTeamDefinition.nodes.length).toBe(2);
 
     const updateMutation = `
@@ -101,20 +103,28 @@ describe("Agent team definitions GraphQL e2e", () => {
           id
           description
           role
+          avatarUrl
         }
       }
     `;
     const updated = await execGraphql<{
-      updateAgentTeamDefinition: { id: string; description: string; role: string | null };
+      updateAgentTeamDefinition: {
+        id: string;
+        description: string;
+        role: string | null;
+        avatarUrl: string | null;
+      };
     }>(updateMutation, {
       input: {
         id: created.createAgentTeamDefinition.id,
         description: "Updated team description",
         role: "UpdatedRole",
+        avatarUrl: "",
       },
     });
     expect(updated.updateAgentTeamDefinition.description).toBe("Updated team description");
     expect(updated.updateAgentTeamDefinition.role).toBe("UpdatedRole");
+    expect(updated.updateAgentTeamDefinition.avatarUrl).toBeNull();
 
     const query = `
       query GetTeam($id: String!) {

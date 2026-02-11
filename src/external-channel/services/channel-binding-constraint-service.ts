@@ -3,6 +3,7 @@ import type { ExternalChannelTransport } from "autobyteus-ts/external-channel/ch
 import { assertProviderTransportCompatibility } from "autobyteus-ts/external-channel/provider-transport-compatibility.js";
 
 const ACCEPTED_PROVIDER_TRANSPORT_PAIRS = [
+  "DISCORD:BUSINESS_API",
   "WHATSAPP:BUSINESS_API",
   "WHATSAPP:PERSONAL_SESSION",
   "WECOM:BUSINESS_API",

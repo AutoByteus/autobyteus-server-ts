@@ -3,6 +3,7 @@ export class AgentDefinition {
   name: string;
   role: string;
   description: string;
+  avatarUrl?: string | null;
   toolNames: string[];
   inputProcessorNames: string[];
   llmResponseProcessorNames: string[];
@@ -18,6 +19,7 @@ export class AgentDefinition {
     name: string;
     role: string;
     description: string;
+    avatarUrl?: string | null;
     id?: string | null;
     toolNames?: string[];
     inputProcessorNames?: string[];
@@ -33,6 +35,7 @@ export class AgentDefinition {
     this.name = options.name;
     this.role = options.role;
     this.description = options.description;
+    this.avatarUrl = options.avatarUrl ?? null;
     this.id = options.id ?? null;
     this.toolNames = options.toolNames ?? [];
     this.inputProcessorNames = options.inputProcessorNames ?? [];

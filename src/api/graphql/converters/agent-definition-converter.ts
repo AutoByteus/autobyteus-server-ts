@@ -27,6 +27,7 @@ export class AgentDefinitionConverter {
         name: domainDefinition.name,
         role: domainDefinition.role,
         description: domainDefinition.description,
+        avatarUrl: domainDefinition.avatarUrl ?? null,
         toolNames: domainDefinition.toolNames,
         inputProcessorNames: domainDefinition.inputProcessorNames,
         llmResponseProcessorNames: domainDefinition.llmResponseProcessorNames,

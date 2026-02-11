@@ -40,7 +40,6 @@ describe("Agent team definitions GraphQL e2e", () => {
             memberName
             referenceId
             referenceType
-            dependencies
           }
         }
       }
@@ -56,13 +55,11 @@ describe("Agent team definitions GraphQL e2e", () => {
                         memberName: "leader",
                         referenceId: "agent-1",
                         referenceType: "AGENT",
-                        dependencies: [],
                     },
                     {
                         memberName: "helper",
                         referenceId: "agent-2",
                         referenceType: "AGENT",
-                        dependencies: ["leader"],
                     },
                 ],
             },

@@ -75,12 +75,17 @@ function initializeConfig(options: ServerOptions) {
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = fastify({ logger: true });
+  const maxUploadFileSizeBytes = 25 * 1024 * 1024; // 25MB
 
   await app.register(cors, {
     origin: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
-  await app.register(multipart);
+  await app.register(multipart, {
+    limits: {
+      fileSize: maxUploadFileSizeBytes,
+    },
+  });
   await app.register(websocket);
 
   await app.register(registerRestRoutes, { prefix: "/rest" });

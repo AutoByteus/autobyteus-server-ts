@@ -9,6 +9,7 @@ describe("SqlAgentDefinitionProvider", () => {
       name: "Provider Agent Test",
       role: "Test",
       description: "Test desc",
+      avatarUrl: "http://localhost:8000/rest/files/images/provider-avatar.png",
     });
 
     const created = await provider.create(domain);
@@ -18,5 +19,6 @@ describe("SqlAgentDefinitionProvider", () => {
     expect(retrieved).not.toBeNull();
     expect(retrieved?.id).toBe(created.id);
     expect(retrieved?.name).toBe("Provider Agent Test");
+    expect(retrieved?.avatarUrl).toBe("http://localhost:8000/rest/files/images/provider-avatar.png");
   });
 });

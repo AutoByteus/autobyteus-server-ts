@@ -7,7 +7,6 @@ const buildNodesPayload = () =>
       member_name: "member1",
       reference_id: "agent1",
       reference_type: "AGENT",
-      dependencies: [],
     },
   ]);
 
