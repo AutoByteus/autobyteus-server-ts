@@ -5,6 +5,9 @@ on:
     tags:
       - "v*.*.*"
       - "*.*.*"
+  repository_dispatch:
+    types:
+      - autobyteus-ts-main-updated
   workflow_dispatch:
     inputs:
       release_tag:
@@ -39,7 +42,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: AutoByteus/autobyteus-ts
-          ref: ${{ env.DEFAULT_AUTOBYTEUS_TS_REF }}
+          ref: ${{ github.event.client_payload.autobyteus_ts_ref || env.DEFAULT_AUTOBYTEUS_TS_REF }}
           path: autobyteus-ts
           fetch-depth: 1
 
@@ -66,8 +69,8 @@ jobs:
       - name: Compute Docker tags
         id: tags
         env:
-          IMAGE_NAME_INPUT: ${{ github.event.inputs.image_name || '' }}
-          RELEASE_TAG_INPUT: ${{ github.event.inputs.release_tag || github.ref_name }}
+          IMAGE_NAME_INPUT: ${{ github.event.inputs.image_name || github.event.client_payload.image_name || '' }}
+          RELEASE_TAG_INPUT: ${{ github.event.inputs.release_tag || github.event.client_payload.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
 

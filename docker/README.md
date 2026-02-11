@@ -97,7 +97,8 @@ Workflow file:
 
 What it does:
 
-- Triggers only when a Git tag is pushed (for example `v1.2.3`).
+- Triggers when a Git tag is pushed (for example `v1.2.3`).
+- Also triggers when `AutoByteus/autobyteus-ts` receives a push to `main`.
 - Also supports manual run via GitHub Actions `workflow_dispatch`.
 - Checks out `autobyteus-server-ts` + public dependencies:
   - `AutoByteus/autobyteus-ts`
@@ -107,8 +108,12 @@ What it does:
 
 Required repository secrets:
 
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
+- In `autobyteus-server-ts`:
+  - `DOCKERHUB_USERNAME`
+  - `DOCKERHUB_TOKEN`
+- In `autobyteus-ts`:
+  - `AUTOBYTEUS_SERVER_TS_WORKFLOW_TOKEN`
+    - A GitHub token that can send `repository_dispatch` to `AutoByteus/autobyteus-server-ts`.
 
 Tag patterns currently matched:
 
