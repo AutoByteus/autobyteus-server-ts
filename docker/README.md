@@ -74,7 +74,7 @@ With default port mapping:
 - noVNC: `http://localhost:6088`
 - Chrome debug proxy: `localhost:9228`
 
-For `autobyteus-web`'s built-in VNC viewer, set `AUTOBYTEUS_VNC_SERVER_URL` to the WebSocket endpoint host:port (default `localhost:6088`), not the raw VNC TCP port.
+For `autobyteus-web`'s built-in VNC viewer, set `AUTOBYTEUS_VNC_SERVER_HOSTS` to comma-separated WebSocket endpoint host:port values (default `localhost:6088`), not raw VNC TCP ports.
 
 ## Authentication for Git Clones
 

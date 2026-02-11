@@ -36,14 +36,14 @@ describe("ServerSettingsResolver search config", () => {
 
   it("maps available server settings from service", () => {
     mockServerSettingsService.getAvailableSettings.mockReturnValue([
-      { key: "AUTOBYTEUS_VNC_SERVER_URLS", value: "localhost:5900", description: "desc" },
+      { key: "AUTOBYTEUS_VNC_SERVER_HOSTS", value: "localhost:6088", description: "desc" },
     ]);
 
     const resolver = new ServerSettingsResolver();
     const result = resolver.getServerSettings();
 
     expect(result).toEqual([
-      { key: "AUTOBYTEUS_VNC_SERVER_URLS", value: "localhost:5900", description: "desc" },
+      { key: "AUTOBYTEUS_VNC_SERVER_HOSTS", value: "localhost:6088", description: "desc" },
     ]);
   });
 
@@ -51,12 +51,12 @@ describe("ServerSettingsResolver search config", () => {
     mockServerSettingsService.updateSetting.mockReturnValue([true, "updated"]);
 
     const resolver = new ServerSettingsResolver();
-    const result = resolver.updateServerSetting("AUTOBYTEUS_VNC_SERVER_URLS", "localhost:5901");
+    const result = resolver.updateServerSetting("AUTOBYTEUS_VNC_SERVER_HOSTS", "localhost:6089");
 
     expect(result).toBe("updated");
     expect(mockServerSettingsService.updateSetting).toHaveBeenCalledWith(
-      "AUTOBYTEUS_VNC_SERVER_URLS",
-      "localhost:5901",
+      "AUTOBYTEUS_VNC_SERVER_HOSTS",
+      "localhost:6089",
     );
   });
 

@@ -37,10 +37,10 @@ export class ServerSettingsService {
     );
 
     this.settingsInfo.set(
-      "AUTOBYTEUS_VNC_SERVER_URL",
+      "AUTOBYTEUS_VNC_SERVER_HOSTS",
       new ServerSettingDescription(
-        "AUTOBYTEUS_VNC_SERVER_URL",
-        "URL of the AUTOBYTEUS VNC server (e.g., localhost:5900)",
+        "AUTOBYTEUS_VNC_SERVER_HOSTS",
+        "Comma-separated host:port values for AutoByteus VNC WebSocket endpoints (e.g., localhost:6088,localhost:6089)",
       ),
     );
 
