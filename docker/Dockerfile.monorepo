@@ -14,7 +14,7 @@ COPY autobyteus-ts ./autobyteus-ts
 COPY repository_prisma ./repository_prisma
 COPY autobyteus-server-ts ./autobyteus-server-ts
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 RUN pnpm -C autobyteus-server-ts exec prisma generate --schema prisma/schema.prisma
 RUN pnpm -C autobyteus-server-ts build
 
