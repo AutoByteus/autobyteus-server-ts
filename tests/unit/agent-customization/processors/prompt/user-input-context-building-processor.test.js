@@ -96,14 +96,14 @@ describe("UserInputContextBuildingProcessor", () => {
             workspace,
             modelName: "test-rpa",
             systemMessage: "RPA System Message.",
-            customData: { is_on_first_turn: true },
+            customData: { is_first_user_turn: true },
         });
         const message = new AgentInputUserMessage("My Requirement", SenderType.USER);
         const processor = new UserInputContextBuildingProcessor();
         const result = await processor.process(message, context, new UserMessageReceivedEvent(message));
         expect(result.content.startsWith("RPA System Message.")).toBe(true);
         expect(result.content).toContain("**[User Requirement]**\nMy Requirement");
-        expect(context.customData.is_on_first_turn).toBe(false);
+        expect(context.customData.is_first_user_turn).toBe(false);
     });
     it("does not prepend system prompt after first turn", async () => {
         const workspace = new FileSystemWorkspace(new WorkspaceConfig({ rootPath: tempDir }));
@@ -111,7 +111,7 @@ describe("UserInputContextBuildingProcessor", () => {
             workspace,
             modelName: "test-rpa",
             systemMessage: "RPA System Message.",
-            customData: { is_on_first_turn: false },
+            customData: { is_first_user_turn: false },
         });
         const message = new AgentInputUserMessage("My Requirement", SenderType.USER);
         const processor = new UserInputContextBuildingProcessor();

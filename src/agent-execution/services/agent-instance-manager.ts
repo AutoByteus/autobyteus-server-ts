@@ -309,7 +309,7 @@ export class AgentInstanceManager {
 
     const initialCustomData = {
       agent_definition_id: agentDefinitionId,
-      is_on_first_turn: true,
+      is_first_user_turn: true,
     };
 
     const agentConfig = new AgentConfig(

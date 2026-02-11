@@ -136,7 +136,7 @@ describe("UserInputContextBuildingProcessor", () => {
       modelName: "test-model",
       provider: LLMProvider.AUTOBYTEUS,
       systemMessage: "RPA System Message.",
-      customData: { is_on_first_turn: true },
+      customData: { is_first_user_turn: true },
     });
     const message = new AgentInputUserMessage("My Requirement", SenderType.USER);
     const processor = new UserInputContextBuildingProcessor();
@@ -145,7 +145,7 @@ describe("UserInputContextBuildingProcessor", () => {
 
     expect(result.content.startsWith("RPA System Message.")).toBe(true);
     expect(result.content).toContain("**[User Requirement]**\nMy Requirement");
-    expect(context.customData.is_on_first_turn).toBe(false);
+    expect(context.customData.is_first_user_turn).toBe(false);
   });
 
   it("does not prepend system prompt after first turn", async () => {
@@ -155,7 +155,7 @@ describe("UserInputContextBuildingProcessor", () => {
       modelName: "test-model",
       provider: LLMProvider.AUTOBYTEUS,
       systemMessage: "RPA System Message.",
-      customData: { is_on_first_turn: false },
+      customData: { is_first_user_turn: false },
     });
     const message = new AgentInputUserMessage("My Requirement", SenderType.USER);
     const processor = new UserInputContextBuildingProcessor();
@@ -173,7 +173,7 @@ describe("UserInputContextBuildingProcessor", () => {
       modelName: "test-model",
       provider: LLMProvider.OPENAI,
       systemMessage: "RPA System Message.",
-      customData: { is_on_first_turn: true },
+      customData: { is_first_user_turn: true },
     });
     const message = new AgentInputUserMessage("My Requirement", SenderType.USER);
     const processor = new UserInputContextBuildingProcessor();
@@ -182,7 +182,7 @@ describe("UserInputContextBuildingProcessor", () => {
 
     expect(result.content.startsWith("RPA System Message.")).toBe(false);
     expect(result.content.endsWith("**[User Requirement]**\nMy Requirement")).toBe(true);
-    expect(context.customData.is_on_first_turn).toBe(false);
+    expect(context.customData.is_first_user_turn).toBe(false);
   });
 
   it("skips missing files gracefully", async () => {

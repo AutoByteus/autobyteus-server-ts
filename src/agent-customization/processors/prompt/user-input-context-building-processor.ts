@@ -179,8 +179,8 @@ export class UserInputContextBuildingProcessor extends BaseAgentUserInputMessage
   ): Promise<AgentInputUserMessage> {
     const agentId = context.agentId;
     const customData = context.customData ?? {};
-    const isFirstTurn =
-      typeof customData.is_on_first_turn === "boolean" ? customData.is_on_first_turn : true;
+    const isFirstUserTurn =
+      typeof customData.is_first_user_turn === "boolean" ? customData.is_first_user_turn : true;
 
     const rawRequirement = message.content;
 
@@ -207,7 +207,7 @@ export class UserInputContextBuildingProcessor extends BaseAgentUserInputMessage
     const isAutobyteusModel = await this.modelProviderIsAutobyteus(context);
     const llmModelName = context.llmInstance?.model?.name ?? "";
 
-    if (isFirstTurn && isAutobyteusModel) {
+    if (isFirstUserTurn && isAutobyteusModel) {
       logger.debug(
         `Agent '${agentId}': First turn for AUTOBYTEUS model '${llmModelName}'. Prepending system prompt.`,
       );
@@ -222,13 +222,13 @@ export class UserInputContextBuildingProcessor extends BaseAgentUserInputMessage
       }
     } else {
       logger.debug(
-        `Agent '${agentId}': Standard prompt processing. isFirstTurn=${isFirstTurn}, isAutobyteusModel=${isAutobyteusModel}.`,
+        `Agent '${agentId}': Standard prompt processing. isFirstUserTurn=${isFirstUserTurn}, isAutobyteusModel=${isAutobyteusModel}.`,
       );
     }
 
-    if (isFirstTurn && context.customData) {
-      context.customData.is_on_first_turn = false;
-      logger.debug(`Agent '${agentId}': First turn processed, 'is_on_first_turn' set to false.`);
+    if (isFirstUserTurn && context.customData) {
+      context.customData.is_first_user_turn = false;
+      logger.debug(`Agent '${agentId}': First turn processed, 'is_first_user_turn' set to false.`);
     }
 
     message.content = finalContent;
