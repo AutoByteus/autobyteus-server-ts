@@ -21,6 +21,8 @@ model AgentDefinition {
   toolInvocationPreprocessorNames   String @default("[]") @map("tool_invocation_preprocessor_names")
   lifecycleProcessorNames           String @default("[]") @map("lifecycle_processor_names")
   skillNames                        String @default("[]") @map("skill_names")
+  syncId                            String? @unique(map: "uq_agent_definitions_sync_id") @map("sync_id")
+  syncRevision                      String? @map("sync_revision")
 
   promptMapping AgentPromptMapping?
 
@@ -50,6 +52,8 @@ model Prompt {
   isActive          Boolean  @default(true) @map("is_active")
   description       String?
   suitableForModels String?  @map("suitable_for_models")
+  syncId            String?  @unique(map: "uq_prompts_sync_id") @map("sync_id")
+  syncRevision      String?  @map("sync_revision")
 
   @@unique([name, category, version, suitableForModels], map: "uq_prompt_version")
   @@map("prompts")
@@ -63,19 +67,10 @@ model AgentTeamDefinition {
   avatarUrl              String? @map("avatar_url")
   nodes                  String
   coordinatorMemberName  String @map("coordinator_member_name")
+  syncId                 String? @unique(map: "uq_agent_team_definitions_sync_id") @map("sync_id")
+  syncRevision           String? @map("sync_revision")
 
   @@map("agent_team_definitions")
-}
-
-model AgentWorkflowDefinition {
-  id           Int    @id @default(autoincrement())
-  name         String @unique
-  description  String
-  nodes        String
-  beginNodeId  String @map("begin_node_id")
-  endNodeId    String @map("end_node_id")
-
-  @@map("agent_workflow_definitions")
 }
 
 model TokenUsageRecord {
@@ -114,8 +109,24 @@ model McpServerConfiguration {
   configDetails  String   @map("config_details")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
+  syncId         String?  @unique(map: "uq_mcp_server_configurations_sync_id") @map("sync_id")
+  syncRevision   String?  @map("sync_revision")
 
   @@map("mcp_server_configurations")
+}
+
+model SyncTombstone {
+  id           Int      @id @default(autoincrement())
+  entityType   String   @map("entity_type")
+  syncId       String   @map("sync_id")
+  sourceNodeId String   @map("source_node_id")
+  sourceEpoch  Int      @map("source_epoch")
+  sequence     Int
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([entityType, syncId, sourceNodeId, sourceEpoch, sequence], map: "uq_sync_tombstones_revision")
+  @@index([entityType, syncId], map: "idx_sync_tombstones_entity_sync_id")
+  @@map("sync_tombstones")
 }
 
 model ChannelBinding {

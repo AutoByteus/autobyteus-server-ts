@@ -1,12 +1,15 @@
 services:
   autobyteus-server:
     container_name: autobyteus-server
-    image: autobyteus-server-dev:${AUTOBYTEUS_IMAGE_TAG:-latest}
+    image: autobyteus-server:${AUTOBYTEUS_IMAGE_TAG:-latest}
     build:
-      context: .
+      context: ../..
+      dockerfile: autobyteus-server-ts/docker/Dockerfile.monorepo
     env_file:
       - .env
     environment:
+      AUTOBYTEUS_WORKSPACE_ROOT: /home/autobyteus/workspace
+      AUTOBYTEUS_DATA_DIR: /home/autobyteus/data
       AUTOBYTEUS_GIT_AUTH_MODE: ${AUTOBYTEUS_GIT_AUTH_MODE:-pat}
       GITHUB_USERNAME: ${GITHUB_USERNAME:-x-access-token}
       GITHUB_EMAIL: ${GITHUB_EMAIL:-autobyteus-bot@autobyteus.dev}
@@ -34,6 +37,7 @@ services:
       - "${AUTOBYTEUS_WEB_VNC_PORT:-6080}:6080"
       - "${AUTOBYTEUS_CHROME_DEBUG_PORT:-9228}:9223"
     volumes:
+      - ./.env:/app/autobyteus-server-ts/.env:ro
       - autobyteus-server-workspace:/home/autobyteus/workspace
       - autobyteus-server-data:/home/autobyteus/data
     restart: unless-stopped

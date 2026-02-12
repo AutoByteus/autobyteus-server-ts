@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_NAME="autobyteus-server-dev"
+IMAGE_NAME="autobyteus-server"
 TAG="${AUTOBYTEUS_IMAGE_TAG:-latest}"
 BUILD_ARGS=()
 PLATFORMS="linux/amd64,linux/arm64"
 LOAD_DEFAULT=true
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MONOREPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+DOCKERFILE_PATH="${SCRIPT_DIR}/Dockerfile.monorepo"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,6 +54,6 @@ if ! docker buildx version >/dev/null 2>&1; then
   exit 1
 fi
 
-docker buildx build "${BUILD_ARGS[@]}" --platform "${PLATFORMS}" -t "${IMAGE_NAME}:${TAG}" .
+docker buildx build "${BUILD_ARGS[@]}" --platform "${PLATFORMS}" -f "${DOCKERFILE_PATH}" -t "${IMAGE_NAME}:${TAG}" "${MONOREPO_ROOT}"
 
 echo "Built ${IMAGE_NAME}:${TAG} (${PLATFORMS})"
