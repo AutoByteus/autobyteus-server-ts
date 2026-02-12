@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AgentEventStream, StreamEvent } from "autobyteus-ts";
+import { StreamEventType, type AgentEventStream, type StreamEvent } from "autobyteus-ts";
 import { AgentStreamHandler } from "../../../../src/services/agent-streaming/agent-stream-handler.js";
 import { AgentSessionManager } from "../../../../src/services/agent-streaming/agent-session-manager.js";
 import { ClientMessageType, ServerMessageType } from "../../../../src/services/agent-streaming/models.js";
@@ -166,5 +166,30 @@ describe("AgentStreamHandler", () => {
     );
 
     await handler.handleMessage("missing", JSON.stringify({ type: ClientMessageType.SEND_MESSAGE }));
+  });
+
+  it("maps explicit tool lifecycle stream events to websocket message types", () => {
+    const handler = new AgentStreamHandler(new AgentSessionManager(), {
+      getAgentInstance: vi.fn(),
+      getAgentEventStream: vi.fn(),
+    } as any);
+
+    const mappings: Array<[StreamEventType, ServerMessageType]> = [
+      [StreamEventType.TOOL_APPROVAL_REQUESTED, ServerMessageType.TOOL_APPROVAL_REQUESTED],
+      [StreamEventType.TOOL_APPROVED, ServerMessageType.TOOL_APPROVED],
+      [StreamEventType.TOOL_DENIED, ServerMessageType.TOOL_DENIED],
+      [StreamEventType.TOOL_EXECUTION_STARTED, ServerMessageType.TOOL_EXECUTION_STARTED],
+      [StreamEventType.TOOL_EXECUTION_SUCCEEDED, ServerMessageType.TOOL_EXECUTION_SUCCEEDED],
+      [StreamEventType.TOOL_EXECUTION_FAILED, ServerMessageType.TOOL_EXECUTION_FAILED],
+    ];
+
+    for (const [streamType, messageType] of mappings) {
+      const message = handler.convertStreamEvent({
+        event_type: streamType,
+        data: { invocation_id: "inv-1", tool_name: "read_file" },
+      } as StreamEvent);
+      expect(message.type).toBe(messageType);
+      expect(message.payload.invocation_id).toBe("inv-1");
+    }
   });
 });

@@ -16,6 +16,7 @@ import {
   ServerMessage,
   ServerMessageType,
 } from "./models.js";
+import { serializePayload } from "./payload-serialization.js";
 
 export type WebSocketConnection = {
   send: (data: string) => void;
@@ -42,17 +43,6 @@ const logger = {
   warn: (...args: unknown[]) => console.warn(...args),
   error: (...args: unknown[]) => console.error(...args),
   debug: (...args: unknown[]) => console.debug(...args),
-};
-
-const toPayload = (data: unknown): Record<string, unknown> => {
-  if (!data || typeof data !== "object") {
-    return {};
-  }
-  try {
-    return JSON.parse(JSON.stringify(data)) as Record<string, unknown>;
-  } catch {
-    return data as Record<string, unknown>;
-  }
 };
 
 export class AgentStreamHandler {
@@ -240,29 +230,37 @@ export class AgentStreamHandler {
       case StreamEventType.SEGMENT_EVENT:
         return this.convertSegmentEvent(event);
       case StreamEventType.AGENT_STATUS_UPDATED:
-        return new ServerMessage(ServerMessageType.AGENT_STATUS, toPayload(event.data));
-      case StreamEventType.TOOL_INVOCATION_APPROVAL_REQUESTED:
-        return new ServerMessage(ServerMessageType.TOOL_APPROVAL_REQUESTED, toPayload(event.data));
-      case StreamEventType.TOOL_INVOCATION_AUTO_EXECUTING:
-        return new ServerMessage(ServerMessageType.TOOL_AUTO_EXECUTING, toPayload(event.data));
+        return new ServerMessage(ServerMessageType.AGENT_STATUS, serializePayload(event.data));
+      case StreamEventType.TOOL_APPROVAL_REQUESTED:
+        return new ServerMessage(ServerMessageType.TOOL_APPROVAL_REQUESTED, serializePayload(event.data));
+      case StreamEventType.TOOL_APPROVED:
+        return new ServerMessage(ServerMessageType.TOOL_APPROVED, serializePayload(event.data));
+      case StreamEventType.TOOL_DENIED:
+        return new ServerMessage(ServerMessageType.TOOL_DENIED, serializePayload(event.data));
+      case StreamEventType.TOOL_EXECUTION_STARTED:
+        return new ServerMessage(ServerMessageType.TOOL_EXECUTION_STARTED, serializePayload(event.data));
+      case StreamEventType.TOOL_EXECUTION_SUCCEEDED:
+        return new ServerMessage(ServerMessageType.TOOL_EXECUTION_SUCCEEDED, serializePayload(event.data));
+      case StreamEventType.TOOL_EXECUTION_FAILED:
+        return new ServerMessage(ServerMessageType.TOOL_EXECUTION_FAILED, serializePayload(event.data));
       case StreamEventType.TOOL_INTERACTION_LOG_ENTRY:
-        return new ServerMessage(ServerMessageType.TOOL_LOG, toPayload(event.data));
+        return new ServerMessage(ServerMessageType.TOOL_LOG, serializePayload(event.data));
       case StreamEventType.ASSISTANT_CHUNK:
-        return new ServerMessage(ServerMessageType.ASSISTANT_CHUNK, toPayload(event.data));
+        return new ServerMessage(ServerMessageType.ASSISTANT_CHUNK, serializePayload(event.data));
       case StreamEventType.ASSISTANT_COMPLETE_RESPONSE:
-        return new ServerMessage(ServerMessageType.ASSISTANT_COMPLETE, toPayload(event.data));
+        return new ServerMessage(ServerMessageType.ASSISTANT_COMPLETE, serializePayload(event.data));
       case StreamEventType.SYSTEM_TASK_NOTIFICATION:
-        return new ServerMessage(ServerMessageType.SYSTEM_TASK_NOTIFICATION, toPayload(event.data));
+        return new ServerMessage(ServerMessageType.SYSTEM_TASK_NOTIFICATION, serializePayload(event.data));
       case StreamEventType.INTER_AGENT_MESSAGE:
-        return new ServerMessage(ServerMessageType.INTER_AGENT_MESSAGE, toPayload(event.data));
+        return new ServerMessage(ServerMessageType.INTER_AGENT_MESSAGE, serializePayload(event.data));
       case StreamEventType.ERROR_EVENT:
-        return new ServerMessage(ServerMessageType.ERROR, toPayload(event.data));
+        return new ServerMessage(ServerMessageType.ERROR, serializePayload(event.data));
       case StreamEventType.AGENT_TODO_LIST_UPDATE:
-        return new ServerMessage(ServerMessageType.TODO_LIST_UPDATE, toPayload(event.data));
+        return new ServerMessage(ServerMessageType.TODO_LIST_UPDATE, serializePayload(event.data));
       case StreamEventType.ARTIFACT_PERSISTED:
-        return new ServerMessage(ServerMessageType.ARTIFACT_PERSISTED, toPayload(event.data));
+        return new ServerMessage(ServerMessageType.ARTIFACT_PERSISTED, serializePayload(event.data));
       case StreamEventType.ARTIFACT_UPDATED:
-        return new ServerMessage(ServerMessageType.ARTIFACT_UPDATED, toPayload(event.data));
+        return new ServerMessage(ServerMessageType.ARTIFACT_UPDATED, serializePayload(event.data));
       default:
         logger.debug(`Unmapped event type: ${String(event.event_type)}`);
         return new ServerMessage(ServerMessageType.ERROR, {
@@ -273,7 +271,7 @@ export class AgentStreamHandler {
   }
 
   private convertSegmentEvent(event: StreamEvent): ServerMessage {
-    const data = toPayload(event.data);
+    const data = serializePayload(event.data);
     const eventType = typeof data.event_type === "string" ? data.event_type : "SEGMENT_CONTENT";
 
     let messageType = ServerMessageType.SEGMENT_CONTENT;

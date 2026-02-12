@@ -20,6 +20,7 @@ import {
   ServerMessage,
   ServerMessageType,
 } from "./models.js";
+import { serializePayload } from "./payload-serialization.js";
 
 export type WebSocketConnection = {
   send: (data: string) => void;
@@ -46,17 +47,6 @@ const logger = {
   info: (...args: unknown[]) => console.info(...args),
   warn: (...args: unknown[]) => console.warn(...args),
   error: (...args: unknown[]) => console.error(...args),
-};
-
-const toPayload = (data: unknown): Record<string, unknown> => {
-  if (!data || typeof data !== "object") {
-    return {};
-  }
-  try {
-    return JSON.parse(JSON.stringify(data)) as Record<string, unknown>;
-  } catch {
-    return data as Record<string, unknown>;
-  }
 };
 
 class AgentTeamSession extends AgentSession {
@@ -286,11 +276,11 @@ export class AgentTeamStreamHandler {
     }
 
     if (sourceType === "TEAM" && event.data instanceof AgentTeamStatusUpdateData) {
-      return new ServerMessage(ServerMessageType.TEAM_STATUS, toPayload(event.data));
+      return new ServerMessage(ServerMessageType.TEAM_STATUS, serializePayload(event.data));
     }
 
     if (sourceType === "TASK_PLAN") {
-      const payload = toPayload(event.data as TaskPlanEventPayload);
+      const payload = serializePayload(event.data as TaskPlanEventPayload);
       let eventType = "TASK_PLAN_EVENT";
       if (Array.isArray(payload.tasks)) {
         eventType = "TASKS_CREATED";
