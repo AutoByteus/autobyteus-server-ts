@@ -4,6 +4,7 @@ import { assertProviderTransportCompatibility } from "autobyteus-ts/external-cha
 
 const ACCEPTED_PROVIDER_TRANSPORT_PAIRS = [
   "DISCORD:BUSINESS_API",
+  "TELEGRAM:BUSINESS_API",
   "WHATSAPP:BUSINESS_API",
   "WHATSAPP:PERSONAL_SESSION",
   "WECOM:BUSINESS_API",
