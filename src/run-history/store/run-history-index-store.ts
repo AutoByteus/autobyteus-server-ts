@@ -134,6 +134,20 @@ export class RunHistoryIndexStore {
     });
   }
 
+  async removeRow(runId: string): Promise<void> {
+    await this.enqueueWrite(async () => {
+      const index = await this.readIndexDirect();
+      const rows = index.rows.filter((row) => row.runId !== runId);
+      if (rows.length === index.rows.length) {
+        return;
+      }
+      await this.writeIndexDirect({
+        version: RUN_HISTORY_INDEX_VERSION,
+        rows,
+      });
+    });
+  }
+
   private enqueueWrite(task: () => Promise<void>): Promise<void> {
     const next = this.writeQueue.then(task, task);
     this.writeQueue = next.then(

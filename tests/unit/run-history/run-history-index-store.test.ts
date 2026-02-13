@@ -76,4 +76,31 @@ describe("RunHistoryIndexStore", () => {
       lastKnownStatus: "ERROR",
     });
   });
+
+  it("removes a row by runId and ignores non-existent rows", async () => {
+    await store.upsertRow({
+      runId: "run-1",
+      agentDefinitionId: "agent-1",
+      agentName: "SuperAgent",
+      workspaceRootPath: "/ws/a",
+      summary: "old",
+      lastActivityAt: "2026-01-01T00:00:00.000Z",
+      lastKnownStatus: "ACTIVE",
+    });
+    await store.upsertRow({
+      runId: "run-2",
+      agentDefinitionId: "agent-2",
+      agentName: "DB Agent",
+      workspaceRootPath: "/ws/b",
+      summary: "old",
+      lastActivityAt: "2026-01-01T00:00:00.000Z",
+      lastKnownStatus: "IDLE",
+    });
+
+    await store.removeRow("run-1");
+    await store.removeRow("missing-run");
+
+    const rows = await store.listRows();
+    expect(rows.map((row) => row.runId)).toEqual(["run-2"]);
+  });
 });

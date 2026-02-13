@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { StreamEvent, StreamEventType } from "autobyteus-ts";
 import { AgentDefinitionService } from "../../agent-definition/services/agent-definition-service.js";
@@ -80,6 +81,11 @@ const extractSummaryFromRawTraces = (
   }
   return "";
 };
+
+export interface DeleteRunHistoryResult {
+  success: boolean;
+  message: string;
+}
 
 export class RunHistoryService {
   private indexStore: RunHistoryIndexStore;
@@ -176,6 +182,49 @@ export class RunHistoryService {
       manifestConfig: manifest,
       editableFields,
     };
+  }
+
+  async deleteRunHistory(runId: string): Promise<DeleteRunHistoryResult> {
+    const normalizedRunId = runId.trim();
+    if (!normalizedRunId) {
+      return {
+        success: false,
+        message: "Run ID is required.",
+      };
+    }
+
+    const activeAgent = this.agentInstanceManager.getAgentInstance(normalizedRunId);
+    if (activeAgent) {
+      return {
+        success: false,
+        message: "Run is active. Terminate it before deleting history.",
+      };
+    }
+
+    const safeTarget = this.resolveSafeRunDirectory(normalizedRunId);
+    if (!safeTarget) {
+      return {
+        success: false,
+        message: "Invalid run ID path.",
+      };
+    }
+
+    try {
+      await fsPromises.rm(safeTarget, { recursive: true, force: true });
+      await this.indexStore.removeRow(normalizedRunId);
+      return {
+        success: true,
+        message: `Run '${normalizedRunId}' deleted permanently.`,
+      };
+    } catch (error) {
+      logger.warn(
+        `Failed to delete run history '${normalizedRunId}': ${String(error)}`,
+      );
+      return {
+        success: false,
+        message: `Failed to delete run history '${normalizedRunId}'.`,
+      };
+    }
   }
 
   async onRunTerminated(runId: string): Promise<void> {
@@ -300,6 +349,24 @@ export class RunHistoryService {
       return candidate;
     }
     return "ACTIVE";
+  }
+
+  private resolveSafeRunDirectory(runId: string): string | null {
+    const agentsRoot = path.resolve(this.memoryStore.getAgentDir(""));
+    const targetPath = path.resolve(this.memoryStore.getAgentDir(runId));
+
+    if (targetPath === agentsRoot) {
+      return null;
+    }
+
+    const targetWithinAgentsRoot =
+      targetPath === agentsRoot ||
+      targetPath.startsWith(`${agentsRoot}${path.sep}`);
+    if (!targetWithinAgentsRoot) {
+      return null;
+    }
+
+    return targetPath;
   }
 
   private async resolveAgentName(agentDefinitionId: string): Promise<string> {

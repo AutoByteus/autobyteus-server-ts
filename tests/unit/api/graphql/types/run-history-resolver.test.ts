@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockRunHistoryService = vi.hoisted(() => ({
   listRunHistory: vi.fn(),
   getRunResumeConfig: vi.fn(),
+  deleteRunHistory: vi.fn(),
 }));
 
 const mockRunProjectionService = vi.hoisted(() => ({
@@ -115,5 +116,31 @@ describe("RunHistoryResolver", () => {
     expect(result.success).toBe(false);
     expect(result.runId).toBe("run-1");
     expect(result.message).toContain("restore failed");
+  });
+
+  it("delegates deleteRunHistory mutation to runHistoryService", async () => {
+    mockRunHistoryService.deleteRunHistory.mockResolvedValue({
+      success: true,
+      message: "Run deleted.",
+    });
+
+    const resolver = new RunHistoryResolver();
+    const result = await resolver.deleteRunHistory("run-1");
+
+    expect(mockRunHistoryService.deleteRunHistory).toHaveBeenCalledWith("run-1");
+    expect(result).toEqual({
+      success: true,
+      message: "Run deleted.",
+    });
+  });
+
+  it("maps deleteRunHistory unexpected errors to failure payload", async () => {
+    mockRunHistoryService.deleteRunHistory.mockRejectedValue(new Error("delete failed"));
+
+    const resolver = new RunHistoryResolver();
+    const result = await resolver.deleteRunHistory("run-1");
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("delete failed");
   });
 });

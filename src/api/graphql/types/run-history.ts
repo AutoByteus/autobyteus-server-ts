@@ -171,6 +171,15 @@ class ContinueRunMutationResult {
   ignoredConfigFields!: string[];
 }
 
+@ObjectType()
+class DeleteRunHistoryMutationResult {
+  @Field(() => Boolean)
+  success!: boolean;
+
+  @Field(() => String)
+  message!: string;
+}
+
 @Resolver()
 export class RunHistoryResolver {
   private runHistoryService = getRunHistoryService();
@@ -216,6 +225,20 @@ export class RunHistoryResolver {
         message: String(error),
         runId: input.runId ?? null,
         ignoredConfigFields: [],
+      };
+    }
+  }
+
+  @Mutation(() => DeleteRunHistoryMutationResult)
+  async deleteRunHistory(
+    @Arg("runId", () => String) runId: string,
+  ): Promise<DeleteRunHistoryMutationResult> {
+    try {
+      return await this.runHistoryService.deleteRunHistory(runId);
+    } catch (error) {
+      return {
+        success: false,
+        message: String(error),
       };
     }
   }

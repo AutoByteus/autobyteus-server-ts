@@ -31,6 +31,15 @@ const createTempMemoryDir = async (): Promise<string> => {
   return fs.mkdtemp(path.join(os.tmpdir(), "autobyteus-run-history-service-"));
 };
 
+const dirExists = async (dirPath: string): Promise<boolean> => {
+  try {
+    const stat = await fs.stat(dirPath);
+    return stat.isDirectory();
+  } catch {
+    return false;
+  }
+};
+
 const writeRunFiles = async (
   memoryDir: string,
   runId: string,
@@ -203,5 +212,77 @@ describe("RunHistoryService", () => {
 
     const groups = await service.listRunHistory();
     expect(groups[0]?.agents[0]?.runs[0]?.lastKnownStatus).toBe("IDLE");
+  });
+
+  it("hard-deletes an inactive run directory and removes index row", async () => {
+    await writeRunFiles(
+      memoryDir,
+      "run-1",
+      {
+        agentDefinitionId: "agent-def-1",
+        workspaceRootPath: "/tmp/autobyteus_org",
+        llmModelIdentifier: "model-a",
+        autoExecuteTools: false,
+      },
+      "Describe messaging bindings",
+    );
+    await service.upsertRunHistoryRow({
+      runId: "run-1",
+      manifest: {
+        agentDefinitionId: "agent-def-1",
+        workspaceRootPath: "/tmp/autobyteus_org",
+        llmModelIdentifier: "model-a",
+        llmConfig: null,
+        autoExecuteTools: false,
+        skillAccessMode: null,
+      },
+      summary: "Describe messaging bindings",
+      lastKnownStatus: "IDLE",
+      lastActivityAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const result = await service.deleteRunHistory("run-1");
+    expect(result.success).toBe(true);
+
+    const runDir = path.join(memoryDir, "agents", "run-1");
+    expect(await dirExists(runDir)).toBe(false);
+    expect(await service.listRunHistory()).toEqual([]);
+  });
+
+  it("rejects deleting an active run", async () => {
+    mockAgentManager.getAgentInstance.mockImplementation((runId: string) =>
+      runId === "run-1" ? ({ agentId: "run-1" } as any) : null,
+    );
+
+    const result = await service.deleteRunHistory("run-1");
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Terminate");
+  });
+
+  it("rejects invalid run-id path traversal requests", async () => {
+    const result = await service.deleteRunHistory("../escape");
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Invalid");
+  });
+
+  it("treats missing run directory as deletable and prunes index row", async () => {
+    await service.upsertRunHistoryRow({
+      runId: "run-ghost",
+      manifest: {
+        agentDefinitionId: "agent-def-1",
+        workspaceRootPath: "/tmp/autobyteus_org",
+        llmModelIdentifier: "model-a",
+        llmConfig: null,
+        autoExecuteTools: false,
+        skillAccessMode: null,
+      },
+      summary: "Ghost run",
+      lastKnownStatus: "IDLE",
+      lastActivityAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const result = await service.deleteRunHistory("run-ghost");
+    expect(result.success).toBe(true);
+    expect(await service.listRunHistory()).toEqual([]);
   });
 });
