@@ -11,6 +11,7 @@ import {
 import { GraphQLJSON } from "graphql-scalars";
 import { TaskNotificationMode } from "autobyteus-ts/agent-team/task-notification/task-notification-mode.js";
 import { AgentTeamInstanceManager } from "../../../agent-team-execution/services/agent-team-instance-manager.js";
+import { getDefaultTeamCommandIngressService } from "../../../distributed/bootstrap/default-distributed-runtime-composition.js";
 import { UserInputConverter } from "../converters/user-input-converter.js";
 import { AgentTeamInstanceConverter } from "../converters/agent-team-instance-converter.js";
 import { AgentUserInput } from "./agent-user-input.js";
@@ -106,7 +107,7 @@ export class SendMessageToTeamInput {
   teamId?: string | null;
 
   @Field(() => String, { nullable: true })
-  targetNodeName?: string | null;
+  targetMemberName?: string | null;
 
   @Field(() => String, { nullable: true })
   teamDefinitionId?: string | null;
@@ -244,13 +245,15 @@ export class AgentTeamInstanceResolver {
         logger.info(`Lazy creation successful. New team ID: ${teamId}`);
       }
 
-      const team = this.agentTeamInstanceManager.getTeamInstance(teamId);
-      if (!team) {
-        throw new Error(`Agent team with ID '${teamId}' not found.`);
+      if (!teamId) {
+        throw new Error("Team ID could not be resolved for sendMessageToTeam.");
       }
-
       const userMessage = UserInputConverter.toAgentInputUserMessage(input.userInput);
-      await (team as any).postMessage(userMessage, input.targetNodeName ?? null);
+      await getDefaultTeamCommandIngressService().dispatchUserMessage({
+        teamId,
+        userMessage,
+        targetMemberName: input.targetMemberName ?? null,
+      });
 
       return {
         success: true,

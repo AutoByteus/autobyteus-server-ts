@@ -11,7 +11,12 @@ import { scheduleBackgroundTasks } from "./startup/background-runner.js";
 import { registerRestRoutes } from "./api/rest/index.js";
 import { registerGraphql } from "./api/graphql/index.js";
 import { registerWebsocketRoutes } from "./api/websocket/index.js";
+import { getAgentTeamStreamHandler } from "./services/agent-streaming/agent-team-stream-handler.js";
 import { getWorkspaceManager } from "./workspaces/workspace-manager.js";
+import { getDefaultDistributedRuntimeComposition } from "./distributed/bootstrap/default-distributed-runtime-composition.js";
+import { RemoteEventRebroadcastService } from "./distributed/event-aggregation/remote-event-rebroadcast-service.js";
+import { registerWorkerDistributedCommandRoutes } from "./distributed/transport/internal-http/register-worker-distributed-command-routes.js";
+import { registerHostDistributedEventRoutes } from "./distributed/transport/internal-http/register-host-distributed-event-routes.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -76,6 +81,11 @@ function initializeConfig(options: ServerOptions) {
 export async function buildApp(): Promise<FastifyInstance> {
   const app = fastify({ logger: true });
   const maxUploadFileSizeBytes = 25 * 1024 * 1024; // 25MB
+  const distributedRuntime = getDefaultDistributedRuntimeComposition();
+  const remoteEventRebroadcastService = new RemoteEventRebroadcastService({
+    teamRunLocator: distributedRuntime.teamRunLocator,
+    teamStreamProjector: getAgentTeamStreamHandler(),
+  });
 
   await app.register(cors, {
     origin: true,
@@ -87,6 +97,19 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
   });
   await app.register(websocket);
+
+  await registerWorkerDistributedCommandRoutes(app, {
+    workerNodeBridgeServer: distributedRuntime.workerNodeBridgeServer,
+    internalEnvelopeAuth: distributedRuntime.internalEnvelopeAuth,
+    securityMode: distributedRuntime.transportSecurityMode,
+  });
+  await registerHostDistributedEventRoutes(app, {
+    teamEventAggregator: distributedRuntime.teamEventAggregator,
+    internalEnvelopeAuth: distributedRuntime.internalEnvelopeAuth,
+    runVersionFencingPolicy: distributedRuntime.runVersionFencingPolicy,
+    securityMode: distributedRuntime.transportSecurityMode,
+    remoteEventRebroadcastService,
+  });
 
   await app.register(registerRestRoutes, { prefix: "/rest" });
   await registerWebsocketRoutes(app);

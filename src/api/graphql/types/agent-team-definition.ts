@@ -23,6 +23,16 @@ const logger = {
   error: (...args: unknown[]) => console.error(...args),
 };
 
+const DEFAULT_HOME_NODE_ID = "embedded-local";
+
+const normalizeRequiredString = (value: string, fieldName: string): string => {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error(`${fieldName} is required.`);
+  }
+  return normalized;
+};
+
 @ObjectType()
 export class TeamMember {
   @Field(() => String)
@@ -33,6 +43,15 @@ export class TeamMember {
 
   @Field(() => NodeType)
   referenceType!: NodeType;
+
+  @Field(() => String, { nullable: true })
+  homeNodeId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  requiredNodeId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  preferredNodeId?: string | null;
 }
 
 @ObjectType()
@@ -69,6 +88,15 @@ export class TeamMemberInput {
 
   @Field(() => NodeType)
   referenceType!: NodeType;
+
+  @Field(() => String, { nullable: true })
+  homeNodeId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  requiredNodeId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  preferredNodeId?: string | null;
 }
 
 @InputType()
@@ -168,6 +196,9 @@ export class AgentTeamDefinitionResolver {
             memberName: node.memberName,
             referenceId: node.referenceId,
             referenceType: node.referenceType,
+            homeNodeId: normalizeRequiredString(node.homeNodeId ?? DEFAULT_HOME_NODE_ID, "homeNodeId"),
+            requiredNodeId: node.requiredNodeId ?? null,
+            preferredNodeId: node.preferredNodeId ?? null,
           }),
       );
 
@@ -203,6 +234,9 @@ export class AgentTeamDefinitionResolver {
                   memberName: node.memberName,
                   referenceId: node.referenceId,
                   referenceType: node.referenceType,
+                  homeNodeId: normalizeRequiredString(node.homeNodeId ?? DEFAULT_HOME_NODE_ID, "homeNodeId"),
+                  requiredNodeId: node.requiredNodeId ?? null,
+                  preferredNodeId: node.preferredNodeId ?? null,
                 }),
             );
 

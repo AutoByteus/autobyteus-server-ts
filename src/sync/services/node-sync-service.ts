@@ -97,6 +97,7 @@ type SyncTeamMember = {
   memberName: string;
   referenceId: string;
   referenceType: TeamNodeType;
+  homeNodeId?: string | null;
 };
 
 type SyncAgentTeamDefinition = {
@@ -292,6 +293,7 @@ export class NodeSyncService {
           memberName: node.memberName,
           referenceId: node.referenceId,
           referenceType: node.referenceType,
+          homeNodeId: node.homeNodeId ?? 'embedded-local',
         } satisfies SyncTeamMember)),
       } satisfies SyncAgentTeamDefinition));
     }
@@ -593,6 +595,7 @@ export class NodeSyncService {
               memberName: node.memberName,
               referenceId: node.referenceId,
               referenceType: node.referenceType,
+              homeNodeId: node.homeNodeId ?? 'embedded-local',
             }),
         );
 

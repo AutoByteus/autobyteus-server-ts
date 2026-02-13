@@ -11,6 +11,7 @@ import {
 import { GraphQLJSON } from "graphql-scalars";
 import { SkillAccessMode } from "autobyteus-ts/agent/context/skill-access-mode.js";
 import { AgentInstanceManager } from "../../../agent-execution/services/agent-instance-manager.js";
+import { getRunHistoryService } from "../../../run-history/services/run-history-service.js";
 import { UserInputConverter } from "../converters/user-input-converter.js";
 import { AgentInstanceConverter } from "../converters/agent-instance-converter.js";
 import { AgentUserInput } from "./agent-user-input.js";
@@ -124,6 +125,8 @@ export class ApproveToolInvocationResult {
 
 @Resolver()
 export class AgentInstanceResolver {
+  private runHistoryService = getRunHistoryService();
+
   private get agentInstanceManager(): AgentInstanceManager {
     return AgentInstanceManager.getInstance();
   }
@@ -168,6 +171,9 @@ export class AgentInstanceResolver {
   ): Promise<TerminateAgentInstanceResult> {
     try {
       const success = await this.agentInstanceManager.terminateAgentInstance(id);
+      if (success) {
+        await this.runHistoryService.onRunTerminated(id);
+      }
       return {
         success,
         message: success

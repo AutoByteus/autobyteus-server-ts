@@ -21,6 +21,15 @@ import {
   ServerMessageType,
 } from "./models.js";
 import { serializePayload } from "./payload-serialization.js";
+import {
+  getDefaultTeamCommandIngressService,
+  getDefaultTeamEventAggregator,
+} from "../../distributed/bootstrap/default-distributed-runtime-composition.js";
+import {
+  TeamCommandIngressService,
+  type ToolApprovalToken,
+} from "../../distributed/ingress/team-command-ingress-service.js";
+import { TeamEventAggregator } from "../../distributed/event-aggregation/team-event-aggregator.js";
 
 export type WebSocketConnection = {
   send: (data: string) => void;
@@ -34,13 +43,19 @@ type ClientMessage = {
 
 type TeamLike = {
   teamId: string;
-  postMessage?: (message: AgentInputUserMessage, targetAgentName?: string | null) => Promise<void>;
-  postToolExecutionApproval?: (
-    agentName: string,
-    toolInvocationId: string,
-    isApproved: boolean,
-    reason?: string | null,
-  ) => Promise<void>;
+};
+
+export type DistributedTeamStreamProjection = {
+  teamRunId: string;
+  runVersion: string | number;
+  sequence: number;
+  sourceNodeId: string;
+  memberName: string | null;
+  agentId: string | null;
+  origin: "local" | "remote";
+  eventType: string;
+  payload: unknown;
+  receivedAtIso: string;
 };
 
 const logger = {
@@ -48,6 +63,8 @@ const logger = {
   warn: (...args: unknown[]) => console.warn(...args),
   error: (...args: unknown[]) => console.error(...args),
 };
+
+const KNOWN_SERVER_MESSAGE_TYPES = new Set<string>(Object.values(ServerMessageType));
 
 class AgentTeamSession extends AgentSession {
   get teamId(): string {
@@ -58,15 +75,22 @@ class AgentTeamSession extends AgentSession {
 export class AgentTeamStreamHandler {
   private sessionManager: AgentSessionManager;
   private teamManager: AgentTeamInstanceManager;
+  private teamCommandIngressService: TeamCommandIngressService;
+  private teamEventAggregator: TeamEventAggregator;
   private activeTasks = new Map<string, Promise<void>>();
   private eventStreams = new Map<string, AgentTeamEventStream>();
+  private connectionBySessionId = new Map<string, WebSocketConnection>();
 
   constructor(
     sessionManager: AgentSessionManager = new AgentSessionManager(AgentTeamSession),
     teamManager: AgentTeamInstanceManager = AgentTeamInstanceManager.getInstance(),
+    teamCommandIngressService: TeamCommandIngressService = getDefaultTeamCommandIngressService(),
+    teamEventAggregator: TeamEventAggregator = getDefaultTeamEventAggregator(),
   ) {
     this.sessionManager = sessionManager;
     this.teamManager = teamManager;
+    this.teamCommandIngressService = teamCommandIngressService;
+    this.teamEventAggregator = teamEventAggregator;
   }
 
   async connect(connection: WebSocketConnection, teamId: string): Promise<string | null> {
@@ -98,6 +122,7 @@ export class AgentTeamStreamHandler {
       return null;
     }
     this.eventStreams.set(sessionId, eventStream);
+    this.connectionBySessionId.set(sessionId, connection);
 
     const connectedMsg = new ServerMessage(ServerMessageType.CONNECTED, {
       team_id: teamId,
@@ -146,6 +171,7 @@ export class AgentTeamStreamHandler {
 
     const stream = this.eventStreams.get(sessionId);
     this.eventStreams.delete(sessionId);
+    this.connectionBySessionId.delete(sessionId);
     if (stream) {
       await stream.close();
     }
@@ -161,6 +187,30 @@ export class AgentTeamStreamHandler {
     }
 
     logger.info(`Agent Team WebSocket disconnected: ${sessionId}`);
+  }
+
+  publishDistributedEnvelopeToTeamStream(input: {
+    teamId: string;
+    projection: DistributedTeamStreamProjection;
+  }): number {
+    const message = this.createDistributedMessage(input.projection);
+    const sessions = this.sessionManager.getSessionsForAgent(input.teamId);
+
+    let publishedCount = 0;
+    for (const session of sessions) {
+      const connection = this.connectionBySessionId.get(session.sessionId);
+      if (!connection) {
+        continue;
+      }
+      try {
+        connection.send(message.toJson());
+        publishedCount += 1;
+      } catch (error) {
+        logger.error(`Error rebroadcasting distributed team event: ${String(error)}`);
+      }
+    }
+
+    return publishedCount;
   }
 
   private async streamLoop(connection: WebSocketConnection, teamId: string, sessionId: string): Promise<void> {
@@ -191,16 +241,9 @@ export class AgentTeamStreamHandler {
   }
 
   private async handleSendMessage(teamId: string, payload: Record<string, unknown>): Promise<void> {
-    const team = this.teamManager.getTeamInstance(teamId) as TeamLike | null;
-    if (!team?.postMessage) {
-      logger.warn(`Team ${teamId} not found for send_message`);
-      return;
-    }
-
     const content = typeof payload.content === "string" ? payload.content : "";
     const targetMemberName =
       (typeof payload.target_member_name === "string" && payload.target_member_name) ||
-      (typeof payload.target_agent_name === "string" && payload.target_agent_name) ||
       null;
 
     const contextFilePaths =
@@ -225,7 +268,11 @@ export class AgentTeamStreamHandler {
       context_files: contextPayload.length > 0 ? contextPayload : null,
     });
 
-    await team.postMessage(userMessage, targetMemberName);
+    await this.teamCommandIngressService.dispatchUserMessage({
+      teamId,
+      userMessage,
+      targetMemberName,
+    });
   }
 
   private async handleToolApproval(
@@ -233,31 +280,23 @@ export class AgentTeamStreamHandler {
     payload: Record<string, unknown>,
     approved: boolean,
   ): Promise<void> {
-    const team = this.teamManager.getTeamInstance(teamId) as TeamLike | null;
-    if (!team?.postToolExecutionApproval) {
-      logger.warn(`Team ${teamId} not found for tool approval`);
+    const token = AgentTeamStreamHandler.extractToolApprovalToken(payload);
+    if (!token) {
+      logger.warn("Team tool approval missing valid approval_token payload.");
       return;
     }
-
-    const invocationId = payload.invocation_id;
-    if (typeof invocationId !== "string" || invocationId.length === 0) {
-      logger.warn("Team tool approval missing invocation_id");
-      return;
-    }
-
     const agentName =
-      (typeof payload.agent_name === "string" && payload.agent_name) ||
-      (typeof payload.target_member_name === "string" && payload.target_member_name) ||
-      (typeof payload.agent_id === "string" && payload.agent_id) ||
-      null;
-
-    if (!agentName) {
-      logger.warn("Team tool approval missing agent_name/agent_id; cannot route approval");
-      return;
-    }
-
+      (typeof payload.agent_name === "string" && payload.agent_name.trim().length > 0
+        ? payload.agent_name
+        : null) ?? token.targetMemberName;
     const reason = typeof payload.reason === "string" ? payload.reason : null;
-    await team.postToolExecutionApproval(agentName, invocationId, approved, reason);
+    await this.teamCommandIngressService.dispatchToolApproval({
+      teamId,
+      token,
+      isApproved: approved,
+      reason,
+      agentName,
+    });
   }
 
   convertTeamEvent(event: AgentTeamStreamEvent): ServerMessage {
@@ -268,15 +307,37 @@ export class AgentTeamStreamHandler {
       const message = getAgentStreamHandler().convertStreamEvent(agentEvent);
       const basePayload =
         message.payload && typeof message.payload === "object" ? message.payload : {};
-      return new ServerMessage(message.type, {
+      const payload: Record<string, unknown> = {
         ...basePayload,
         agent_name: event.data.agent_name,
         ...(agentEvent.agent_id ? { agent_id: agentEvent.agent_id } : {}),
-      });
+      };
+      if (
+        message.type === ServerMessageType.TOOL_APPROVAL_REQUESTED &&
+        typeof payload.invocation_id === "string"
+      ) {
+        const approvalToken = this.teamCommandIngressService.issueToolApprovalTokenFromActiveRun({
+          teamId: event.team_id,
+          invocationId: payload.invocation_id,
+          targetMemberName: event.data.agent_name,
+        });
+        if (approvalToken) {
+          payload.approval_token = approvalToken;
+        }
+      }
+      return this.attachTeamStreamEnvelope(
+        event,
+        new ServerMessage(message.type, payload),
+        `AGENT:${String(agentEvent.event_type)}`,
+      );
     }
 
     if (sourceType === "TEAM" && event.data instanceof AgentTeamStatusUpdateData) {
-      return new ServerMessage(ServerMessageType.TEAM_STATUS, serializePayload(event.data));
+      return this.attachTeamStreamEnvelope(
+        event,
+        new ServerMessage(ServerMessageType.TEAM_STATUS, serializePayload(event.data)),
+        "TEAM_STATUS",
+      );
     }
 
     if (sourceType === "TASK_PLAN") {
@@ -287,10 +348,14 @@ export class AgentTeamStreamHandler {
       } else if (typeof payload.task_id === "string") {
         eventType = "TASK_STATUS_UPDATED";
       }
-      return new ServerMessage(ServerMessageType.TASK_PLAN_EVENT, {
-        event_type: eventType,
-        ...payload,
-      });
+      return this.attachTeamStreamEnvelope(
+        event,
+        new ServerMessage(ServerMessageType.TASK_PLAN_EVENT, {
+          event_type: eventType,
+          ...payload,
+        }),
+        `TASK_PLAN:${eventType}`,
+      );
     }
 
     if (sourceType === "SUB_TEAM" && event.data instanceof SubTeamEventRebroadcastPayload) {
@@ -299,14 +364,98 @@ export class AgentTeamStreamHandler {
         const message = this.convertTeamEvent(subTeamEvent);
         const basePayload =
           message.payload && typeof message.payload === "object" ? message.payload : {};
-        return new ServerMessage(message.type, {
-          ...basePayload,
-          sub_team_node_name: event.data.sub_team_node_name,
-        });
+        return this.attachTeamStreamEnvelope(
+          event,
+          new ServerMessage(message.type, {
+            ...basePayload,
+            sub_team_node_name: event.data.sub_team_node_name,
+          }),
+          `SUB_TEAM:${String(subTeamEvent.event_source_type)}`,
+        );
       }
     }
 
     return createErrorMessage("UNKNOWN_TEAM_EVENT", `Unmapped team event source: ${String(sourceType)}`);
+  }
+
+  private attachTeamStreamEnvelope(
+    event: AgentTeamStreamEvent,
+    message: ServerMessage,
+    eventType: string,
+  ): ServerMessage {
+    const run = this.teamCommandIngressService.resolveActiveRun(event.team_id);
+    if (!run) {
+      return message;
+    }
+
+    const aggregatedEvent = this.teamEventAggregator.publishLocalEvent({
+      teamRunId: run.teamRunId,
+      runVersion: run.runVersion,
+      sourceNodeId: run.hostNodeId,
+      eventType,
+      payload: message.payload,
+    });
+    const basePayload =
+      message.payload && typeof message.payload === "object" ? message.payload : {};
+    return new ServerMessage(message.type, {
+      ...basePayload,
+      team_stream_event_envelope: {
+        team_run_id: aggregatedEvent.teamRunId,
+        run_version: aggregatedEvent.runVersion,
+        sequence: aggregatedEvent.sequence,
+        source_node_id: aggregatedEvent.sourceNodeId,
+        origin: aggregatedEvent.origin,
+        event_type: aggregatedEvent.eventType,
+        received_at: aggregatedEvent.receivedAtIso,
+      },
+    });
+  }
+
+  private createDistributedMessage(projection: DistributedTeamStreamProjection): ServerMessage {
+    const messageType = AgentTeamStreamHandler.resolveDistributedMessageType(projection.eventType);
+    const basePayload =
+      projection.payload && typeof projection.payload === "object" && !Array.isArray(projection.payload)
+        ? { ...(projection.payload as Record<string, unknown>) }
+        : { value: projection.payload };
+    const payload: Record<string, unknown> = {
+      ...basePayload,
+      ...(projection.memberName ? { agent_name: projection.memberName } : {}),
+      ...(projection.agentId ? { agent_id: projection.agentId } : {}),
+      team_stream_event_envelope: {
+        team_run_id: projection.teamRunId,
+        run_version: projection.runVersion,
+        sequence: projection.sequence,
+        source_node_id: projection.sourceNodeId,
+        origin: projection.origin,
+        event_type: projection.eventType,
+        received_at: projection.receivedAtIso,
+      },
+    };
+
+    if (
+      messageType === ServerMessageType.SYSTEM_TASK_NOTIFICATION &&
+      typeof payload.event_type !== "string"
+    ) {
+      payload.event_type = projection.eventType;
+    }
+
+    return new ServerMessage(messageType, payload);
+  }
+
+  private static resolveDistributedMessageType(eventType: string): ServerMessageType {
+    const normalized = eventType.trim();
+    if (KNOWN_SERVER_MESSAGE_TYPES.has(normalized)) {
+      return normalized as ServerMessageType;
+    }
+
+    if (normalized.startsWith("AGENT:")) {
+      const stripped = normalized.slice("AGENT:".length);
+      if (KNOWN_SERVER_MESSAGE_TYPES.has(stripped)) {
+        return stripped as ServerMessageType;
+      }
+    }
+
+    return ServerMessageType.SYSTEM_TASK_NOTIFICATION;
   }
 
   static parseMessage(raw: string): ClientMessage {
@@ -322,6 +471,46 @@ export class AgentTeamStreamHandler {
     }
 
     return data as ClientMessage;
+  }
+
+  private static extractToolApprovalToken(payload: Record<string, unknown>): ToolApprovalToken | null {
+    const rawToken = payload.approval_token;
+    if (!rawToken || typeof rawToken !== "object") {
+      return null;
+    }
+    const token = rawToken as Record<string, unknown>;
+    const teamRunId =
+      (typeof token.teamRunId === "string" && token.teamRunId) ||
+      (typeof token.team_run_id === "string" && token.team_run_id) ||
+      null;
+    const runVersion =
+      (typeof token.runVersion === "number" && token.runVersion) ||
+      (typeof token.run_version === "number" && token.run_version) ||
+      null;
+    const invocationId =
+      (typeof token.invocationId === "string" && token.invocationId) ||
+      (typeof token.invocation_id === "string" && token.invocation_id) ||
+      null;
+    const invocationVersion =
+      (typeof token.invocationVersion === "number" && token.invocationVersion) ||
+      (typeof token.invocation_version === "number" && token.invocation_version) ||
+      null;
+    const targetMemberName =
+      (typeof token.targetMemberName === "string" && token.targetMemberName) ||
+      (typeof token.target_member_name === "string" && token.target_member_name) ||
+      null;
+
+    if (!teamRunId || !runVersion || !invocationId || !invocationVersion || !targetMemberName) {
+      return null;
+    }
+
+    return {
+      teamRunId,
+      runVersion,
+      invocationId,
+      invocationVersion,
+      targetMemberName,
+    };
   }
 }
 

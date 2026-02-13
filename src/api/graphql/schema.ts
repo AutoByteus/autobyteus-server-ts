@@ -21,6 +21,8 @@ import { MemoryViewResolver } from "./types/memory-view.js";
 import { ExternalChannelSetupResolver } from "./types/external-channel-setup.js";
 import { NodeSyncResolver } from "./types/node-sync.js";
 import { NodeSyncControlResolver } from "./types/node-sync-control.js";
+import { RunHistoryResolver } from "./types/run-history.js";
+import { FederatedCatalogResolver } from "./types/federated-catalog.js";
 import { DateTimeScalar } from "./scalars/date-time.js";
 
 export async function buildGraphqlSchema() {
@@ -48,6 +50,8 @@ export async function buildGraphqlSchema() {
       ExternalChannelSetupResolver,
       NodeSyncResolver,
       NodeSyncControlResolver,
+      RunHistoryResolver,
+      FederatedCatalogResolver,
     ],
     scalarsMap: [{ type: Date, scalar: DateTimeScalar }],
   });

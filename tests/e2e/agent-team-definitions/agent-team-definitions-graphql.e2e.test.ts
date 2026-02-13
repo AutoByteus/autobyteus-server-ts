@@ -3,14 +3,18 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { graphql as graphqlFn, GraphQLSchema } from "graphql";
-import { buildGraphqlSchema } from "../../../src/api/graphql/schema.js";
+import { buildSchema } from "type-graphql";
+import { AgentTeamDefinitionResolver } from "../../../src/api/graphql/types/agent-team-definition.js";
 
 describe("Agent team definitions GraphQL e2e", () => {
   let schema: GraphQLSchema;
   let graphql: typeof graphqlFn;
 
   beforeAll(async () => {
-    schema = await buildGraphqlSchema();
+    schema = await buildSchema({
+      resolvers: [AgentTeamDefinitionResolver],
+      validate: false,
+    });
     const require = createRequire(import.meta.url);
     const typeGraphqlRoot = path.dirname(require.resolve("type-graphql"));
     const graphqlPath = require.resolve("graphql", { paths: [typeGraphqlRoot] });
@@ -50,6 +54,8 @@ describe("Agent team definitions GraphQL e2e", () => {
             memberName
             referenceId
             referenceType
+            requiredNodeId
+            preferredNodeId
           }
         }
       }
@@ -67,6 +73,8 @@ describe("Agent team definitions GraphQL e2e", () => {
           memberName: string;
           referenceId: string;
           referenceType: string;
+          requiredNodeId: string | null;
+          preferredNodeId: string | null;
         }>;
       };
     }>(createMutation, {
@@ -81,11 +89,15 @@ describe("Agent team definitions GraphQL e2e", () => {
             memberName: "leader",
             referenceId: "agent-1",
             referenceType: "AGENT",
+            requiredNodeId: "embedded-local",
+            preferredNodeId: "remote-node-1",
           },
           {
             memberName: "helper",
             referenceId: "agent-2",
             referenceType: "AGENT",
+            requiredNodeId: null,
+            preferredNodeId: "remote-node-2",
           },
         ],
       },
@@ -96,6 +108,10 @@ describe("Agent team definitions GraphQL e2e", () => {
       "http://localhost:8000/rest/files/images/e2e-team-avatar.png",
     );
     expect(created.createAgentTeamDefinition.nodes.length).toBe(2);
+    expect(created.createAgentTeamDefinition.nodes[0]?.requiredNodeId).toBe("embedded-local");
+    expect(created.createAgentTeamDefinition.nodes[0]?.preferredNodeId).toBe("remote-node-1");
+    expect(created.createAgentTeamDefinition.nodes[1]?.requiredNodeId).toBeNull();
+    expect(created.createAgentTeamDefinition.nodes[1]?.preferredNodeId).toBe("remote-node-2");
 
     const updateMutation = `
       mutation UpdateTeam($input: UpdateAgentTeamDefinitionInput!) {
@@ -104,6 +120,11 @@ describe("Agent team definitions GraphQL e2e", () => {
           description
           role
           avatarUrl
+          nodes {
+            memberName
+            requiredNodeId
+            preferredNodeId
+          }
         }
       }
     `;
@@ -113,6 +134,11 @@ describe("Agent team definitions GraphQL e2e", () => {
         description: string;
         role: string | null;
         avatarUrl: string | null;
+        nodes: Array<{
+          memberName: string;
+          requiredNodeId: string | null;
+          preferredNodeId: string | null;
+        }>;
       };
     }>(updateMutation, {
       input: {
@@ -120,11 +146,31 @@ describe("Agent team definitions GraphQL e2e", () => {
         description: "Updated team description",
         role: "UpdatedRole",
         avatarUrl: "",
+        nodes: [
+          {
+            memberName: "leader",
+            referenceId: "agent-1",
+            referenceType: "AGENT",
+            requiredNodeId: "remote-node-1",
+            preferredNodeId: "remote-node-2",
+          },
+          {
+            memberName: "helper",
+            referenceId: "agent-2",
+            referenceType: "AGENT",
+            requiredNodeId: null,
+            preferredNodeId: null,
+          },
+        ],
       },
     });
     expect(updated.updateAgentTeamDefinition.description).toBe("Updated team description");
     expect(updated.updateAgentTeamDefinition.role).toBe("UpdatedRole");
     expect(updated.updateAgentTeamDefinition.avatarUrl).toBeNull();
+    expect(updated.updateAgentTeamDefinition.nodes[0]?.requiredNodeId).toBe("remote-node-1");
+    expect(updated.updateAgentTeamDefinition.nodes[0]?.preferredNodeId).toBe("remote-node-2");
+    expect(updated.updateAgentTeamDefinition.nodes[1]?.requiredNodeId).toBeNull();
+    expect(updated.updateAgentTeamDefinition.nodes[1]?.preferredNodeId).toBeNull();
 
     const query = `
       query GetTeam($id: String!) {

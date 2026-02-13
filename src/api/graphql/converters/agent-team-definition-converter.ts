@@ -14,6 +14,9 @@ export class AgentTeamDefinitionConverter {
         memberName: member.memberName,
         referenceId: member.referenceId,
         referenceType: member.referenceType,
+        homeNodeId: member.homeNodeId ?? null,
+        requiredNodeId: member.requiredNodeId ?? null,
+        preferredNodeId: member.preferredNodeId ?? null,
       }));
 
       return {

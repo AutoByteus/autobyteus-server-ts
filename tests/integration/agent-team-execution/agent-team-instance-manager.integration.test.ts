@@ -398,4 +398,95 @@ describe("AgentTeamInstanceManager integration", () => {
     expect(passedConfig).toBeInstanceOf(LLMConfig);
     expect((passedConfig as LLMConfig).extraParams).toEqual({ thinking_level: "high" });
   });
+
+  it("stores and returns member config snapshots by team definition id", async () => {
+    const { manager, teamDefinitionService, agentDefinitionService } = createManager();
+
+    agentDefinitionService.getAgentDefinitionById.mockResolvedValue(
+      new AgentDefinition({
+        id: "1",
+        name: "SnapshotAgent",
+        role: "Worker",
+        description: "...",
+      }),
+    );
+
+    const teamDef = new AgentTeamDefinition({
+      id: "main1",
+      name: "MainTeam",
+      description: "...",
+      nodes: [
+        new TeamMember({
+          memberName: "SnapshotMember",
+          referenceId: "1",
+          referenceType: NodeType.AGENT,
+        }),
+      ],
+      coordinatorMemberName: "SnapshotMember",
+    });
+    teamDefinitionService.getDefinitionById.mockResolvedValue(teamDef);
+
+    const memberConfigs: TeamMemberConfigInput[] = [
+      {
+        memberName: "SnapshotMember",
+        agentDefinitionId: "1",
+        llmModelIdentifier: "gpt-4o-mini",
+        autoExecuteTools: true,
+        llmConfig: { temperature: 0.2 },
+      },
+    ];
+
+    await manager.createTeamInstance("main1", memberConfigs);
+    const snapshot = manager.getTeamMemberConfigsByDefinitionId("main1");
+
+    expect(snapshot).toEqual([
+      {
+        ...memberConfigs[0],
+        workspaceId: null,
+      },
+    ]);
+    expect(snapshot).not.toBe(memberConfigs);
+    expect(snapshot[0]).not.toBe(memberConfigs[0]);
+  });
+
+  it("clears member config snapshot when mapped team instance is terminated", async () => {
+    const { manager, teamDefinitionService, agentDefinitionService } = createManager();
+
+    agentDefinitionService.getAgentDefinitionById.mockResolvedValue(
+      new AgentDefinition({
+        id: "1",
+        name: "CleanupAgent",
+        role: "Worker",
+        description: "...",
+      }),
+    );
+
+    const teamDef = new AgentTeamDefinition({
+      id: "main1",
+      name: "MainTeam",
+      description: "...",
+      nodes: [
+        new TeamMember({
+          memberName: "CleanupMember",
+          referenceId: "1",
+          referenceType: NodeType.AGENT,
+        }),
+      ],
+      coordinatorMemberName: "CleanupMember",
+    });
+    teamDefinitionService.getDefinitionById.mockResolvedValue(teamDef);
+
+    await manager.createTeamInstance("main1", [
+      {
+        memberName: "CleanupMember",
+        agentDefinitionId: "1",
+        llmModelIdentifier: "gpt-4o-mini",
+        autoExecuteTools: true,
+      },
+    ]);
+    expect(manager.getTeamMemberConfigsByDefinitionId("main1")).toHaveLength(1);
+
+    await manager.terminateTeamInstance("test_team_123");
+    expect(manager.getTeamMemberConfigsByDefinitionId("main1")).toEqual([]);
+  });
 });

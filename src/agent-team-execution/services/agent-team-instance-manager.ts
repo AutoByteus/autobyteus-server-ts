@@ -36,6 +36,15 @@ const logger = {
   error: (...args: unknown[]) => console.error(...args),
 };
 
+const cloneMemberConfigInput = (config: TeamMemberConfigInput): TeamMemberConfigInput => ({
+  memberName: config.memberName,
+  agentDefinitionId: config.agentDefinitionId,
+  llmModelIdentifier: config.llmModelIdentifier,
+  autoExecuteTools: config.autoExecuteTools,
+  workspaceId: config.workspaceId ?? null,
+  llmConfig: config.llmConfig ? { ...config.llmConfig } : null,
+});
+
 type TeamFactoryLike = typeof defaultAgentTeamFactory;
 type LlmFactoryLike = typeof LLMFactory;
 
@@ -88,6 +97,10 @@ type AgentTeamInstanceManagerOptions = {
 
 export class AgentTeamInstanceManager {
   private static instance: AgentTeamInstanceManager | null = null;
+  private readonly teamDefinitionIdByTeamId = new Map<string, string>();
+  private readonly teamIdByTeamDefinitionId = new Map<string, string>();
+  private readonly memberConfigsByTeamDefinitionId = new Map<string, TeamMemberConfigInput[]>();
+  private readonly memberNamesByTeamId = new Map<string, string[]>();
   private teamFactory: TeamFactoryLike;
   private teamDefinitionService: AgentTeamDefinitionService;
   private agentDefinitionService: AgentDefinitionService;
@@ -140,8 +153,9 @@ export class AgentTeamInstanceManager {
     );
 
     try {
+      const memberConfigSnapshots = memberConfigs.map((config) => cloneMemberConfigInput(config));
       const memberConfigsMap: Record<string, TeamMemberConfigInput> = {};
-      for (const config of memberConfigs) {
+      for (const config of memberConfigSnapshots) {
         memberConfigsMap[config.memberName] = config;
       }
 
@@ -154,6 +168,11 @@ export class AgentTeamInstanceManager {
       const team = this.teamFactory.createTeam(teamConfig) as TeamLike & {
         start?: () => void;
       };
+      const teamMemberNames = teamConfig.nodes.map((node) => node.name);
+      this.teamDefinitionIdByTeamId.set(team.teamId, teamDefinitionId);
+      this.teamIdByTeamDefinitionId.set(teamDefinitionId, team.teamId);
+      this.memberConfigsByTeamDefinitionId.set(teamDefinitionId, memberConfigSnapshots);
+      this.memberNamesByTeamId.set(team.teamId, teamMemberNames);
       team.start?.();
       await this.waitForIdle(team, 120.0);
 
@@ -424,7 +443,17 @@ export class AgentTeamInstanceManager {
 
   async terminateTeamInstance(teamId: string): Promise<boolean> {
     try {
-      return await this.teamFactory.removeTeam(teamId);
+      const removed = await this.teamFactory.removeTeam(teamId);
+      if (removed) {
+        const definitionId = this.teamDefinitionIdByTeamId.get(teamId) ?? null;
+        this.teamDefinitionIdByTeamId.delete(teamId);
+        this.memberNamesByTeamId.delete(teamId);
+        if (definitionId && this.teamIdByTeamDefinitionId.get(definitionId) === teamId) {
+          this.teamIdByTeamDefinitionId.delete(definitionId);
+          this.memberConfigsByTeamDefinitionId.delete(definitionId);
+        }
+      }
+      return removed;
     } catch (error) {
       logger.error(`Failed to terminate team '${teamId}': ${String(error)}`);
       if (error instanceof AgentTeamTerminationError) {
@@ -432,6 +461,27 @@ export class AgentTeamInstanceManager {
       }
       throw new AgentTeamTerminationError(`Failed to terminate team: ${String(error)}`);
     }
+  }
+
+  getTeamDefinitionId(teamId: string): string | null {
+    return this.teamDefinitionIdByTeamId.get(teamId) ?? null;
+  }
+
+  getTeamIdByDefinitionId(teamDefinitionId: string): string | null {
+    return this.teamIdByTeamDefinitionId.get(teamDefinitionId) ?? null;
+  }
+
+  getTeamMemberConfigsByDefinitionId(teamDefinitionId: string): TeamMemberConfigInput[] {
+    const configs = this.memberConfigsByTeamDefinitionId.get(teamDefinitionId);
+    if (!Array.isArray(configs)) {
+      return [];
+    }
+    return configs.map((config) => cloneMemberConfigInput(config));
+  }
+
+  getTeamMemberNames(teamId: string): string[] {
+    const names = this.memberNamesByTeamId.get(teamId);
+    return Array.isArray(names) ? [...names] : [];
   }
 
   getTeamEventStream(teamId: string): AgentTeamEventStream | null {

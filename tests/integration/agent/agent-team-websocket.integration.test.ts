@@ -12,6 +12,7 @@ import {
 import { AgentTeamStreamHandler } from "../../../src/services/agent-streaming/agent-team-stream-handler.js";
 import { AgentSessionManager } from "../../../src/services/agent-streaming/agent-session-manager.js";
 import { registerAgentWebsocket } from "../../../src/api/websocket/agent.js";
+import type { ToolApprovalToken } from "../../../src/distributed/ingress/team-command-ingress-service.js";
 
 class FakeTeamStream {
   private queue: Array<AgentTeamStreamEvent | null> = [];
@@ -134,7 +135,58 @@ describe("Agent team websocket integration", () => {
     const team = new FakeTeam("team-1");
     const stream = new FakeTeamStream();
     const manager = new FakeTeamManager(team, stream);
-    const handler = new AgentTeamStreamHandler(new AgentSessionManager(), manager as unknown as any);
+    const ingress = {
+      dispatchUserMessage: async (input: {
+        teamId: string;
+        userMessage: AgentInputUserMessage;
+        targetMemberName?: string | null;
+      }) => {
+        await team.postMessage(input.userMessage, input.targetMemberName ?? null);
+        return {
+          teamId: input.teamId,
+          teamRunId: "run-1",
+          runVersion: 1,
+        };
+      },
+      dispatchToolApproval: async (input: {
+        token: ToolApprovalToken;
+        isApproved: boolean;
+        reason?: string | null;
+        agentName?: string | null;
+      }) => {
+        await team.postToolExecutionApproval(
+          input.agentName ?? input.token.targetMemberName,
+          input.token.invocationId,
+          input.isApproved,
+          input.reason ?? null,
+        );
+        return {
+          teamId: "team-1",
+          teamRunId: "run-1",
+          runVersion: 1,
+        };
+      },
+      issueToolApprovalTokenFromActiveRun: (input: { invocationId: string; targetMemberName: string }) => ({
+        teamRunId: "run-1",
+        runVersion: 1,
+        invocationId: input.invocationId,
+        invocationVersion: 1,
+        targetMemberName: input.targetMemberName,
+      }),
+      resolveActiveRun: () => ({
+        teamId: "team-1",
+        teamDefinitionId: "def-1",
+        coordinatorMemberName: "alpha",
+        teamRunId: "run-1",
+        runVersion: 1,
+        hostNodeId: "node-host",
+      }),
+    } as any;
+    const handler = new AgentTeamStreamHandler(
+      new AgentSessionManager(),
+      manager as unknown as any,
+      ingress,
+    );
 
     const dummyAgentHandler = {
       connect: async () => null,
@@ -213,6 +265,32 @@ describe("Agent team websocket integration", () => {
     expect(agentMessage.payload.content).toBe("hi");
     expect(agentMessage.payload.agent_name).toBe("alpha");
     expect(agentMessage.payload.agent_id).toBe("agent-42");
+
+    socket.send(
+      JSON.stringify({
+        type: "APPROVE_TOOL",
+        payload: {
+          invocation_id: "inv-22",
+          approval_token: {
+            teamRunId: "run-1",
+            runVersion: 1,
+            invocationId: "inv-22",
+            invocationVersion: 1,
+            targetMemberName: "alpha",
+          },
+          reason: "approved",
+          agent_name: "alpha",
+        },
+      }),
+    );
+
+    await waitForCondition(() => team.approvals.length === 1);
+    expect(team.approvals[0]).toMatchObject({
+      invocationId: "inv-22",
+      approved: true,
+      reason: "approved",
+      agentName: "alpha",
+    });
 
     socket.close();
     await app.close();

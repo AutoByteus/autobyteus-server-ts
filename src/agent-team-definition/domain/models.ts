@@ -4,15 +4,24 @@ export class TeamMember {
   memberName: string;
   referenceId: string;
   referenceType: NodeType;
+  homeNodeId: string | null;
+  requiredNodeId: string | null;
+  preferredNodeId: string | null;
 
   constructor(options: {
     memberName: string;
     referenceId: string;
     referenceType: NodeType;
+    homeNodeId?: string | null;
+    requiredNodeId?: string | null;
+    preferredNodeId?: string | null;
   }) {
     this.memberName = options.memberName;
     this.referenceId = options.referenceId;
     this.referenceType = options.referenceType;
+    this.homeNodeId = options.homeNodeId ?? null;
+    this.requiredNodeId = options.requiredNodeId ?? null;
+    this.preferredNodeId = options.preferredNodeId ?? null;
   }
 }
 
