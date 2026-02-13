@@ -88,6 +88,7 @@ describe("External channel setup GraphQL e2e", () => {
     expect(data.externalChannelCapabilities.reason).toBeNull();
     expect(data.externalChannelCapabilities.acceptedProviderTransportPairs).toEqual([
       "DISCORD:BUSINESS_API",
+      "TELEGRAM:BUSINESS_API",
       "WHATSAPP:BUSINESS_API",
       "WHATSAPP:PERSONAL_SESSION",
       "WECOM:BUSINESS_API",
@@ -141,7 +142,6 @@ describe("External channel setup GraphQL e2e", () => {
           threadId
           targetType
           targetId
-          allowTransportFallback
         }
       }
     `;
@@ -163,7 +163,6 @@ describe("External channel setup GraphQL e2e", () => {
         threadId: null,
         targetType: "AGENT",
         targetId: activeAgentId,
-        allowTransportFallback: false,
       },
     });
 
@@ -244,7 +243,6 @@ describe("External channel setup GraphQL e2e", () => {
           threadId: null,
           targetType: "AGENT",
           targetId: "non-existent-agent",
-          allowTransportFallback: false,
         },
       }),
     ).rejects.toThrow("TARGET_NOT_ACTIVE");
@@ -269,7 +267,6 @@ describe("External channel setup GraphQL e2e", () => {
           threadId: null,
           targetType: "AGENT",
           targetId: activeAgentId,
-          allowTransportFallback: false,
         },
       }),
     ).rejects.toThrow("UNSUPPORTED_PROVIDER_TRANSPORT_COMBINATION");
@@ -303,7 +300,6 @@ describe("External channel setup GraphQL e2e", () => {
         threadId: null,
         targetType: "AGENT",
         targetId: activeAgentId,
-        allowTransportFallback: false,
       },
     });
 
@@ -349,7 +345,6 @@ describe("External channel setup GraphQL e2e", () => {
         threadId: "777888999000",
         targetType: "AGENT",
         targetId: activeAgentId,
-        allowTransportFallback: false,
       },
     });
 
@@ -361,6 +356,90 @@ describe("External channel setup GraphQL e2e", () => {
       threadId: "777888999000",
       targetType: "AGENT",
       targetId: activeAgentId,
+    });
+  });
+
+  it("accepts supported TELEGRAM + BUSINESS_API binding combinations", async () => {
+    const upsertMutation = `
+      mutation Upsert($input: UpsertExternalChannelBindingInput!) {
+        upsertExternalChannelBinding(input: $input) {
+          provider
+          transport
+          accountId
+          peerId
+          threadId
+          targetType
+          targetId
+        }
+      }
+    `;
+
+    const result = await execGraphql<{
+      upsertExternalChannelBinding: {
+        provider: string;
+        transport: string;
+        accountId: string;
+        peerId: string;
+        threadId: string | null;
+        targetType: string;
+        targetId: string;
+      };
+    }>(upsertMutation, {
+      input: {
+        provider: "TELEGRAM",
+        transport: "BUSINESS_API",
+        accountId: "telegram-account",
+        peerId: "telegram-chat-123",
+        threadId: "42",
+        targetType: "AGENT",
+        targetId: activeAgentId,
+      },
+    });
+
+    expect(result.upsertExternalChannelBinding).toMatchObject({
+      provider: "TELEGRAM",
+      transport: "BUSINESS_API",
+      accountId: "telegram-account",
+      peerId: "telegram-chat-123",
+      threadId: "42",
+      targetType: "AGENT",
+      targetId: activeAgentId,
+    });
+  });
+
+  it("rejects TELEGRAM TEAM target bindings with explicit policy error", async () => {
+    const upsertMutation = `
+      mutation Upsert($input: UpsertExternalChannelBindingInput!) {
+        upsertExternalChannelBinding(input: $input) {
+          id
+        }
+      }
+    `;
+
+    const result = await graphql({
+      schema,
+      source: upsertMutation,
+      variableValues: {
+        input: {
+          provider: "TELEGRAM",
+          transport: "BUSINESS_API",
+          accountId: "telegram-account",
+          peerId: "telegram-chat-123",
+          threadId: null,
+          targetType: "TEAM",
+          targetId: "team-1",
+        },
+      },
+    });
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors?.[0]?.message).toBe(
+      "Telegram bindings currently support AGENT targets only.",
+    );
+    expect(result.errors?.[0]?.extensions).toMatchObject({
+      code: "TELEGRAM_TEAM_TARGET_NOT_SUPPORTED",
+      field: "targetType",
+      detail: "Telegram bindings currently support AGENT targets only.",
     });
   });
 
@@ -385,7 +464,6 @@ describe("External channel setup GraphQL e2e", () => {
           threadId: null,
           targetType: "AGENT",
           targetId: activeAgentId,
-          allowTransportFallback: false,
         },
       },
     });
@@ -422,7 +500,6 @@ describe("External channel setup GraphQL e2e", () => {
           threadId: "777888999000",
           targetType: "AGENT",
           targetId: activeAgentId,
-          allowTransportFallback: false,
         },
       },
     });

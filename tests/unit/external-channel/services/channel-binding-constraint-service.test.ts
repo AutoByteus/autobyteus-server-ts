@@ -9,6 +9,7 @@ describe("ChannelBindingConstraintService", () => {
 
     expect(service.getAcceptedProviderTransportPairs()).toEqual([
       "DISCORD:BUSINESS_API",
+      "TELEGRAM:BUSINESS_API",
       "WHATSAPP:BUSINESS_API",
       "WHATSAPP:PERSONAL_SESSION",
       "WECOM:BUSINESS_API",
@@ -37,6 +38,12 @@ describe("ChannelBindingConstraintService", () => {
         ExternalChannelTransport.BUSINESS_API,
       ),
     ).not.toThrow();
+    expect(() =>
+      service.validateProviderTransport(
+        ExternalChannelProvider.TELEGRAM,
+        ExternalChannelTransport.BUSINESS_API,
+      ),
+    ).not.toThrow();
   });
 
   it("rejects incompatible provider/transport combinations", () => {
@@ -57,6 +64,12 @@ describe("ChannelBindingConstraintService", () => {
     expect(() =>
       service.validateProviderTransport(
         ExternalChannelProvider.DISCORD,
+        ExternalChannelTransport.PERSONAL_SESSION,
+      ),
+    ).toThrow("UNSUPPORTED_PROVIDER_TRANSPORT_COMBINATION");
+    expect(() =>
+      service.validateProviderTransport(
+        ExternalChannelProvider.TELEGRAM,
         ExternalChannelTransport.PERSONAL_SESSION,
       ),
     ).toThrow("UNSUPPORTED_PROVIDER_TRANSPORT_COMBINATION");
