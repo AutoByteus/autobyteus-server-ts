@@ -2,7 +2,6 @@ import type { ExternalMessageEnvelope } from "autobyteus-ts/external-channel/ext
 import type {
   ChannelBinding,
   ChannelIdempotencyDecision,
-  ResolvedBinding,
 } from "../domain/models.js";
 import type { ChannelRuntimeDispatchResult, ChannelRuntimeFacade } from "../runtime/channel-runtime-facade.js";
 import type { ChannelMessageReceiptService } from "./channel-message-receipt-service.js";
@@ -23,7 +22,7 @@ type ChannelBindingPort = {
     accountId: string;
     peerId: string;
     threadId: string | null;
-  }): Promise<ResolvedBinding | null>;
+  }): Promise<ChannelBinding | null>;
 };
 
 type ChannelThreadLockPort = {
@@ -57,7 +56,6 @@ export type ChannelIngressResult = {
   disposition: ChannelIngressDisposition;
   bindingResolved: boolean;
   binding: ChannelBinding | null;
-  usedTransportFallback: boolean;
   dispatch: ChannelRuntimeDispatchResult | null;
 };
 
@@ -97,7 +95,6 @@ export class ChannelIngressService {
         disposition: "DUPLICATE",
         bindingResolved: false,
         binding: null,
-        usedTransportFallback: false,
         dispatch: null,
       };
     }
@@ -117,16 +114,15 @@ export class ChannelIngressService {
         disposition: "UNBOUND",
         bindingResolved: false,
         binding: null,
-        usedTransportFallback: false,
         dispatch: null,
       };
     }
 
     const dispatch = await this.threadLockService.withThreadLock(
       envelope.routingKey,
-      () => this.runtimeFacade.dispatchToBinding(resolved.binding, envelope),
+      () => this.runtimeFacade.dispatchToBinding(resolved, envelope),
     );
-    const normalizedDispatch = normalizeDispatchTarget(dispatch, resolved.binding);
+    const normalizedDispatch = normalizeDispatchTarget(dispatch, resolved);
     await this.messageReceiptService.recordIngressReceipt({
       provider: envelope.provider,
       transport: envelope.transport,
@@ -144,8 +140,7 @@ export class ChannelIngressService {
       idempotencyKey,
       disposition: "ROUTED",
       bindingResolved: true,
-      binding: resolved.binding,
-      usedTransportFallback: resolved.usedTransportFallback,
+      binding: resolved,
       dispatch: normalizedDispatch,
     };
   }

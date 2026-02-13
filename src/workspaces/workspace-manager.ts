@@ -1,4 +1,5 @@
 import { WorkspaceConfig } from 'autobyteus-ts';
+import path from 'node:path';
 import { appConfigProvider } from '../config/app-config-provider.js';
 import { FileSystemWorkspace } from './filesystem-workspace.js';
 import { SkillWorkspace } from './skill-workspace.js';
@@ -54,6 +55,12 @@ export class WorkspaceManager {
     logger.info(`Created and registered workspace ID: ${workspace.workspaceId}`);
 
     return workspace;
+  }
+
+  async ensureWorkspaceByRootPath(rootPath: string): Promise<FileSystemWorkspace> {
+    const normalizedRootPath = path.normalize(path.resolve(rootPath.trim()));
+    const config = new WorkspaceConfig({ rootPath: normalizedRootPath });
+    return this.createWorkspace(config);
   }
 
   async getOrCreateWorkspace(workspaceId: string): Promise<FileSystemWorkspace> {

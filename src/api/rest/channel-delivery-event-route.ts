@@ -41,11 +41,10 @@ export async function registerChannelDeliveryEventRoute(
 
       if (event.status === ExternalDeliveryStatus.PENDING) {
         await deps.deliveryEventService.recordPending(baseInput);
-      } else if (
-        event.status === ExternalDeliveryStatus.SENT ||
-        event.status === ExternalDeliveryStatus.DELIVERED
-      ) {
+      } else if (event.status === ExternalDeliveryStatus.SENT) {
         await deps.deliveryEventService.recordSent(baseInput);
+      } else if (event.status === ExternalDeliveryStatus.DELIVERED) {
+        await deps.deliveryEventService.recordDelivered(baseInput);
       } else {
         await deps.deliveryEventService.recordFailed({
           ...baseInput,

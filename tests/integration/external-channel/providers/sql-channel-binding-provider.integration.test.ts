@@ -37,30 +37,23 @@ describe("SqlChannelBindingProvider", () => {
     expect(resolved?.agentId).toBe("discord-agent-1");
   });
 
-  it("supports Discord provider-default fallback lookup and bound-target checks", async () => {
+  it("supports bound-target checks for agent and team targets", async () => {
     const provider = new SqlChannelBindingProvider();
-    const accountId = "discord-app-654321";
-    const peerId = "user:123123123123123";
+    const accountId = unique("acct");
+    const peerId = unique("peer");
 
-    const binding = await provider.upsertBinding({
+    await provider.upsertBinding({
       provider: ExternalChannelProvider.DISCORD,
       transport: ExternalChannelTransport.BUSINESS_API,
       accountId,
       peerId,
       threadId: null,
-      targetType: "AGENT",
-      agentId: "discord-agent-fallback",
-      allowTransportFallback: true,
+      targetType: "TEAM",
+      teamId: "team-1",
+      targetMemberName: "coordinator",
     });
 
-    const fallback = await provider.findProviderDefaultBinding({
-      provider: ExternalChannelProvider.DISCORD,
-      accountId,
-      peerId,
-      threadId: null,
-    });
-
-    const boundToAgent = await provider.isRouteBoundToTarget(
+    const boundToTeam = await provider.isRouteBoundToTarget(
       {
         provider: ExternalChannelProvider.DISCORD,
         transport: ExternalChannelTransport.BUSINESS_API,
@@ -69,12 +62,12 @@ describe("SqlChannelBindingProvider", () => {
         threadId: null,
       },
       {
-        agentId: "discord-agent-fallback",
-        teamId: null,
+        agentId: null,
+        teamId: "team-1",
       },
     );
 
-    const boundToDifferentAgent = await provider.isRouteBoundToTarget(
+    const boundToDifferentTeam = await provider.isRouteBoundToTarget(
       {
         provider: ExternalChannelProvider.DISCORD,
         transport: ExternalChannelTransport.BUSINESS_API,
@@ -83,15 +76,13 @@ describe("SqlChannelBindingProvider", () => {
         threadId: null,
       },
       {
-        agentId: "discord-agent-mismatch",
-        teamId: null,
+        agentId: null,
+        teamId: "team-2",
       },
     );
 
-    expect(fallback?.id).toBe(binding.id);
-    expect(fallback?.allowTransportFallback).toBe(true);
-    expect(boundToAgent).toBe(true);
-    expect(boundToDifferentAgent).toBe(false);
+    expect(boundToTeam).toBe(true);
+    expect(boundToDifferentTeam).toBe(false);
   });
 
   it("upserts and resolves exact route binding", async () => {
@@ -122,33 +113,6 @@ describe("SqlChannelBindingProvider", () => {
     expect(resolved?.agentId).toBe("agent-1");
   });
 
-  it("finds provider-default binding when transport fallback is allowed", async () => {
-    const provider = new SqlChannelBindingProvider();
-    const accountId = unique("acct");
-    const peerId = unique("peer");
-
-    await provider.upsertBinding({
-      provider: ExternalChannelProvider.WHATSAPP,
-      transport: ExternalChannelTransport.BUSINESS_API,
-      accountId,
-      peerId,
-      threadId: null,
-      targetType: "AGENT",
-      agentId: "agent-fallback",
-      allowTransportFallback: true,
-    });
-
-    const fallback = await provider.findProviderDefaultBinding({
-      provider: ExternalChannelProvider.WHATSAPP,
-      accountId,
-      peerId,
-      threadId: null,
-    });
-
-    expect(fallback).not.toBeNull();
-    expect(fallback?.agentId).toBe("agent-fallback");
-  });
-
   it("updates existing route record on repeated upsert", async () => {
     const provider = new SqlChannelBindingProvider();
     const accountId = unique("acct");
@@ -171,65 +135,10 @@ describe("SqlChannelBindingProvider", () => {
       threadId: "thread-1",
       targetType: "AGENT",
       agentId: "agent-2",
-      allowTransportFallback: true,
     });
 
     expect(second.id).toBe(first.id);
     expect(second.agentId).toBe("agent-2");
-    expect(second.allowTransportFallback).toBe(true);
-  });
-
-  it("supports dispatch-target lookup and agent relink updates", async () => {
-    const provider = new SqlChannelBindingProvider();
-    const accountId = unique("acct");
-    const peerId = unique("peer");
-
-    const created = await provider.upsertBinding({
-      provider: ExternalChannelProvider.WHATSAPP,
-      transport: ExternalChannelTransport.PERSONAL_SESSION,
-      accountId,
-      peerId,
-      threadId: null,
-      targetType: "AGENT",
-      agentId: "agent-before",
-    });
-
-    const byTarget = await provider.findBindingByDispatchTarget({
-      agentId: "agent-before",
-      teamId: null,
-    });
-    expect(byTarget?.id).toBe(created.id);
-
-    const relinked = await provider.upsertBindingAgentId(created.id, "agent-after");
-    expect(relinked.agentId).toBe("agent-after");
-
-    const relinkedLookup = await provider.findBindingByDispatchTarget({
-      agentId: "agent-after",
-      teamId: null,
-    });
-    expect(relinkedLookup?.id).toBe(created.id);
-  });
-
-  it("prefers agent target and falls back to team target lookup", async () => {
-    const provider = new SqlChannelBindingProvider();
-
-    await provider.upsertBinding({
-      provider: ExternalChannelProvider.WHATSAPP,
-      transport: ExternalChannelTransport.BUSINESS_API,
-      accountId: unique("acct"),
-      peerId: unique("peer"),
-      threadId: null,
-      targetType: "TEAM",
-      teamId: "team-1",
-      targetNodeName: "coordinator",
-    });
-
-    const teamLookup = await provider.findBindingByDispatchTarget({
-      agentId: null,
-      teamId: "team-1",
-    });
-    expect(teamLookup?.teamId).toBe("team-1");
-    expect(teamLookup?.targetType).toBe("TEAM");
   });
 
   it("lists bindings in descending updatedAt order", async () => {

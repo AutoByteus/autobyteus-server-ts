@@ -15,24 +15,29 @@ const createBinding = (transport: ExternalChannelTransport): ChannelBinding => (
   targetType: "AGENT",
   agentId: "agent-1",
   teamId: null,
-  targetNodeName: null,
-  allowTransportFallback: false,
+  targetMemberName: null,
   createdAt: new Date("2026-02-08T00:00:00.000Z"),
   updatedAt: new Date("2026-02-08T00:00:00.000Z"),
 });
 
+const createProvider = (
+  overrides: Partial<ChannelBindingProvider> = {},
+): ChannelBindingProvider => ({
+  findBinding: vi.fn(),
+  isRouteBoundToTarget: vi.fn(),
+  listBindings: vi.fn(),
+  upsertBinding: vi.fn(),
+  deleteBinding: vi.fn(),
+  ...overrides,
+});
+
 describe("ChannelBindingService", () => {
-  it("resolves exact transport binding", async () => {
-    const provider: ChannelBindingProvider = {
-      findBinding: vi.fn().mockResolvedValue(createBinding(ExternalChannelTransport.BUSINESS_API)),
-      findProviderDefaultBinding: vi.fn(),
-      findBindingByDispatchTarget: vi.fn(),
-      isRouteBoundToTarget: vi.fn(),
-      listBindings: vi.fn(),
-      upsertBinding: vi.fn(),
-      upsertBindingAgentId: vi.fn(),
-      deleteBinding: vi.fn(),
-    };
+  it("resolves exact transport binding without fallback behavior", async () => {
+    const provider = createProvider({
+      findBinding: vi
+        .fn()
+        .mockResolvedValue(createBinding(ExternalChannelTransport.BUSINESS_API)),
+    });
     const service = new ChannelBindingService(provider);
 
     const result = await service.resolveBinding({
@@ -43,75 +48,17 @@ describe("ChannelBindingService", () => {
       threadId: null,
     });
 
-    expect(result).not.toBeNull();
-    expect(result?.usedTransportFallback).toBe(false);
-    expect(provider.findProviderDefaultBinding).not.toHaveBeenCalled();
+    expect(result?.id).toBe(`binding-${ExternalChannelTransport.BUSINESS_API}`);
+    expect(provider.findBinding).toHaveBeenCalledTimes(1);
   });
 
-  it("returns null when exact binding missing and fallback disabled", async () => {
-    const provider: ChannelBindingProvider = {
-      findBinding: vi.fn().mockResolvedValue(null),
-      findProviderDefaultBinding: vi.fn().mockResolvedValue(createBinding(ExternalChannelTransport.BUSINESS_API)),
-      findBindingByDispatchTarget: vi.fn(),
-      isRouteBoundToTarget: vi.fn(),
-      listBindings: vi.fn(),
-      upsertBinding: vi.fn(),
-      upsertBindingAgentId: vi.fn(),
-      deleteBinding: vi.fn(),
-    };
-    const service = new ChannelBindingService(provider, { allowTransportFallback: false });
-
-    const result = await service.resolveBinding({
-      provider: ExternalChannelProvider.WHATSAPP,
-      transport: ExternalChannelTransport.PERSONAL_SESSION,
-      accountId: "acct-1",
-      peerId: "peer-1",
-      threadId: null,
-    });
-
-    expect(result).toBeNull();
-    expect(provider.findProviderDefaultBinding).not.toHaveBeenCalled();
-  });
-
-  it("resolves provider default when fallback enabled", async () => {
-    const fallbackBinding = createBinding(ExternalChannelTransport.BUSINESS_API);
-    const provider: ChannelBindingProvider = {
-      findBinding: vi.fn().mockResolvedValue(null),
-      findProviderDefaultBinding: vi.fn().mockResolvedValue(fallbackBinding),
-      findBindingByDispatchTarget: vi.fn(),
-      isRouteBoundToTarget: vi.fn(),
-      listBindings: vi.fn(),
-      upsertBinding: vi.fn(),
-      upsertBindingAgentId: vi.fn(),
-      deleteBinding: vi.fn(),
-    };
-    const service = new ChannelBindingService(provider, { allowTransportFallback: true });
-
-    const result = await service.resolveBinding({
-      provider: ExternalChannelProvider.WHATSAPP,
-      transport: ExternalChannelTransport.PERSONAL_SESSION,
-      accountId: "acct-1",
-      peerId: "peer-1",
-      threadId: null,
-    });
-
-    expect(result).not.toBeNull();
-    expect(result?.binding.id).toBe(fallbackBinding.id);
-    expect(result?.usedTransportFallback).toBe(true);
-  });
-
-  it("delegates upsert methods to provider", async () => {
+  it("delegates upsert/list/delete methods to provider", async () => {
     const binding = createBinding(ExternalChannelTransport.BUSINESS_API);
-    const provider: ChannelBindingProvider = {
-      findBinding: vi.fn(),
-      findProviderDefaultBinding: vi.fn(),
-      findBindingByDispatchTarget: vi.fn().mockResolvedValue(binding),
-      isRouteBoundToTarget: vi.fn(),
-      listBindings: vi.fn().mockResolvedValue([binding]),
+    const provider = createProvider({
       upsertBinding: vi.fn().mockResolvedValue(binding),
-      upsertBindingAgentId: vi.fn().mockResolvedValue(binding),
+      listBindings: vi.fn().mockResolvedValue([binding]),
       deleteBinding: vi.fn().mockResolvedValue(true),
-    };
+    });
     const service = new ChannelBindingService(provider);
 
     const upserted = await service.upsertBinding({
@@ -122,83 +69,22 @@ describe("ChannelBindingService", () => {
       threadId: null,
       targetType: "AGENT",
       agentId: "agent-1",
-      allowTransportFallback: false,
     });
-    const relinked = await service.upsertBindingAgentId(binding.id, "agent-2");
     const listed = await service.listBindings();
     const deleted = await service.deleteBinding(binding.id);
 
     expect(upserted.id).toBe(binding.id);
-    expect(relinked.id).toBe(binding.id);
     expect(listed).toEqual([binding]);
     expect(deleted).toBe(true);
     expect(provider.upsertBinding).toHaveBeenCalledTimes(1);
-    expect(provider.upsertBindingAgentId).toHaveBeenCalledWith(binding.id, "agent-2");
     expect(provider.listBindings).toHaveBeenCalledTimes(1);
     expect(provider.deleteBinding).toHaveBeenCalledWith(binding.id);
   });
 
-  it("delegates dispatch-target lookup after normalization", async () => {
-    const binding = createBinding(ExternalChannelTransport.BUSINESS_API);
-    const provider: ChannelBindingProvider = {
-      findBinding: vi.fn(),
-      findProviderDefaultBinding: vi.fn(),
-      findBindingByDispatchTarget: vi.fn().mockResolvedValue(binding),
-      isRouteBoundToTarget: vi.fn().mockResolvedValue(true),
-      listBindings: vi.fn(),
-      upsertBinding: vi.fn(),
-      upsertBindingAgentId: vi.fn(),
-      deleteBinding: vi.fn(),
-    };
-    const service = new ChannelBindingService(provider);
-
-    const result = await service.findBindingByDispatchTarget({
-      agentId: " agent-1 ",
-      teamId: "   ",
-    });
-
-    expect(result?.id).toBe(binding.id);
-    expect(provider.findBindingByDispatchTarget).toHaveBeenCalledWith({
-      agentId: "agent-1",
-      teamId: null,
-    });
-  });
-
-  it("rejects lookup when neither agentId nor teamId is provided", async () => {
-    const provider: ChannelBindingProvider = {
-      findBinding: vi.fn(),
-      findProviderDefaultBinding: vi.fn(),
-      findBindingByDispatchTarget: vi.fn(),
-      isRouteBoundToTarget: vi.fn(),
-      listBindings: vi.fn(),
-      upsertBinding: vi.fn(),
-      upsertBindingAgentId: vi.fn(),
-      deleteBinding: vi.fn(),
-    };
-    const service = new ChannelBindingService(provider);
-
-    await expect(
-      service.findBindingByDispatchTarget({
-        agentId: " ",
-        teamId: null,
-      }),
-    ).rejects.toThrow(
-      "Dispatch target lookup requires at least one of agentId or teamId.",
-    );
-    expect(provider.findBindingByDispatchTarget).not.toHaveBeenCalled();
-  });
-
   it("delegates route-target active binding checks", async () => {
-    const provider: ChannelBindingProvider = {
-      findBinding: vi.fn(),
-      findProviderDefaultBinding: vi.fn(),
-      findBindingByDispatchTarget: vi.fn(),
+    const provider = createProvider({
       isRouteBoundToTarget: vi.fn().mockResolvedValue(true),
-      listBindings: vi.fn(),
-      upsertBinding: vi.fn(),
-      upsertBindingAgentId: vi.fn(),
-      deleteBinding: vi.fn(),
-    };
+    });
     const service = new ChannelBindingService(provider);
 
     const result = await service.isRouteBoundToTarget(
@@ -229,5 +115,29 @@ describe("ChannelBindingService", () => {
         teamId: null,
       },
     );
+  });
+
+  it("rejects route-target checks with empty target identity", async () => {
+    const provider = createProvider();
+    const service = new ChannelBindingService(provider);
+
+    await expect(
+      service.isRouteBoundToTarget(
+        {
+          provider: ExternalChannelProvider.WHATSAPP,
+          transport: ExternalChannelTransport.BUSINESS_API,
+          accountId: "acct-1",
+          peerId: "peer-1",
+          threadId: null,
+        },
+        {
+          agentId: " ",
+          teamId: null,
+        },
+      ),
+    ).rejects.toThrow(
+      "Route-target verification requires at least one of agentId or teamId.",
+    );
+    expect(provider.isRouteBoundToTarget).not.toHaveBeenCalled();
   });
 });

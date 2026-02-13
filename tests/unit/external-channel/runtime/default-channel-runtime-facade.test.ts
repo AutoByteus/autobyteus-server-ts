@@ -59,8 +59,7 @@ const createAgentBinding = (): ChannelBinding => ({
   targetType: "AGENT",
   agentId: "agent-1",
   teamId: null,
-  targetNodeName: null,
-  allowTransportFallback: false,
+  targetMemberName: null,
   createdAt: new Date("2026-02-08T00:00:00.000Z"),
   updatedAt: new Date("2026-02-08T00:00:00.000Z"),
 });
@@ -70,20 +69,21 @@ const createTeamBinding = (): ChannelBinding => ({
   targetType: "TEAM",
   agentId: null,
   teamId: "team-1",
-  targetNodeName: "support-node",
+  targetMemberName: "support-node",
 });
 
 describe("DefaultChannelRuntimeFacade", () => {
   it("dispatches to agent instance with external source metadata", async () => {
     const postUserMessage = vi.fn().mockResolvedValue(undefined);
+    const dispatchUserMessage = vi.fn().mockResolvedValue(undefined);
     const facade = new DefaultChannelRuntimeFacade({
       agentInstanceManager: {
         getAgentInstance: vi.fn().mockReturnValue({
           postUserMessage,
         }),
       },
-      agentTeamInstanceManager: {
-        getTeamInstance: vi.fn(),
+      teamCommandIngressService: {
+        dispatchUserMessage,
       },
     });
 
@@ -104,15 +104,13 @@ describe("DefaultChannelRuntimeFacade", () => {
   });
 
   it("dispatches to team instance and passes target node", async () => {
-    const postMessage = vi.fn().mockResolvedValue(undefined);
+    const dispatchUserMessage = vi.fn().mockResolvedValue(undefined);
     const facade = new DefaultChannelRuntimeFacade({
       agentInstanceManager: {
         getAgentInstance: vi.fn(),
       },
-      agentTeamInstanceManager: {
-        getTeamInstance: vi.fn().mockReturnValue({
-          postMessage,
-        }),
+      teamCommandIngressService: {
+        dispatchUserMessage,
       },
     });
 
@@ -120,24 +118,26 @@ describe("DefaultChannelRuntimeFacade", () => {
 
     expect(result.agentId).toBeNull();
     expect(result.teamId).toBe("team-1");
-    expect(postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(dispatchUserMessage).toHaveBeenCalledWith({
+      teamId: "team-1",
+      targetMemberName: "support-node",
+      userMessage: expect.objectContaining({
         content: "hello",
       }),
-      "support-node",
-    );
+    });
   });
 
   it("maps inbound attachments to context files", async () => {
     const postUserMessage = vi.fn().mockResolvedValue(undefined);
+    const dispatchUserMessage = vi.fn().mockResolvedValue(undefined);
     const facade = new DefaultChannelRuntimeFacade({
       agentInstanceManager: {
         getAgentInstance: vi.fn().mockReturnValue({
           postUserMessage,
         }),
       },
-      agentTeamInstanceManager: {
-        getTeamInstance: vi.fn(),
+      teamCommandIngressService: {
+        dispatchUserMessage,
       },
     });
 
@@ -163,8 +163,8 @@ describe("DefaultChannelRuntimeFacade", () => {
       agentInstanceManager: {
         getAgentInstance: vi.fn(),
       },
-      agentTeamInstanceManager: {
-        getTeamInstance: vi.fn(),
+      teamCommandIngressService: {
+        dispatchUserMessage: vi.fn(),
       },
     });
 
@@ -173,18 +173,19 @@ describe("DefaultChannelRuntimeFacade", () => {
     ).rejects.toThrow("binding.agentId must be a non-empty string.");
   });
 
-  it("throws when team instance cannot be found", async () => {
+  it("propagates team ingress dispatch errors", async () => {
+    const dispatchUserMessage = vi.fn().mockRejectedValue(new Error("Team run missing"));
     const facade = new DefaultChannelRuntimeFacade({
       agentInstanceManager: {
         getAgentInstance: vi.fn(),
       },
-      agentTeamInstanceManager: {
-        getTeamInstance: vi.fn().mockReturnValue(null),
+      teamCommandIngressService: {
+        dispatchUserMessage,
       },
     });
 
     await expect(
       facade.dispatchToBinding(createTeamBinding(), createEnvelope()),
-    ).rejects.toThrow("Team instance 'team-1' not found for channel dispatch.");
+    ).rejects.toThrow("Team run missing");
   });
 });

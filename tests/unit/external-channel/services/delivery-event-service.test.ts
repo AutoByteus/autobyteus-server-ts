@@ -75,6 +75,20 @@ describe("DeliveryEventService", () => {
     );
   });
 
+  it("records delivered event", async () => {
+    const provider: DeliveryEventProvider = {
+      upsertByCallbackKey: vi.fn().mockResolvedValue(createDeliveryEvent("DELIVERED")),
+      findByCallbackKey: vi.fn(),
+    };
+    const service = new DeliveryEventService(provider);
+
+    await service.recordDelivered(createInput());
+
+    expect(provider.upsertByCallbackKey).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "DELIVERED", errorMessage: null }),
+    );
+  });
+
   it("records failed event with normalized error message", async () => {
     const provider: DeliveryEventProvider = {
       upsertByCallbackKey: vi.fn().mockResolvedValue(createDeliveryEvent("FAILED")),

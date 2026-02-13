@@ -84,6 +84,10 @@ describe("FileExplorerStreamHandler", () => {
     const sessionId = await handler.connect(connection, "missing");
 
     expect(sessionId).toBeNull();
+    expect(connection.send).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(connection.send.mock.calls[0][0]);
+    expect(payload.type).toBe(ServerMessageType.ERROR);
+    expect(payload.payload.code).toBe("WORKSPACE_NOT_FOUND");
     expect(connection.close).toHaveBeenCalledWith(4004);
   });
 

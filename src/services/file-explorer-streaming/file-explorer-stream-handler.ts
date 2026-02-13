@@ -27,6 +27,7 @@ export class FileExplorerStreamHandler {
   private manager: FileExplorerSessionManager;
   private workspaceManager: WorkspaceManager;
   private activeTasks = new Map<string, Promise<void>>();
+  private static readonly ERROR_CLOSE_DELAY_MS = 5;
 
   constructor(
     sessionManager: FileExplorerSessionManager = new FileExplorerSessionManager(),
@@ -44,7 +45,11 @@ export class FileExplorerStreamHandler {
       logger.warn(
         `File explorer WebSocket connection rejected: workspace ${workspaceId} not found (${String(error)})`,
       );
-      connection.close(4004);
+      const errorMsg = createErrorMessage(
+        "WORKSPACE_NOT_FOUND",
+        `Workspace ${workspaceId} not found`,
+      );
+      await this.sendErrorThenClose(connection, errorMsg.toJson(), 4004);
       return null;
     }
 
@@ -57,8 +62,7 @@ export class FileExplorerStreamHandler {
           "WATCHER_UNAVAILABLE",
           "File watcher is not available for this workspace",
         );
-        connection.send(errorMsg.toJson());
-        connection.close(4005);
+        await this.sendErrorThenClose(connection, errorMsg.toJson(), 4005);
         return null;
       }
 
@@ -76,14 +80,26 @@ export class FileExplorerStreamHandler {
     } catch (error) {
       logger.error(`Failed to set up file explorer session: ${String(error)}`);
       const errorMsg = createErrorMessage("SESSION_ERROR", String(error));
-      try {
-        connection.send(errorMsg.toJson());
-      } catch {
-        // ignore
-      }
-      connection.close(1011);
+      await this.sendErrorThenClose(connection, errorMsg.toJson(), 1011);
       return null;
     }
+  }
+
+  private async sendErrorThenClose(
+    connection: WebSocketConnection,
+    payload: string,
+    closeCode: number,
+  ): Promise<void> {
+    try {
+      connection.send(payload);
+      // Let websocket transport flush the data frame before closing.
+      await new Promise((resolve) =>
+        setTimeout(resolve, FileExplorerStreamHandler.ERROR_CLOSE_DELAY_MS),
+      );
+    } catch {
+      // ignore
+    }
+    connection.close(closeCode);
   }
 
   private async ensureWatcher(

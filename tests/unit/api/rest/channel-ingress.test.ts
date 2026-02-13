@@ -44,12 +44,10 @@ const buildIngressResult = (): ChannelIngressResult => ({
     targetType: "AGENT",
     agentId: "agent-1",
     teamId: null,
-    targetNodeName: null,
-    allowTransportFallback: false,
+    targetMemberName: null,
     createdAt: new Date("2026-02-08T00:00:00.000Z"),
     updatedAt: new Date("2026-02-08T00:00:00.000Z"),
   },
-  usedTransportFallback: false,
   dispatch: {
     agentId: "agent-1",
     teamId: null,
@@ -65,12 +63,14 @@ describe("registerChannelIngressRoutes", () => {
     const deliveryEventService = {
       recordPending: vi.fn(),
       recordSent: vi.fn(),
+      recordDelivered: vi.fn(),
       recordFailed: vi.fn(),
     };
     const app = fastify();
     await registerChannelIngressRoutes(app, {
       ingressService,
       deliveryEventService,
+      allowInsecureGatewayRequests: true,
     });
 
     const response = await app.inject({
@@ -87,7 +87,6 @@ describe("registerChannelIngressRoutes", () => {
       bindingResolved: true,
       idempotencyKey: "key-1",
       bindingId: "binding-1",
-      usedTransportFallback: false,
     });
     expect(ingressService.handleInboundMessage).toHaveBeenCalledOnce();
     await app.close();
@@ -103,7 +102,6 @@ describe("registerChannelIngressRoutes", () => {
           disposition: "UNBOUND",
           bindingResolved: false,
           binding: null,
-          usedTransportFallback: false,
           dispatch: null,
         } satisfies ChannelIngressResult),
     };
@@ -113,8 +111,10 @@ describe("registerChannelIngressRoutes", () => {
       deliveryEventService: {
         recordPending: vi.fn(),
         recordSent: vi.fn(),
+        recordDelivered: vi.fn(),
         recordFailed: vi.fn(),
       },
+      allowInsecureGatewayRequests: true,
     });
 
     const response = await app.inject({
@@ -131,7 +131,6 @@ describe("registerChannelIngressRoutes", () => {
       bindingResolved: false,
       idempotencyKey: "key-unbound",
       bindingId: null,
-      usedTransportFallback: false,
     });
     await app.close();
   });
@@ -145,8 +144,10 @@ describe("registerChannelIngressRoutes", () => {
       deliveryEventService: {
         recordPending: vi.fn(),
         recordSent: vi.fn(),
+        recordDelivered: vi.fn(),
         recordFailed: vi.fn(),
       },
+      allowInsecureGatewayRequests: true,
     });
 
     const response = await app.inject({
@@ -171,6 +172,7 @@ describe("registerChannelIngressRoutes", () => {
       deliveryEventService: {
         recordPending: vi.fn(),
         recordSent: vi.fn(),
+        recordDelivered: vi.fn(),
         recordFailed: vi.fn(),
       },
       gatewaySecret: "test-secret",
@@ -199,6 +201,7 @@ describe("registerChannelIngressRoutes", () => {
     const deliveryEventService = {
       recordPending: vi.fn(),
       recordSent: vi.fn().mockResolvedValue(undefined),
+      recordDelivered: vi.fn(),
       recordFailed: vi.fn(),
     };
     const app = fastify();
@@ -207,6 +210,7 @@ describe("registerChannelIngressRoutes", () => {
         handleInboundMessage: vi.fn(),
       },
       deliveryEventService,
+      allowInsecureGatewayRequests: true,
     });
 
     const response = await app.inject({
@@ -239,6 +243,79 @@ describe("registerChannelIngressRoutes", () => {
         correlationMessageId: "corr-1",
       }),
     );
+    await app.close();
+  });
+
+  it("records DELIVERED delivery-event updates without collapsing to SENT", async () => {
+    const deliveryEventService = {
+      recordPending: vi.fn(),
+      recordSent: vi.fn(),
+      recordDelivered: vi.fn().mockResolvedValue(undefined),
+      recordFailed: vi.fn(),
+    };
+    const app = fastify();
+    await registerChannelIngressRoutes(app, {
+      ingressService: {
+        handleInboundMessage: vi.fn(),
+      },
+      deliveryEventService,
+      allowInsecureGatewayRequests: true,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/channel-ingress/v1/delivery-events",
+      payload: {
+        provider: ExternalChannelProvider.WHATSAPP,
+        transport: ExternalChannelTransport.BUSINESS_API,
+        accountId: "acct-1",
+        peerId: "peer-1",
+        threadId: "thread-1",
+        correlationMessageId: "corr-2",
+        status: ExternalDeliveryStatus.DELIVERED,
+        occurredAt: "2026-02-08T00:00:00.000Z",
+        metadata: {
+          callbackIdempotencyKey: "cb-2",
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(deliveryEventService.recordDelivered).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callbackIdempotencyKey: "cb-2",
+        correlationMessageId: "corr-2",
+      }),
+    );
+    expect(deliveryEventService.recordSent).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it("returns 401 when gateway secret is not configured and insecure mode is disabled", async () => {
+    const app = fastify();
+    await registerChannelIngressRoutes(app, {
+      ingressService: {
+        handleInboundMessage: vi.fn(),
+      },
+      deliveryEventService: {
+        recordPending: vi.fn(),
+        recordSent: vi.fn(),
+        recordDelivered: vi.fn(),
+        recordFailed: vi.fn(),
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/channel-ingress/v1/messages",
+      payload: buildInboundPayload(),
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({
+      code: "MISSING_SECRET",
+      detail: "Gateway secret is missing.",
+    });
     await app.close();
   });
 });

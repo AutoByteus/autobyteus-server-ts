@@ -10,9 +10,8 @@ import {
 } from "autobyteus-ts/external-channel/channel-transport.js";
 import type {
   ChannelBinding,
-  ChannelBindingLookup,
-  ChannelBindingProviderDefaultLookup,
   ChannelDispatchTarget,
+  ChannelBindingLookup,
   ChannelSourceRoute,
   UpsertChannelBindingInput,
 } from "../domain/models.js";
@@ -39,62 +38,6 @@ export class SqlChannelBindingProvider implements ChannelBindingProvider {
     });
 
     return found ? toDomain(found) : null;
-  }
-
-  async findProviderDefaultBinding(
-    input: ChannelBindingProviderDefaultLookup,
-  ): Promise<ChannelBinding | null> {
-    const found = await this.repository.findFirst({
-      where: {
-        provider: input.provider,
-        accountId: input.accountId,
-        peerId: input.peerId,
-        threadId: toThreadStorage(input.threadId),
-        allowTransportFallback: true,
-      },
-      orderBy: {
-        updatedAt: "desc",
-      },
-    });
-
-    return found ? toDomain(found) : null;
-  }
-
-  async findBindingByDispatchTarget(
-    target: ChannelDispatchTarget,
-  ): Promise<ChannelBinding | null> {
-    const agentId = normalizeNullableString(target.agentId);
-    const teamId = normalizeNullableString(target.teamId);
-
-    if (agentId) {
-      const agentBinding = await this.repository.findFirst({
-        where: {
-          targetType: "AGENT",
-          agentId,
-        },
-        orderBy: {
-          updatedAt: "desc",
-        },
-      });
-      if (agentBinding) {
-        return toDomain(agentBinding);
-      }
-    }
-
-    if (!teamId) {
-      return null;
-    }
-
-    const teamBinding = await this.repository.findFirst({
-      where: {
-        targetType: "TEAM",
-        teamId,
-      },
-      orderBy: {
-        updatedAt: "desc",
-      },
-    });
-    return teamBinding ? toDomain(teamBinding) : null;
   }
 
   async isRouteBoundToTarget(
@@ -161,37 +104,17 @@ export class SqlChannelBindingProvider implements ChannelBindingProvider {
         agentId: normalizeNullableString(input.agentId ?? null) ?? undefined,
         teamId: normalizeNullableString(input.teamId ?? null) ?? undefined,
         targetNodeName:
-          normalizeNullableString(input.targetNodeName ?? null) ?? undefined,
-        allowTransportFallback: input.allowTransportFallback ?? false,
+          normalizeNullableString(input.targetMemberName ?? null) ?? undefined,
       },
       update: {
         targetType: input.targetType,
         agentId: normalizeNullableString(input.agentId ?? null),
         teamId: normalizeNullableString(input.teamId ?? null),
-        targetNodeName: normalizeNullableString(input.targetNodeName ?? null),
-        allowTransportFallback: input.allowTransportFallback ?? false,
+        targetNodeName: normalizeNullableString(input.targetMemberName ?? null),
       },
     });
 
     return toDomain(createdOrUpdated);
-  }
-
-  async upsertBindingAgentId(
-    bindingId: string,
-    agentId: string,
-  ): Promise<ChannelBinding> {
-    const normalizedId = parseBindingId(bindingId);
-    const normalizedAgentId = normalizeRequiredString(agentId, "agentId");
-    const updated = await this.repository.update({
-      where: {
-        id: normalizedId,
-      },
-      data: {
-        agentId: normalizedAgentId,
-        targetType: "AGENT",
-      },
-    });
-    return toDomain(updated);
   }
 
   async deleteBinding(bindingId: string): Promise<boolean> {
@@ -234,14 +157,6 @@ const parseBindingId = (value: string): number => {
   return parsed;
 };
 
-const normalizeRequiredString = (value: string, field: string): string => {
-  const normalized = value.trim();
-  if (normalized.length === 0) {
-    throw new Error(`${field} must be a non-empty string.`);
-  }
-  return normalized;
-};
-
 const normalizeNullableString = (value: string | null): string | null => {
   if (value === null) {
     return null;
@@ -261,7 +176,6 @@ const toDomain = (value: {
   agentId: string | null;
   teamId: string | null;
   targetNodeName: string | null;
-  allowTransportFallback: boolean;
   createdAt: Date;
   updatedAt: Date;
 }): ChannelBinding => ({
@@ -274,8 +188,7 @@ const toDomain = (value: {
   targetType: parseTargetType(value.targetType),
   agentId: value.agentId,
   teamId: value.teamId,
-  targetNodeName: value.targetNodeName,
-  allowTransportFallback: value.allowTransportFallback,
+  targetMemberName: value.targetNodeName,
   createdAt: value.createdAt,
   updatedAt: value.updatedAt,
 });

@@ -26,7 +26,6 @@ export async function registerChannelIngressMessageRoute(
         bindingResolved: result.bindingResolved,
         idempotencyKey: result.idempotencyKey,
         bindingId: result.binding?.id ?? null,
-        usedTransportFallback: result.usedTransportFallback,
       });
     } catch (error) {
       return handleRouteError(reply, error);

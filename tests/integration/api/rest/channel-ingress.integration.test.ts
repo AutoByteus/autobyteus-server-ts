@@ -46,8 +46,7 @@ describe("REST channel-ingress routes", () => {
       targetType: "AGENT",
       agentId,
       teamId: null,
-      targetNodeName: null,
-      allowTransportFallback: false,
+      targetMemberName: null,
     });
 
     const messageReceiptService = new ChannelMessageReceiptService(
@@ -68,6 +67,7 @@ describe("REST channel-ingress routes", () => {
       deliveryEventService: new DeliveryEventService(
         new SqlDeliveryEventProvider(),
       ),
+      allowInsecureGatewayRequests: true,
     });
 
     const response = await app.inject({
@@ -129,6 +129,7 @@ describe("REST channel-ingress routes", () => {
       deliveryEventService: new DeliveryEventService(
         new SqlDeliveryEventProvider(),
       ),
+      allowInsecureGatewayRequests: true,
     });
 
     const response = await app.inject({
@@ -176,8 +177,7 @@ describe("REST channel-ingress routes", () => {
       targetType: "AGENT",
       agentId,
       teamId: null,
-      targetNodeName: null,
-      allowTransportFallback: false,
+      targetMemberName: null,
     });
 
     const messageReceiptService = new ChannelMessageReceiptService(
@@ -200,6 +200,7 @@ describe("REST channel-ingress routes", () => {
     await registerChannelIngressRoutes(app, {
       ingressService,
       deliveryEventService,
+      allowInsecureGatewayRequests: true,
     });
 
     const payload = {
@@ -275,6 +276,7 @@ describe("REST channel-ingress routes", () => {
       deliveryEventService: new DeliveryEventService(
         new SqlDeliveryEventProvider(),
       ),
+      allowInsecureGatewayRequests: true,
     });
 
     const payload = {
@@ -304,7 +306,6 @@ describe("REST channel-ingress routes", () => {
       disposition: "UNBOUND",
       bindingResolved: false,
       bindingId: null,
-      usedTransportFallback: false,
     });
 
     await app.close();
@@ -335,6 +336,7 @@ describe("REST channel-ingress routes", () => {
       deliveryEventService: new DeliveryEventService(
         new SqlDeliveryEventProvider(),
       ),
+      allowInsecureGatewayRequests: true,
     });
 
     const basePayload = {
@@ -376,8 +378,7 @@ describe("REST channel-ingress routes", () => {
       targetType: "AGENT",
       agentId,
       teamId: null,
-      targetNodeName: null,
-      allowTransportFallback: false,
+      targetMemberName: null,
     });
 
     const afterBindExternalMessageId = unique("msg-after-bind");
@@ -430,8 +431,7 @@ describe("REST channel-ingress routes", () => {
       targetType: "AGENT",
       agentId,
       teamId: null,
-      targetNodeName: null,
-      allowTransportFallback: false,
+      targetMemberName: null,
     });
 
     const messageReceiptService = new ChannelMessageReceiptService(
@@ -462,6 +462,7 @@ describe("REST channel-ingress routes", () => {
       deliveryEventService: new DeliveryEventService(
         new SqlDeliveryEventProvider(),
       ),
+      allowInsecureGatewayRequests: true,
     });
 
     const payload = {
@@ -526,6 +527,7 @@ describe("REST channel-ingress routes", () => {
         },
       },
       deliveryEventService,
+      allowInsecureGatewayRequests: true,
     });
 
     const accountId = unique("acct");
@@ -589,6 +591,14 @@ describe("REST channel-ingress routes", () => {
       accepted: true,
       status: ExternalDeliveryStatus.DELIVERED,
       callbackIdempotencyKey: fallbackCorrelationId,
+    });
+    const deliveredPersisted = await new SqlDeliveryEventProvider().findByCallbackKey(
+      fallbackCorrelationId,
+    );
+    expect(deliveredPersisted).toMatchObject({
+      callbackIdempotencyKey: fallbackCorrelationId,
+      status: "DELIVERED",
+      correlationMessageId: fallbackCorrelationId,
     });
 
     const missingKeyResponse = await app.inject({

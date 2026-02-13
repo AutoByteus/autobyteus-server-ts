@@ -62,6 +62,33 @@ describe("AgentStreamHandler", () => {
     expect(payload.payload.session_id).toBe(sessionId);
   });
 
+  it("sends current AGENT_STATUS snapshot on connect when available", async () => {
+    const sessionManager = new AgentSessionManager();
+    const agentManager = {
+      getAgentInstance: vi
+        .fn()
+        .mockReturnValue({ agentId: "agent-123", currentStatus: "idle" }),
+      getAgentEventStream: vi.fn().mockReturnValue(createStream([])),
+    };
+
+    const handler = new AgentStreamHandler(sessionManager, agentManager as any);
+    const connection = {
+      send: vi.fn(),
+      close: vi.fn(),
+    };
+
+    const sessionId = await handler.connect(connection, "agent-123");
+    expect(sessionId).toBeTruthy();
+    expect(connection.send).toHaveBeenCalledTimes(2);
+
+    const connectedPayload = JSON.parse(connection.send.mock.calls[0][0]);
+    expect(connectedPayload.type).toBe(ServerMessageType.CONNECTED);
+
+    const statusPayload = JSON.parse(connection.send.mock.calls[1][0]);
+    expect(statusPayload.type).toBe(ServerMessageType.AGENT_STATUS);
+    expect(statusPayload.payload.new_status).toBe("idle");
+  });
+
   it("closes with 4004 when agent is missing", async () => {
     const handler = new AgentStreamHandler(
       new AgentSessionManager(),

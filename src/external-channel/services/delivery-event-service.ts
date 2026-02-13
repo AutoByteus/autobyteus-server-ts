@@ -25,6 +25,12 @@ export class DeliveryEventService {
     return this.recordWithStatus(input, "SENT");
   }
 
+  async recordDelivered(
+    input: RecordChannelDeliveryEventInput,
+  ): Promise<ChannelDeliveryEvent> {
+    return this.recordWithStatus(input, "DELIVERED");
+  }
+
   async recordFailed(
     input: RecordChannelDeliveryEventInput,
   ): Promise<ChannelDeliveryEvent> {

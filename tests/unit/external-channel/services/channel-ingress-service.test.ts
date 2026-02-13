@@ -7,7 +7,6 @@ import { ChannelIngressService } from "../../../../src/external-channel/services
 import type {
   ChannelBinding,
   ChannelIdempotencyDecision,
-  ResolvedBinding,
 } from "../../../../src/external-channel/domain/models.js";
 import type { ChannelRuntimeDispatchResult, ChannelRuntimeFacade } from "../../../../src/external-channel/runtime/channel-runtime-facade.js";
 
@@ -21,8 +20,7 @@ const createBinding = (): ChannelBinding => ({
   targetType: "AGENT",
   agentId: "agent-1",
   teamId: null,
-  targetNodeName: null,
-  allowTransportFallback: false,
+  targetMemberName: null,
   createdAt: new Date("2026-02-08T00:00:00.000Z"),
   updatedAt: new Date("2026-02-08T00:00:00.000Z"),
 });
@@ -121,7 +119,6 @@ describe("ChannelIngressService", () => {
       disposition: "UNBOUND",
       bindingResolved: false,
       binding: null,
-      usedTransportFallback: false,
       dispatch: null,
     });
     expect(runtimeFacade.dispatchToBinding).not.toHaveBeenCalled();
@@ -130,10 +127,6 @@ describe("ChannelIngressService", () => {
 
   it("dispatches and records source context for non-duplicate inbound messages", async () => {
     const binding = createBinding();
-    const resolvedBinding: ResolvedBinding = {
-      binding,
-      usedTransportFallback: false,
-    };
     const dispatchResult: ChannelRuntimeDispatchResult = {
       agentId: "agent-1",
       teamId: null,
@@ -143,7 +136,7 @@ describe("ChannelIngressService", () => {
       ensureFirstSeen: vi.fn().mockResolvedValue(createIdempotencyDecision(false)),
     };
     const bindingService = {
-      resolveBinding: vi.fn().mockResolvedValue(resolvedBinding),
+      resolveBinding: vi.fn().mockResolvedValue(binding),
     };
     const threadLockService = {
       withThreadLock: vi.fn(async (_key: string, work: () => Promise<unknown>) => work()),
@@ -194,9 +187,8 @@ describe("ChannelIngressService", () => {
     };
     const bindingService = {
       resolveBinding: vi.fn().mockResolvedValue({
-        binding,
-        usedTransportFallback: false,
-      } satisfies ResolvedBinding),
+        ...binding,
+      } satisfies ChannelBinding),
     };
     const threadLockService = {
       withThreadLock: vi.fn(async (_key: string, work: () => Promise<unknown>) => work()),

@@ -3,52 +3,19 @@ import type {
   ChannelDispatchTarget,
   ChannelBindingLookup,
   ChannelSourceRoute,
-  ResolvedBinding,
   UpsertChannelBindingInput,
 } from "../domain/models.js";
 import type { ChannelBindingProvider } from "../providers/channel-binding-provider.js";
 
-export type ChannelBindingServiceOptions = {
-  allowTransportFallback?: boolean;
-};
-
 export class ChannelBindingService {
-  private readonly allowTransportFallback: boolean;
-
   constructor(
     private readonly provider: ChannelBindingProvider,
-    options: ChannelBindingServiceOptions = {},
-  ) {
-    this.allowTransportFallback = options.allowTransportFallback ?? false;
-  }
+  ) {}
 
   async resolveBinding(
     lookup: ChannelBindingLookup,
-  ): Promise<ResolvedBinding | null> {
-    const direct = await this.provider.findBinding(lookup);
-    if (direct) {
-      return { binding: direct, usedTransportFallback: false };
-    }
-
-    if (!this.allowTransportFallback) {
-      return null;
-    }
-
-    const fallback = await this.provider.findProviderDefaultBinding({
-      provider: lookup.provider,
-      accountId: lookup.accountId,
-      peerId: lookup.peerId,
-      threadId: lookup.threadId,
-    });
-
-    if (!fallback) {
-      return null;
-    }
-
-    return {
-      binding: fallback,
-      usedTransportFallback: true,
-    };
+  ): Promise<ChannelBinding | null> {
+    return this.provider.findBinding(lookup);
   }
 
   async upsertBinding(input: UpsertChannelBindingInput): Promise<ChannelBinding> {
@@ -59,26 +26,8 @@ export class ChannelBindingService {
     return this.provider.listBindings();
   }
 
-  async upsertBindingAgentId(bindingId: string, agentId: string): Promise<ChannelBinding> {
-    return this.provider.upsertBindingAgentId(bindingId, agentId);
-  }
-
   async deleteBinding(bindingId: string): Promise<boolean> {
     return this.provider.deleteBinding(bindingId);
-  }
-
-  async findBindingByDispatchTarget(
-    target: ChannelDispatchTarget,
-  ): Promise<ChannelBinding | null> {
-    const agentId = normalizeNullableString(target.agentId);
-    const teamId = normalizeNullableString(target.teamId);
-    if (!agentId && !teamId) {
-      throw new Error(
-        "Dispatch target lookup requires at least one of agentId or teamId.",
-      );
-    }
-
-    return this.provider.findBindingByDispatchTarget({ agentId, teamId });
   }
 
   async isRouteBoundToTarget(

@@ -4,29 +4,19 @@ import type { ExternalAttachment } from "autobyteus-ts/external-channel/external
 import type { ExternalMessageEnvelope } from "autobyteus-ts/external-channel/external-message-envelope.js";
 import type { ChannelBinding } from "../domain/models.js";
 import type { ChannelRuntimeDispatchResult, ChannelRuntimeFacade } from "./channel-runtime-facade.js";
+import type { TeamCommandIngressService } from "../../distributed/ingress/team-command-ingress-service.js";
 
 type AgentLike = {
   postUserMessage: (message: AgentInputUserMessage) => Promise<void>;
-};
-
-type TeamLike = {
-  postMessage: (
-    message: AgentInputUserMessage,
-    targetNodeName?: string | null,
-  ) => Promise<void>;
 };
 
 export type AgentInstanceManagerPort = {
   getAgentInstance(agentId: string): AgentLike | null;
 };
 
-export type AgentTeamInstanceManagerPort = {
-  getTeamInstance(teamId: string): TeamLike | null;
-};
-
 export type DefaultChannelRuntimeFacadeDependencies = {
   agentInstanceManager: AgentInstanceManagerPort;
-  agentTeamInstanceManager: AgentTeamInstanceManagerPort;
+  teamCommandIngressService: TeamCommandIngressService;
 };
 
 export class DefaultChannelRuntimeFacade implements ChannelRuntimeFacade {
@@ -68,12 +58,11 @@ export class DefaultChannelRuntimeFacade implements ChannelRuntimeFacade {
     envelope: ExternalMessageEnvelope,
   ): Promise<ChannelRuntimeDispatchResult> {
     const teamId = normalizeRequiredString(binding.teamId, "binding.teamId");
-    const team = this.deps.agentTeamInstanceManager.getTeamInstance(teamId);
-    if (!team?.postMessage) {
-      throw new Error(`Team instance '${teamId}' not found for channel dispatch.`);
-    }
-
-    await team.postMessage(buildAgentInputMessage(envelope), binding.targetNodeName);
+    await this.deps.teamCommandIngressService.dispatchUserMessage({
+      teamId,
+      userMessage: buildAgentInputMessage(envelope),
+      targetMemberName: binding.targetMemberName ?? null,
+    });
 
     return {
       agentId: null,
