@@ -25,8 +25,10 @@ describeGit("Skills GraphQL e2e", () => {
   let schema: GraphQLSchema;
   let graphql: typeof graphqlFn;
   let tempDir: string;
+  let originalSkillsPathsEnv: string | undefined;
 
   beforeAll(async () => {
+    originalSkillsPathsEnv = process.env.AUTOBYTEUS_SKILLS_PATHS;
     schema = await buildGraphqlSchema();
     const require = createRequire(import.meta.url);
     const typeGraphqlRoot = path.dirname(require.resolve("type-graphql"));
@@ -36,6 +38,7 @@ describeGit("Skills GraphQL e2e", () => {
   });
 
   beforeEach(() => {
+    process.env.AUTOBYTEUS_SKILLS_PATHS = "";
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "autobyteus-skill-graphql-"));
     fs.mkdirSync(path.join(tempDir, "skills"), { recursive: true });
     appConfigProvider.config.setCustomAppDataDir(tempDir);
@@ -43,6 +46,12 @@ describeGit("Skills GraphQL e2e", () => {
   });
 
   afterEach(() => {
+    if (originalSkillsPathsEnv === undefined) {
+      delete process.env.AUTOBYTEUS_SKILLS_PATHS;
+    } else {
+      process.env.AUTOBYTEUS_SKILLS_PATHS = originalSkillsPathsEnv;
+    }
+    SkillService.resetInstance();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
