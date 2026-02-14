@@ -17,10 +17,7 @@ import {
   TeamCommandIngressError,
 } from "../ingress/team-command-ingress-service.js";
 import { TeamRunLocator } from "../ingress/team-run-locator.js";
-import {
-  NodeDirectoryService,
-  type NodeDirectoryEntry,
-} from "../node-directory/node-directory-service.js";
+import { NodeDirectoryService } from "../node-directory/node-directory-service.js";
 import { HostNodeBridgeClient } from "../node-bridge/host-node-bridge-client.js";
 import { WorkerNodeBridgeServer } from "../node-bridge/worker-node-bridge-server.js";
 import { RunDegradationPolicy } from "../policies/run-degradation-policy.js";
@@ -124,52 +121,14 @@ const resolveLocalBaseUrl = (): string => {
   return "http://localhost:8000";
 };
 
-const parseNodeDirectoryEnvEntries = (): NodeDirectoryEntry[] => {
-  const raw = normalizeOptionalString(process.env.AUTOBYTEUS_DISTRIBUTED_NODE_DIRECTORY);
-  if (!raw) {
-    return [];
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    throw new Error(`AUTOBYTEUS_DISTRIBUTED_NODE_DIRECTORY must be valid JSON: ${String(error)}`);
-  }
-  if (!Array.isArray(parsed)) {
-    throw new Error("AUTOBYTEUS_DISTRIBUTED_NODE_DIRECTORY must be a JSON array.");
-  }
-  const entries: NodeDirectoryEntry[] = [];
-  for (const item of parsed) {
-    if (!item || typeof item !== "object") {
-      continue;
-    }
-    const record = item as Record<string, unknown>;
-    if (typeof record.nodeId !== "string" || typeof record.baseUrl !== "string") {
-      continue;
-    }
-    entries.push({
-      nodeId: record.nodeId,
-      baseUrl: record.baseUrl,
-      isHealthy: record.isHealthy !== false,
-      supportsAgentExecution: record.supportsAgentExecution !== false,
-    });
-  }
-  return entries;
-};
-
-const mergeNodeDirectoryEntries = (hostNodeId: string): NodeDirectoryEntry[] => {
-  const merged = new Map<string, NodeDirectoryEntry>();
-  merged.set(hostNodeId, {
+const buildHostOnlyNodeDirectoryEntries = (hostNodeId: string) => [
+  {
     nodeId: hostNodeId,
     baseUrl: resolveLocalBaseUrl(),
     isHealthy: true,
     supportsAgentExecution: true,
-  });
-  for (const entry of parseNodeDirectoryEnvEntries()) {
-    merged.set(entry.nodeId, entry);
-  }
-  return Array.from(merged.values());
-};
+  },
+];
 
 const buildResolveSecretByKeyId = (): ((keyId: string) => string | null) => {
   const byKeyId = new Map<string, string>();
@@ -337,7 +296,9 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
   const hostNodeId = normalizeOptionalString(process.env.AUTOBYTEUS_NODE_ID) ?? "node-local";
   const transportSecurityMode = parseSecurityModeFromEnv();
 
-  const nodeDirectoryService = new NodeDirectoryService(mergeNodeDirectoryEntries(hostNodeId));
+  const nodeDirectoryService = new NodeDirectoryService(buildHostOnlyNodeDirectoryEntries(hostNodeId), {
+    protectedNodeIds: [hostNodeId],
+  });
   const internalEnvelopeAuth = new InternalEnvelopeAuth({
     localNodeId: hostNodeId,
     defaultKeyId: normalizeOptionalString(process.env.AUTOBYTEUS_DISTRIBUTED_KEY_ID) ?? "default",

@@ -28,7 +28,6 @@ This directory mirrors the module documentation layout used in `autobyteus-serve
 | Terminal | [terminal.md](./terminal.md) |
 | Token Usage | [token_usage.md](./token_usage.md) |
 | WebSocket Session Design | [websocket_session_design.md](./websocket_session_design.md) |
-| Workflow Definition | [workflow_definition.md](./workflow_definition.md) |
 | Workspace File Explorer | [WORKSPACE_FILE_EXPLORER.md](./WORKSPACE_FILE_EXPLORER.md) |
 | Workspaces | [workspaces.md](./workspaces.md) |
 
@@ -38,6 +37,7 @@ This directory mirrors the module documentation layout used in `autobyteus-serve
 - Cached providers decorate persistence providers for read-heavy flows.
 - GraphQL resolvers in `src/api/graphql/types` are thin adapters over services.
 - Startup registration and background initialization run through `src/startup`.
+- `workflow-definition` is no longer an active module in the current codebase.
 
 ## Related Docs
 
