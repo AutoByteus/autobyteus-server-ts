@@ -1,5 +1,9 @@
 import {
   AgentInputUserMessage,
+  AgentEventRebroadcastPayload,
+  AgentTeamEventStream,
+  AgentTeamStreamEvent,
+  SubTeamEventRebroadcastPayload,
 } from "autobyteus-ts";
 import {
   type InterAgentMessageRequestEvent,
@@ -21,10 +25,12 @@ import { NodeDirectoryService } from "../node-directory/node-directory-service.j
 import { HostNodeBridgeClient } from "../node-bridge/host-node-bridge-client.js";
 import { WorkerNodeBridgeServer } from "../node-bridge/worker-node-bridge-server.js";
 import { RunDegradationPolicy } from "../policies/run-degradation-policy.js";
+import { RemoteEventIdempotencyPolicy } from "../policies/remote-event-idempotency-policy.js";
 import { RunVersionFencingPolicy } from "../policies/run-version-fencing-policy.js";
 import { ToolApprovalConcurrencyPolicy } from "../policies/tool-approval-concurrency-policy.js";
 import { TeamRoutingPortAdapter } from "../routing/team-routing-port-adapter.js";
 import { TeamRoutingPortAdapterRegistry } from "../routing/team-routing-port-adapter-registry.js";
+import { WorkerUplinkRoutingAdapter } from "../routing/worker-uplink-routing-adapter.js";
 import {
   RunScopedTeamBindingRegistry,
   TeamRunNotBoundError,
@@ -34,6 +40,7 @@ import { TeamRunOrchestrator } from "../team-run-orchestrator/team-run-orchestra
 import { HostDistributedCommandClient } from "../transport/internal-http/host-distributed-command-client.js";
 import { WorkerEventUplinkClient } from "../transport/internal-http/worker-event-uplink-client.js";
 import { RemoteMemberExecutionGateway } from "../worker-execution/remote-member-execution-gateway.js";
+import { serializePayload } from "../../services/agent-streaming/payload-serialization.js";
 
 type TeamLike = {
   postMessage?: (
@@ -51,6 +58,7 @@ type TeamLike = {
     context?: {
       teamManager?: {
         dispatchInterAgentMessage?: (event: InterAgentMessageRequestEvent) => Promise<void>;
+        setTeamRoutingPort?: (port: unknown) => void;
       };
     };
   };
@@ -69,6 +77,7 @@ export type DefaultDistributedRuntimeComposition = {
   teamRunLocator: TeamRunLocator;
   teamCommandIngressService: TeamCommandIngressService;
   teamEventAggregator: TeamEventAggregator;
+  remoteEventIdempotencyPolicy: RemoteEventIdempotencyPolicy;
   runVersionFencingPolicy: RunVersionFencingPolicy;
   runScopedTeamBindingRegistry: RunScopedTeamBindingRegistry;
 };
@@ -286,6 +295,103 @@ const resolveTeamById = (
   return team;
 };
 
+const normalizeRouteSegment = (value: unknown): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const combineMemberRoutePrefix = (
+  routePrefix: string | null,
+  segment: string | null,
+): string | null => {
+  if (!segment) {
+    return routePrefix;
+  }
+  if (!routePrefix) {
+    return segment;
+  }
+  return `${routePrefix}/${segment}`;
+};
+
+const resolveSourceEventId = (
+  teamEvent: AgentTeamStreamEvent,
+  routeKey: string,
+  runtimeEventType: string,
+): string => {
+  const teamEventId = normalizeRouteSegment(teamEvent.event_id);
+  if (teamEventId) {
+    return `${teamEventId}:${routeKey}:${runtimeEventType}`;
+  }
+  return `${routeKey}:${runtimeEventType}:${Date.now()}`;
+};
+
+export const projectRemoteExecutionEventsFromTeamEvent = (input: {
+  teamEvent: AgentTeamStreamEvent;
+  routePrefix?: string | null;
+}): Array<{
+  sourceEventId: string;
+  memberName: string;
+  agentId: string | null;
+  eventType: string;
+  payload: Record<string, unknown>;
+}> => {
+  const routePrefix = input.routePrefix ?? null;
+  const sourceType = input.teamEvent.event_source_type;
+
+  if (
+    sourceType === "AGENT" &&
+    input.teamEvent.data instanceof AgentEventRebroadcastPayload
+  ) {
+    const runtimeAgentName = normalizeRouteSegment(input.teamEvent.data.agent_name);
+    const runtimeEventType = normalizeRouteSegment(
+      String(input.teamEvent.data.agent_event.event_type ?? ""),
+    );
+    if (!runtimeAgentName || !runtimeEventType) {
+      return [];
+    }
+    const memberRouteKey = combineMemberRoutePrefix(routePrefix, runtimeAgentName);
+    if (!memberRouteKey) {
+      return [];
+    }
+    const payload = serializePayload(input.teamEvent.data.agent_event.data);
+    payload.agent_name = runtimeAgentName;
+    payload.member_route_key = memberRouteKey;
+    payload.event_scope = "member_scoped";
+    return [
+      {
+        sourceEventId: resolveSourceEventId(input.teamEvent, memberRouteKey, runtimeEventType),
+        memberName: memberRouteKey,
+        agentId: normalizeRouteSegment(input.teamEvent.data.agent_event.agent_id),
+        eventType: runtimeEventType,
+        payload,
+      },
+    ];
+  }
+
+  if (
+    sourceType === "SUB_TEAM" &&
+    input.teamEvent.data instanceof SubTeamEventRebroadcastPayload &&
+    input.teamEvent.data.sub_team_event instanceof AgentTeamStreamEvent
+  ) {
+    const subTeamNodeName = normalizeRouteSegment(input.teamEvent.data.sub_team_node_name);
+    const nextPrefix = combineMemberRoutePrefix(routePrefix, subTeamNodeName);
+    return projectRemoteExecutionEventsFromTeamEvent({
+      teamEvent: input.teamEvent.data.sub_team_event,
+      routePrefix: nextPrefix,
+    });
+  }
+
+  return [];
+};
+
+type TeamEventForwarder = {
+  close: () => Promise<void>;
+  task: Promise<void>;
+};
+
 let cachedDefaultDistributedRuntimeComposition: DefaultDistributedRuntimeComposition | null = null;
 
 export const createDefaultDistributedRuntimeComposition = (): DefaultDistributedRuntimeComposition => {
@@ -324,6 +430,71 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     },
   });
   const runScopedTeamBindingRegistry = new RunScopedTeamBindingRegistry();
+  const hostNodeIdByRunId = new Map<string, string>();
+  const eventForwarderByRunId = new Map<string, TeamEventForwarder>();
+
+  const stopEventForwarder = async (teamRunId: string): Promise<void> => {
+    const forwarder = eventForwarderByRunId.get(teamRunId);
+    if (!forwarder) {
+      hostNodeIdByRunId.delete(teamRunId);
+      return;
+    }
+    eventForwarderByRunId.delete(teamRunId);
+    hostNodeIdByRunId.delete(teamRunId);
+    await forwarder.close();
+  };
+
+  const startEventForwarder = (input: {
+    teamRunId: string;
+    runVersion: string | number;
+    runtimeTeamId: string;
+    sourceNodeId: string;
+    eventStream: AgentTeamEventStream;
+  }): TeamEventForwarder => {
+    const task = (async () => {
+      try {
+        for await (const teamEvent of input.eventStream.allEvents()) {
+          const projectedEvents = projectRemoteExecutionEventsFromTeamEvent({
+            teamEvent,
+          });
+          for (const projectedEvent of projectedEvents) {
+            try {
+              await remoteMemberExecutionGateway.emitMemberEvent({
+                teamRunId: input.teamRunId,
+                runVersion: input.runVersion,
+                sourceNodeId: input.sourceNodeId,
+                sourceEventId: projectedEvent.sourceEventId,
+                memberName: projectedEvent.memberName,
+                agentId: projectedEvent.agentId,
+                eventType: projectedEvent.eventType,
+                payload: projectedEvent.payload,
+              });
+            } catch (error) {
+              console.error(
+                `Failed to uplink remote member event for run '${input.teamRunId}' on worker team '${input.runtimeTeamId}': ${String(error)}`,
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error(
+          `Worker team event forwarding loop failed for run '${input.teamRunId}' and team '${input.runtimeTeamId}': ${String(error)}`,
+        );
+      }
+    })();
+
+    return {
+      task,
+      close: async () => {
+        await input.eventStream.close();
+        try {
+          await task;
+        } catch {
+          // ignore
+        }
+      },
+    };
+  };
 
   const resolveBoundRuntimeTeam = (input: {
     teamRunId: string;
@@ -377,6 +548,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     teamRunId: string;
     runVersion: string | number;
     teamDefinitionId: string;
+    hostNodeId: string;
   }): Promise<void> => {
     const memberConfigs = resolveBootstrapConfigSnapshot(input.teamDefinitionId);
     await hostNodeBridgeClient.sendCommand(
@@ -388,6 +560,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         payload: {
           teamDefinitionId: input.teamDefinitionId,
           memberConfigs,
+          hostNodeId: input.hostNodeId,
         },
       }),
     );
@@ -401,13 +574,18 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         "payload.teamDefinitionId",
       );
       const memberConfigs = normalizeMemberConfigSnapshotList(payload.memberConfigs);
+      const bootstrapHostNodeId =
+        normalizeRouteSegment(payload.hostNodeId) ?? hostNodeId;
       const existingBinding = runScopedTeamBindingRegistry.tryResolveRun(envelope.teamRunId);
       if (existingBinding) {
         const boundTeam = teamInstanceManager.getTeamInstance(existingBinding.runtimeTeamId);
         if (boundTeam) {
+          hostNodeIdByRunId.set(envelope.teamRunId, bootstrapHostNodeId);
           return;
         }
+        await stopEventForwarder(envelope.teamRunId);
         runScopedTeamBindingRegistry.unbindRun(envelope.teamRunId);
+        teamEventAggregator.finalizeRun(envelope.teamRunId);
       }
 
       let runtimeTeamId = teamInstanceManager.getTeamIdByDefinitionId(teamDefinitionId);
@@ -427,6 +605,36 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         runtimeTeamId,
         memberConfigs,
       });
+      hostNodeIdByRunId.set(envelope.teamRunId, bootstrapHostNodeId);
+
+      const runtimeTeam = teamInstanceManager.getTeamInstance(runtimeTeamId) as TeamLike | null;
+      const teamManager = runtimeTeam?.runtime?.context?.teamManager;
+      if (teamManager?.setTeamRoutingPort) {
+        teamManager.setTeamRoutingPort(
+          new WorkerUplinkRoutingAdapter({
+            teamRunId: envelope.teamRunId,
+            runVersion: envelope.runVersion,
+            forwardToHost: async (forwardEnvelope) => {
+              await hostNodeBridgeClient.sendCommand(bootstrapHostNodeId, forwardEnvelope);
+            },
+          }),
+        );
+      }
+
+      await stopEventForwarder(envelope.teamRunId);
+      const eventStream = teamInstanceManager.getTeamEventStream(runtimeTeamId);
+      if (eventStream) {
+        eventForwarderByRunId.set(
+          envelope.teamRunId,
+          startEventForwarder({
+            teamRunId: envelope.teamRunId,
+            runVersion: envelope.runVersion,
+            runtimeTeamId,
+            sourceNodeId: hostNodeId,
+            eventStream,
+          }),
+        );
+      }
     },
     dispatchUserMessage: async (envelope) => {
       const payload = getPayloadRecord(envelope.payload);
@@ -525,16 +733,20 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     dispatchControlStop: async (envelope) => {
       const binding = runScopedTeamBindingRegistry.tryResolveRun(envelope.teamRunId);
       if (!binding) {
+        await stopEventForwarder(envelope.teamRunId);
         return;
       }
       const team = teamInstanceManager.getTeamInstance(binding.runtimeTeamId) as TeamLike | null;
       if (team && typeof team.stop === "function") {
         await team.stop();
       }
+      await stopEventForwarder(envelope.teamRunId);
       runScopedTeamBindingRegistry.unbindRun(envelope.teamRunId);
+      teamEventAggregator.finalizeRun(envelope.teamRunId);
     },
     publishEventToHost: async (event) => {
-      await workerEventUplinkClient.publishRemoteEvent(event);
+      const targetHostNodeId = hostNodeIdByRunId.get(event.teamRunId) ?? hostNodeId;
+      await workerEventUplinkClient.publishRemoteEvent(event, targetHostNodeId);
     },
   });
 
@@ -568,6 +780,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
             teamRunId,
             runVersion,
             teamDefinitionId,
+            hostNodeId: runHostNodeId,
           });
         },
         dispatchLocalUserMessage: async (event) => {
@@ -638,6 +851,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
   });
 
   const teamEventAggregator = new TeamEventAggregator();
+  const remoteEventIdempotencyPolicy = new RemoteEventIdempotencyPolicy();
   const runVersionFencingPolicy = new RunVersionFencingPolicy(async (teamRunId) =>
     teamRunOrchestrator.resolveCurrentRunVersion(teamRunId),
   );
@@ -655,6 +869,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     teamRunLocator,
     teamCommandIngressService,
     teamEventAggregator,
+    remoteEventIdempotencyPolicy,
     runVersionFencingPolicy,
     runScopedTeamBindingRegistry,
   };

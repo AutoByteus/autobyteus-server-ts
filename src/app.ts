@@ -115,6 +115,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     teamEventAggregator: distributedRuntime.teamEventAggregator,
     internalEnvelopeAuth: distributedRuntime.internalEnvelopeAuth,
     runVersionFencingPolicy: distributedRuntime.runVersionFencingPolicy,
+    remoteEventIdempotencyPolicy: distributedRuntime.remoteEventIdempotencyPolicy,
     securityMode: distributedRuntime.transportSecurityMode,
     remoteEventRebroadcastService,
   });

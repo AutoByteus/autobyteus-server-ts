@@ -13,6 +13,17 @@ const normalizeVersion = (value: number): number => {
   return value;
 };
 
+const normalizeTeamRunId = (value: string): string => {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error("teamRunId must be a non-empty string.");
+  }
+  return normalized;
+};
+
+const buildInvocationKey = (teamRunId: string, invocationId: string): string =>
+  `${normalizeTeamRunId(teamRunId)}::${normalizeInvocationId(invocationId)}`;
+
 export class MissingInvocationVersionError extends Error {
   constructor(invocationId: string) {
     super(`No pending invocation state found for '${invocationId}'.`);
@@ -30,34 +41,34 @@ export class StaleInvocationVersionError extends Error {
 }
 
 export class ToolApprovalConcurrencyPolicy {
-  private readonly latestVersionByInvocationId = new Map<string, number>();
+  private readonly latestVersionByInvocationKey = new Map<string, number>();
 
-  registerPendingInvocation(invocationId: string, invocationVersion: number): void {
-    const normalizedInvocationId = normalizeInvocationId(invocationId);
+  registerPendingInvocation(teamRunId: string, invocationId: string, invocationVersion: number): void {
+    const key = buildInvocationKey(teamRunId, invocationId);
     const normalizedVersion = normalizeVersion(invocationVersion);
-    const existing = this.latestVersionByInvocationId.get(normalizedInvocationId);
+    const existing = this.latestVersionByInvocationKey.get(key);
     if (existing === undefined || normalizedVersion > existing) {
-      this.latestVersionByInvocationId.set(normalizedInvocationId, normalizedVersion);
+      this.latestVersionByInvocationKey.set(key, normalizedVersion);
     }
   }
 
-  validateInvocationVersion(invocationId: string, invocationVersion: number): void {
-    const normalizedInvocationId = normalizeInvocationId(invocationId);
+  validateInvocationVersion(teamRunId: string, invocationId: string, invocationVersion: number): void {
+    const key = buildInvocationKey(teamRunId, invocationId);
     const normalizedVersion = normalizeVersion(invocationVersion);
-    const expectedVersion = this.latestVersionByInvocationId.get(normalizedInvocationId);
+    const expectedVersion = this.latestVersionByInvocationKey.get(key);
     if (expectedVersion === undefined) {
-      throw new MissingInvocationVersionError(normalizedInvocationId);
+      throw new MissingInvocationVersionError(key);
     }
     if (normalizedVersion !== expectedVersion) {
       throw new StaleInvocationVersionError(
-        normalizedInvocationId,
+        key,
         expectedVersion,
         normalizedVersion,
       );
     }
   }
 
-  completeInvocation(invocationId: string): void {
-    this.latestVersionByInvocationId.delete(normalizeInvocationId(invocationId));
+  completeInvocation(teamRunId: string, invocationId: string): void {
+    this.latestVersionByInvocationKey.delete(buildInvocationKey(teamRunId, invocationId));
   }
 }

@@ -66,6 +66,41 @@ const logger = {
 
 const KNOWN_SERVER_MESSAGE_TYPES = new Set<string>(Object.values(ServerMessageType));
 
+const RUNTIME_TO_SERVER_MESSAGE_TYPE: Record<string, ServerMessageType> = {
+  assistant_chunk: ServerMessageType.ASSISTANT_CHUNK,
+  assistant_complete_response: ServerMessageType.ASSISTANT_COMPLETE,
+  tool_approval_requested: ServerMessageType.TOOL_APPROVAL_REQUESTED,
+  tool_approved: ServerMessageType.TOOL_APPROVED,
+  tool_denied: ServerMessageType.TOOL_DENIED,
+  tool_execution_started: ServerMessageType.TOOL_EXECUTION_STARTED,
+  tool_execution_succeeded: ServerMessageType.TOOL_EXECUTION_SUCCEEDED,
+  tool_execution_failed: ServerMessageType.TOOL_EXECUTION_FAILED,
+  tool_interaction_log_entry: ServerMessageType.TOOL_LOG,
+  agent_status_updated: ServerMessageType.AGENT_STATUS,
+  inter_agent_message: ServerMessageType.INTER_AGENT_MESSAGE,
+  system_task_notification: ServerMessageType.SYSTEM_TASK_NOTIFICATION,
+  agent_todo_list_updated: ServerMessageType.TODO_LIST_UPDATE,
+  artifact_persisted: ServerMessageType.ARTIFACT_PERSISTED,
+  artifact_updated: ServerMessageType.ARTIFACT_UPDATED,
+  team_status: ServerMessageType.TEAM_STATUS,
+  task_plan_event: ServerMessageType.TASK_PLAN_EVENT,
+};
+
+const isTeamScopedMessageType = (messageType: ServerMessageType): boolean =>
+  messageType === ServerMessageType.TEAM_STATUS ||
+  messageType === ServerMessageType.TASK_PLAN_EVENT ||
+  messageType === ServerMessageType.CONNECTED;
+
+const resolveSegmentMessageTypeFromPayload = (payload: Record<string, unknown>): ServerMessageType => {
+  if (typeof payload.segment_type === "string") {
+    return ServerMessageType.SEGMENT_START;
+  }
+  if (typeof payload.delta === "string") {
+    return ServerMessageType.SEGMENT_CONTENT;
+  }
+  return ServerMessageType.SEGMENT_END;
+};
+
 class AgentTeamSession extends AgentSession {
   get teamId(): string {
     return this.agentId;
@@ -299,18 +334,23 @@ export class AgentTeamStreamHandler {
     });
   }
 
-  convertTeamEvent(event: AgentTeamStreamEvent): ServerMessage {
+  convertTeamEvent(event: AgentTeamStreamEvent, routePrefix: string | null = null): ServerMessage {
     const sourceType = event.event_source_type;
 
     if (sourceType === "AGENT" && event.data instanceof AgentEventRebroadcastPayload) {
       const agentEvent = event.data.agent_event;
       const message = getAgentStreamHandler().convertStreamEvent(agentEvent);
+      const memberRouteKey = routePrefix
+        ? `${routePrefix}/${event.data.agent_name}`
+        : event.data.agent_name;
       const basePayload =
         message.payload && typeof message.payload === "object" ? message.payload : {};
       const payload: Record<string, unknown> = {
         ...basePayload,
         agent_name: event.data.agent_name,
         ...(agentEvent.agent_id ? { agent_id: agentEvent.agent_id } : {}),
+        member_route_key: memberRouteKey,
+        event_scope: "member_scoped",
       };
       if (
         message.type === ServerMessageType.TOOL_APPROVAL_REQUESTED &&
@@ -328,14 +368,18 @@ export class AgentTeamStreamHandler {
       return this.attachTeamStreamEnvelope(
         event,
         new ServerMessage(message.type, payload),
-        `AGENT:${String(agentEvent.event_type)}`,
+        `AGENT:${message.type}`,
       );
     }
 
     if (sourceType === "TEAM" && event.data instanceof AgentTeamStatusUpdateData) {
+      const payload = serializePayload(event.data) as Record<string, unknown>;
       return this.attachTeamStreamEnvelope(
         event,
-        new ServerMessage(ServerMessageType.TEAM_STATUS, serializePayload(event.data)),
+        new ServerMessage(ServerMessageType.TEAM_STATUS, {
+          ...payload,
+          event_scope: "team_scoped",
+        }),
         "TEAM_STATUS",
       );
     }
@@ -353,6 +397,7 @@ export class AgentTeamStreamHandler {
         new ServerMessage(ServerMessageType.TASK_PLAN_EVENT, {
           event_type: eventType,
           ...payload,
+          event_scope: "team_scoped",
         }),
         `TASK_PLAN:${eventType}`,
       );
@@ -361,7 +406,11 @@ export class AgentTeamStreamHandler {
     if (sourceType === "SUB_TEAM" && event.data instanceof SubTeamEventRebroadcastPayload) {
       const subTeamEvent = event.data.sub_team_event;
       if (subTeamEvent instanceof AgentTeamStreamEvent) {
-        const message = this.convertTeamEvent(subTeamEvent);
+        const nodeName = String(event.data.sub_team_node_name ?? "").trim();
+        const nextRoutePrefix = routePrefix
+          ? (nodeName.length > 0 ? `${routePrefix}/${nodeName}` : routePrefix)
+          : (nodeName.length > 0 ? nodeName : null);
+        const message = this.convertTeamEvent(subTeamEvent, nextRoutePrefix);
         const basePayload =
           message.payload && typeof message.payload === "object" ? message.payload : {};
         return this.attachTeamStreamEnvelope(
@@ -412,15 +461,30 @@ export class AgentTeamStreamHandler {
   }
 
   private createDistributedMessage(projection: DistributedTeamStreamProjection): ServerMessage {
-    const messageType = AgentTeamStreamHandler.resolveDistributedMessageType(projection.eventType);
-    const basePayload =
+    const basePayload: Record<string, unknown> =
       projection.payload && typeof projection.payload === "object" && !Array.isArray(projection.payload)
         ? { ...(projection.payload as Record<string, unknown>) }
         : { value: projection.payload };
+    const basePayloadAgentName = basePayload.agent_name;
+    const payloadAgentName =
+      typeof basePayloadAgentName === "string" && basePayloadAgentName.trim().length > 0
+        ? basePayloadAgentName
+        : projection.memberName;
+    const basePayloadMemberRouteKey = basePayload.member_route_key;
+    const payloadMemberRouteKey =
+      typeof basePayloadMemberRouteKey === "string" && basePayloadMemberRouteKey.trim().length > 0
+        ? basePayloadMemberRouteKey
+        : projection.memberName;
+    const messageType = AgentTeamStreamHandler.resolveDistributedMessageType(
+      projection.eventType,
+      basePayload,
+    );
     const payload: Record<string, unknown> = {
       ...basePayload,
-      ...(projection.memberName ? { agent_name: projection.memberName } : {}),
+      ...(payloadAgentName ? { agent_name: payloadAgentName } : {}),
       ...(projection.agentId ? { agent_id: projection.agentId } : {}),
+      ...(payloadMemberRouteKey ? { member_route_key: payloadMemberRouteKey } : {}),
+      event_scope: isTeamScopedMessageType(messageType) ? "team_scoped" : "member_scoped",
       team_stream_event_envelope: {
         team_run_id: projection.teamRunId,
         run_version: projection.runVersion,
@@ -442,17 +506,38 @@ export class AgentTeamStreamHandler {
     return new ServerMessage(messageType, payload);
   }
 
-  private static resolveDistributedMessageType(eventType: string): ServerMessageType {
+  private static resolveDistributedMessageType(
+    eventType: string,
+    payload: Record<string, unknown>,
+  ): ServerMessageType {
     const normalized = eventType.trim();
     if (KNOWN_SERVER_MESSAGE_TYPES.has(normalized)) {
       return normalized as ServerMessageType;
     }
 
-    if (normalized.startsWith("AGENT:")) {
-      const stripped = normalized.slice("AGENT:".length);
+    const normalizedLower = normalized.toLowerCase();
+    const directRuntimeType = RUNTIME_TO_SERVER_MESSAGE_TYPE[normalizedLower];
+    if (directRuntimeType) {
+      return directRuntimeType;
+    }
+
+    if (normalizedLower.startsWith("agent:")) {
+      const stripped = normalized.slice("AGENT:".length).trim();
+      const strippedLower = stripped.toLowerCase();
       if (KNOWN_SERVER_MESSAGE_TYPES.has(stripped)) {
         return stripped as ServerMessageType;
       }
+      if (strippedLower === "segment_event") {
+        return resolveSegmentMessageTypeFromPayload(payload);
+      }
+      const mapped = RUNTIME_TO_SERVER_MESSAGE_TYPE[strippedLower];
+      if (mapped) {
+        return mapped;
+      }
+    }
+
+    if (normalizedLower.startsWith("task_plan:")) {
+      return ServerMessageType.TASK_PLAN_EVENT;
     }
 
     return ServerMessageType.SYSTEM_TASK_NOTIFICATION;

@@ -7,6 +7,7 @@ export type RemoteExecutionEvent = {
   teamRunId: string;
   runVersion: RunVersion;
   sourceNodeId: string;
+  sourceEventId: string;
   memberName: string;
   agentId?: string | null;
   eventType: string;
@@ -88,7 +89,7 @@ export class RemoteMemberExecutionGateway {
 
   async emitMemberEvent(event: RemoteExecutionEvent): Promise<void> {
     if (!this.deps.publishEventToHost) {
-      return;
+      throw new Error("Remote member execution event uplink handler is not configured.");
     }
     await this.deps.publishEventToHost(event);
   }

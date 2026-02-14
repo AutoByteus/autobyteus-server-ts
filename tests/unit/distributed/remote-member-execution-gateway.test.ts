@@ -73,6 +73,7 @@ describe("RemoteMemberExecutionGateway", () => {
       teamRunId: "run-1",
       runVersion: 1,
       sourceNodeId: "node-worker-1",
+      sourceEventId: "evt-1",
       memberName: "helper",
       agentId: "agent-1",
       eventType: "TOOL_EXECUTION_SUCCEEDED",
@@ -80,5 +81,21 @@ describe("RemoteMemberExecutionGateway", () => {
     });
 
     expect(publishEventToHost).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws when member event uplink handler is not configured", async () => {
+    const gateway = new RemoteMemberExecutionGateway();
+
+    await expect(
+      gateway.emitMemberEvent({
+        teamRunId: "run-1",
+        runVersion: 1,
+        sourceNodeId: "node-worker-1",
+        sourceEventId: "evt-2",
+        memberName: "helper",
+        eventType: "ASSISTANT_CHUNK",
+        payload: { content: "hello" },
+      }),
+    ).rejects.toThrow("uplink handler is not configured");
   });
 });

@@ -39,6 +39,10 @@ export class TeamEventAggregator {
     return this.publish(input, "remote");
   }
 
+  finalizeRun(teamRunId: string): boolean {
+    return this.sequenceByRunId.delete(teamRunId);
+  }
+
   private publish(
     input: PublishTeamEventInput,
     origin: "local" | "remote"

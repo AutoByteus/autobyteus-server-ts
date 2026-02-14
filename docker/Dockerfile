@@ -1,4 +1,6 @@
-FROM autobyteus/chrome-vnc:latest
+ARG CHROME_VNC_TAG=zh
+
+FROM autobyteus/chrome-vnc:${CHROME_VNC_TAG}
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git openssh-client ca-certificates \

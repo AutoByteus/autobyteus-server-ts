@@ -45,16 +45,27 @@ docker compose logs -f autobyteus-server
 
 ## Rebuild After Base Image Update
 
-If `autobyteus/chrome-vnc:latest` (or any Docker base layer) was updated, run:
+If the selected `autobyteus/chrome-vnc:<tag>` base layer was updated, run:
 
 ```bash
 cd autobyteus-server-ts/docker
 test -f .env || cp .env.example .env
-docker pull autobyteus/chrome-vnc:latest
+docker pull autobyteus/chrome-vnc:zh
 docker compose down
 ./build.sh --no-cache
 ./start.sh
 docker compose logs -f autobyteus-server
+```
+
+The Docker build uses `AUTOBYTEUS_CHROME_VNC_TAG` (default `zh`) as base:
+
+- `zh`: Chinese fonts/input enabled (recommended for Chinese UI rendering)
+- `latest`: default English variant
+
+Set it in `.env`:
+
+```env
+AUTOBYTEUS_CHROME_VNC_TAG=zh
 ```
 
 This keeps existing data volumes.
@@ -64,7 +75,7 @@ For a fully clean rebuild (remove cached source and server data too):
 ```bash
 cd autobyteus-server-ts/docker
 docker compose down --volumes --remove-orphans
-docker pull autobyteus/chrome-vnc:latest
+docker pull autobyteus/chrome-vnc:zh
 ./build.sh --no-cache
 ./start.sh
 ```
@@ -91,6 +102,7 @@ Optional overrides:
 ```bash
 ./build-multi-arch.sh --push --version 1.4.3
 ./build-multi-arch.sh --push --image-name autobyteus/autobyteus-server-ts
+./build-multi-arch.sh --push --chrome-vnc-tag zh
 ```
 
 ## GitHub Release Automation

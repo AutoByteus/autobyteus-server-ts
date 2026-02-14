@@ -46,6 +46,7 @@ describe("Node bridge integration", () => {
       teamRunId: "run-1",
       runVersion: 1,
       sourceNodeId: "node-worker-1",
+      sourceEventId: "evt-1",
       memberName: "helper",
       eventType: "TOOL_EXECUTION_SUCCEEDED",
       payload: { invocation_id: "inv-1" },

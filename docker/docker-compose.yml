@@ -5,6 +5,8 @@ services:
     build:
       context: ../..
       dockerfile: autobyteus-server-ts/docker/Dockerfile.monorepo
+      args:
+        CHROME_VNC_TAG: ${AUTOBYTEUS_CHROME_VNC_TAG:-zh}
     cap_add:
       - SYS_ADMIN
     security_opt:

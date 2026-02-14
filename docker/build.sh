@@ -3,6 +3,7 @@ set -euo pipefail
 
 IMAGE_NAME="autobyteus-server"
 TAG="${AUTOBYTEUS_IMAGE_TAG:-latest}"
+CHROME_VNC_TAG="${AUTOBYTEUS_CHROME_VNC_TAG:-zh}"
 BUILD_ARGS=()
 PLATFORMS="linux/amd64,linux/arm64"
 LOAD_DEFAULT=true
@@ -16,6 +17,10 @@ while [[ $# -gt 0 ]]; do
       TAG="$2"
       shift 2
       ;;
+    --chrome-vnc-tag)
+      CHROME_VNC_TAG="$2"
+      shift 2
+      ;;
     --no-cache)
       BUILD_ARGS+=("--no-cache")
       shift
@@ -27,7 +32,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: ./build.sh [--tag <tag>] [--no-cache] [--push]"
+      echo "Usage: ./build.sh [--tag <tag>] [--chrome-vnc-tag <tag>] [--no-cache] [--push]"
       exit 1
       ;;
   esac
@@ -54,6 +59,6 @@ if ! docker buildx version >/dev/null 2>&1; then
   exit 1
 fi
 
-docker buildx build "${BUILD_ARGS[@]}" --platform "${PLATFORMS}" -f "${DOCKERFILE_PATH}" -t "${IMAGE_NAME}:${TAG}" "${MONOREPO_ROOT}"
+docker buildx build "${BUILD_ARGS[@]}" --platform "${PLATFORMS}" --build-arg "CHROME_VNC_TAG=${CHROME_VNC_TAG}" -f "${DOCKERFILE_PATH}" -t "${IMAGE_NAME}:${TAG}" "${MONOREPO_ROOT}"
 
 echo "Built ${IMAGE_NAME}:${TAG} (${PLATFORMS})"

@@ -3,7 +3,7 @@
 ## Design Basis
 
 - Scope Classification: `Large`
-- Call Stack Version: `v8`
+- Call Stack Version: `v9`
 - Source Artifact: `/Users/normy/autobyteus_org/autobyteus-server-ts/docs/design/persistence-provider-file-mode/proposed-design.md`
 - Source Design Version: `v8`
 - Referenced Sections: `C-001..C-013`
@@ -20,7 +20,7 @@
 - UC-003: Agent definition + mapping resolves file providers through registries+proxies.
 - UC-004: Agent team definition resolves file provider through registry+proxy.
 - UC-005: MCP config and startup MCP load/register resolve file provider through registry+proxy.
-- UC-006: External-channel ingress/callback resolves file providers through registry+proxy set.
+- UC-006: External-channel ingress+callback flows resolve file providers through registry+proxy set.
 - UC-007: Token usage persistence/statistics resolves file provider through registry+proxy.
 - UC-008: Artifact create/read resolves file provider through registry+proxy.
 - UC-009: `build:file` compiles without Prisma graph.
