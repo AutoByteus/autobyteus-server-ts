@@ -77,6 +77,10 @@ For a publishable image that is fully built at image-build time (does not clone 
 ./build-multi-arch.sh --push
 ```
 
+The monorepo image now starts both:
+- the desktop stack from `autobyteus/chrome-vnc` (Xvnc/noVNC/Chrome), and
+- `autobyteus-server-ts` under `supervisord`.
+
 Default target image is:
 
 - `autobyteus/autobyteus-server:<version-from-package-json>`
