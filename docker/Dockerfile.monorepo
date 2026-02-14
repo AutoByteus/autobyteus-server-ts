@@ -25,6 +25,8 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends git ripgrep \
   && rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /home/autobyteus/workspace /home/autobyteus/data
+
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/autobyteus-ts/node_modules ./autobyteus-ts/node_modules
 COPY --from=builder /app/autobyteus-ts/dist ./autobyteus-ts/dist
@@ -36,9 +38,11 @@ COPY --from=builder /app/autobyteus-server-ts/node_modules ./autobyteus-server-t
 COPY --from=builder /app/autobyteus-server-ts/dist ./autobyteus-server-ts/dist
 COPY --from=builder /app/autobyteus-server-ts/prisma ./autobyteus-server-ts/prisma
 COPY --from=builder /app/autobyteus-server-ts/package.json ./autobyteus-server-ts/package.json
+COPY autobyteus-server-ts/docker/supervisor-autobyteus-server.conf /etc/supervisor/conf.d/supervisor-autobyteus-server.conf
 
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    AUTOBYTEUS_BIND_HOST=0.0.0.0 \
+    AUTOBYTEUS_SERVER_PORT=8000 \
+    AUTOBYTEUS_DATA_DIR=/home/autobyteus/data
 
-WORKDIR /app/autobyteus-server-ts
-ENTRYPOINT []
-CMD ["node", "dist/app.js", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8000 5900 6080 9223
