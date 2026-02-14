@@ -61,6 +61,20 @@ Primary persistence path in TS:
 - SQLite default in local/electron packaging
 - Config-driven paths under app data directory
 
+Active persisted domains in the current codebase:
+
+- Agent definitions and prompt mappings
+- Agent team definitions
+- Prompt engineering
+- MCP server configurations
+- Token usage records/statistics
+- Agent artifacts
+- External-channel bindings, idempotency, receipts, and delivery events
+
+Note on removed/empty domains:
+
+- `src/workflow-definition` and `src/agent-conversation` currently contain no active implementation files.
+
 ## Module Boundaries
 
 Each major business area is isolated under `src/<module>` and usually contains:

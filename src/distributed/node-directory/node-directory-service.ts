@@ -34,8 +34,20 @@ export class UnknownNodeDirectoryEntryError extends Error {
 
 export class NodeDirectoryService {
   private readonly byNodeId = new Map<string, NodeDirectoryEntry>();
+  private readonly protectedNodeIds = new Set<string>();
 
-  constructor(entries: NodeDirectoryEntry[]) {
+  constructor(
+    entries: NodeDirectoryEntry[],
+    options?: {
+      protectedNodeIds?: string[];
+    },
+  ) {
+    if (Array.isArray(options?.protectedNodeIds)) {
+      for (const nodeId of options.protectedNodeIds) {
+        const normalized = normalizeRequiredString(nodeId, "protectedNodeIds[]");
+        this.protectedNodeIds.add(normalized);
+      }
+    }
     for (const entry of entries) {
       this.setEntry(entry);
     }
@@ -84,5 +96,13 @@ export class NodeDirectoryService {
       isHealthy: entry.isHealthy,
       supportsAgentExecution: entry.supportsAgentExecution,
     });
+  }
+
+  removeEntry(nodeId: string): boolean {
+    const normalizedNodeId = normalizeRequiredString(nodeId, "nodeId");
+    if (this.protectedNodeIds.has(normalizedNodeId)) {
+      return false;
+    }
+    return this.byNodeId.delete(normalizedNodeId);
   }
 }

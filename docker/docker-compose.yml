@@ -5,6 +5,10 @@ services:
     build:
       context: ../..
       dockerfile: autobyteus-server-ts/docker/Dockerfile.monorepo
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp=unconfined
     env_file:
       - .env
     environment:

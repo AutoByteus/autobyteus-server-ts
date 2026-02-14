@@ -99,6 +99,34 @@ cp .env.example .env
 ./start.sh
 ```
 
+## Android quick bootstrap (Termux + proot)
+
+If you want to run this server on an Android phone with minimal manual steps, use:
+
+```bash
+bash autobyteus-server-ts/scripts/android/host_prepare_android_payload.sh
+```
+
+Then on the phone in Termux:
+
+```bash
+bash /sdcard/Download/autobyteus_termux_bootstrap.sh
+```
+
+Verify from your computer:
+
+```bash
+adb shell 'run-as com.termux /data/data/com.termux/files/usr/bin/proot-distro login debian --shared-tmp -- /bin/bash -lc "curl -sS http://127.0.0.1:8000/rest/health"'
+```
+
+Startup can take ~20-40 seconds before health returns 200.
+
+Details are in:
+
+```bash
+autobyteus-server-ts/scripts/android/README.md
+```
+
 ## Tests
 
 ```bash

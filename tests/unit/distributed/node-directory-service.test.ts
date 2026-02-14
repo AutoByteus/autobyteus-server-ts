@@ -43,4 +43,41 @@ describe("NodeDirectoryService", () => {
       UnknownNodeDirectoryEntryError,
     );
   });
+
+  it("removes non-protected entries", () => {
+    const service = new NodeDirectoryService([
+      {
+        nodeId: "node-host",
+        baseUrl: "http://localhost:8000",
+        isHealthy: true,
+        supportsAgentExecution: true,
+      },
+      {
+        nodeId: "node-worker",
+        baseUrl: "http://localhost:8100",
+        isHealthy: true,
+        supportsAgentExecution: true,
+      },
+    ]);
+
+    expect(service.removeEntry("node-worker")).toBe(true);
+    expect(service.getEntry("node-worker")).toBeNull();
+  });
+
+  it("does not remove protected entries", () => {
+    const service = new NodeDirectoryService(
+      [
+        {
+          nodeId: "node-host",
+          baseUrl: "http://localhost:8000",
+          isHealthy: true,
+          supportsAgentExecution: true,
+        },
+      ],
+      { protectedNodeIds: ["node-host"] },
+    );
+
+    expect(service.removeEntry("node-host")).toBe(false);
+    expect(service.getEntry("node-host")).not.toBeNull();
+  });
 });

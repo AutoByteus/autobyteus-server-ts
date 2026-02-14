@@ -17,6 +17,12 @@ import { getDefaultDistributedRuntimeComposition } from "./distributed/bootstrap
 import { RemoteEventRebroadcastService } from "./distributed/event-aggregation/remote-event-rebroadcast-service.js";
 import { registerWorkerDistributedCommandRoutes } from "./distributed/transport/internal-http/register-worker-distributed-command-routes.js";
 import { registerHostDistributedEventRoutes } from "./distributed/transport/internal-http/register-host-distributed-event-routes.js";
+import {
+  attachDiscoveryNodeDirectoryBridge,
+  initializeDiscoveryRuntime,
+  startDiscoveryRuntime,
+  stopDiscoveryRuntime,
+} from "./discovery/runtime/discovery-runtime.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -79,9 +85,11 @@ function initializeConfig(options: ServerOptions) {
 }
 
 export async function buildApp(): Promise<FastifyInstance> {
+  initializeDiscoveryRuntime();
   const app = fastify({ logger: true });
   const maxUploadFileSizeBytes = 25 * 1024 * 1024; // 25MB
   const distributedRuntime = getDefaultDistributedRuntimeComposition();
+  attachDiscoveryNodeDirectoryBridge(distributedRuntime.nodeDirectoryService);
   const remoteEventRebroadcastService = new RemoteEventRebroadcastService({
     teamRunLocator: distributedRuntime.teamRunLocator,
     teamStreamProjector: getAgentTeamStreamHandler(),
@@ -114,6 +122,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(registerRestRoutes, { prefix: "/rest" });
   await registerWebsocketRoutes(app);
   await registerGraphql(app);
+  app.addHook("onClose", async () => {
+    stopDiscoveryRuntime();
+  });
 
   return app;
 }
@@ -164,6 +175,7 @@ export async function startServer(): Promise<void> {
   registerShutdownHandlers(app);
   await app.listen({ host: options.host, port: options.port });
   logger.info(`Server listening on ${options.host}:${options.port}`);
+  await startDiscoveryRuntime();
 
   try {
     await getWorkspaceManager().getOrCreateTempWorkspace();
