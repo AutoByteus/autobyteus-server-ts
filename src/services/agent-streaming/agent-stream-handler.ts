@@ -8,6 +8,7 @@ import {
   AgentEventStream,
 } from "autobyteus-ts";
 import { AgentInstanceManager } from "../../agent-execution/services/agent-instance-manager.js";
+import { getRunHistoryService } from "../../run-history/services/run-history-service.js";
 import { AgentSessionManager } from "./agent-session-manager.js";
 import {
   ClientMessageType,
@@ -30,6 +31,7 @@ type ClientMessage = {
 
 type AgentLike = {
   agentId: string;
+  currentStatus?: unknown;
   postUserMessage?: (message: AgentInputUserMessage) => Promise<void>;
   postToolExecutionApproval?: (
     toolInvocationId: string,
@@ -50,6 +52,7 @@ export class AgentStreamHandler {
   private agentManager: AgentInstanceManager;
   private activeTasks = new Map<string, Promise<void>>();
   private activeStreams = new Map<string, AgentEventStream>();
+  private runHistoryService = getRunHistoryService();
 
   constructor(
     sessionManager: AgentSessionManager = new AgentSessionManager(),
@@ -82,6 +85,16 @@ export class AgentStreamHandler {
 
     const connectedMsg = createConnectedMessage(agentId, sessionId);
     connection.send(connectedMsg.toJson());
+    const currentStatus =
+      typeof agent.currentStatus === "string" ? agent.currentStatus : null;
+    if (currentStatus) {
+      connection.send(
+        new ServerMessage(ServerMessageType.AGENT_STATUS, {
+          new_status: currentStatus,
+          old_status: null,
+        }).toJson(),
+      );
+    }
 
     const task = this.streamLoop(connection, agentId, sessionId);
     this.activeTasks.set(sessionId, task);
@@ -151,6 +164,7 @@ export class AgentStreamHandler {
 
       for await (const event of stream.allEvents()) {
         try {
+          await this.runHistoryService.onAgentEvent(agentId, event);
           const message = this.convertStreamEvent(event);
           connection.send(message.toJson());
         } catch (error) {

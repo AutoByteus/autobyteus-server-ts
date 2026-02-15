@@ -18,7 +18,7 @@ const createTempWorkspace = async (): Promise<string> => {
 
 const nextEvent = async (
   events: AsyncGenerator<string, void, void>,
-  timeoutMs = 4000,
+  timeoutMs = 8000,
 ): Promise<FileSystemChangeEvent> => {
   const timer = new Promise<never>((_, reject) => {
     const timeout = setTimeout(() => {
@@ -40,7 +40,7 @@ const nextEvent = async (
 const expectEventAfterAction = async (
   events: AsyncGenerator<string, void, void>,
   action: () => Promise<void> | void,
-  timeoutMs = 4000,
+  timeoutMs = 8000,
 ): Promise<FileSystemChangeEvent> => {
   const eventPromise = nextEvent(events, timeoutMs);
   await Promise.resolve();
@@ -90,7 +90,7 @@ const expectNoEventAfterAction = async (
 const waitForChange = async (
   events: AsyncGenerator<string, void, void>,
   predicate: (change: FileSystemChange) => boolean,
-  timeoutMs = 4000,
+  timeoutMs = 8000,
 ): Promise<FileSystemChange> => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {

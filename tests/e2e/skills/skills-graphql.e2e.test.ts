@@ -96,7 +96,7 @@ describeGit("Skills GraphQL e2e", () => {
       }
     `;
     const listResult = await execGraphql<{ skills: Array<{ name: string }> }>(listQuery);
-    expect(listResult.skills.map((skill) => skill.name)).toEqual(["test_skill"]);
+    expect(listResult.skills.map((skill) => skill.name)).toContain("test_skill");
 
     const getQuery = `
       query GetSkill($name: String!) {

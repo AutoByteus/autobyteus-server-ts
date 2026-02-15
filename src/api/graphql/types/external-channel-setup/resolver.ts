@@ -103,7 +103,6 @@ export class ExternalChannelSetupResolver {
       targetType,
       agentId: targetType === "AGENT" ? targetId : null,
       teamId: targetType === "TEAM" ? targetId : null,
-      targetMemberName: null,
     });
 
     return toGraphqlBinding(binding);

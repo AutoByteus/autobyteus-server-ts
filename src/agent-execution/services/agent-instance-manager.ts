@@ -80,6 +80,15 @@ type AgentInstanceManagerOptions = {
   waitForIdle?: (agent: Agent, timeout?: number) => Promise<void>;
 };
 
+type AgentInstanceConfigInput = {
+  agentDefinitionId: string;
+  llmModelIdentifier: string;
+  autoExecuteTools: boolean;
+  workspaceId?: string | null;
+  llmConfig?: Record<string, unknown> | null;
+  skillAccessMode?: SkillAccessMode | null;
+};
+
 export class AgentInstanceManager {
   private static instance: AgentInstanceManager | null = null;
   private agentFactory: AgentFactoryLike;
@@ -122,14 +131,39 @@ export class AgentInstanceManager {
     logger.info("AgentInstanceManager initialized.");
   }
 
-  async createAgentInstance(options: {
-    agentDefinitionId: string;
-    llmModelIdentifier: string;
-    autoExecuteTools: boolean;
-    workspaceId?: string | null;
-    llmConfig?: Record<string, unknown> | null;
-    skillAccessMode?: SkillAccessMode | null;
-  }): Promise<string> {
+  async createAgentInstance(options: AgentInstanceConfigInput): Promise<string> {
+    const built = await this.buildAgentConfig(options);
+    const agent = this.agentFactory.createAgent(built.agentConfig) as AgentLike & {
+      start?: () => void;
+    };
+    agent.start?.();
+    await this.waitForIdle(agent as Agent);
+    logger.info(
+      `Successfully created and started agent instance '${agent.agentId}' from definition '${built.agentName}'.`,
+    );
+    return agent.agentId;
+  }
+
+  async restoreAgentInstance(
+    options: AgentInstanceConfigInput & { agentId: string },
+  ): Promise<string> {
+    const built = await this.buildAgentConfig(options);
+    const agent = this.agentFactory.restoreAgent(
+      options.agentId,
+      built.agentConfig,
+      appConfigProvider.config.getMemoryDir(),
+    ) as AgentLike & { start?: () => void };
+    agent.start?.();
+    await this.waitForIdle(agent as Agent);
+    logger.info(
+      `Successfully restored and started agent instance '${agent.agentId}' from definition '${built.agentName}'.`,
+    );
+    return agent.agentId;
+  }
+
+  private async buildAgentConfig(
+    options: AgentInstanceConfigInput,
+  ): Promise<{ agentConfig: AgentConfig; agentName: string }> {
     const {
       agentDefinitionId,
       llmModelIdentifier,
@@ -312,36 +346,29 @@ export class AgentInstanceManager {
       is_first_user_turn: true,
     };
 
-    const agentConfig = new AgentConfig(
-      agentDef.name,
-      agentDef.role,
-      agentDef.description,
-      llmInstance,
-      resolvedPrompt,
-      tools,
-      autoExecuteTools,
-      inputProcessors,
-      llmResponseProcessors,
-      systemPromptProcessors,
-      toolExecutionResultProcessors,
-      toolInvocationPreprocessors,
-      workspaceInstance ?? null,
-      lifecycleProcessors,
-      initialCustomData,
-      skillPaths,
-      appConfigProvider.config.getMemoryDir(),
-      skillAccessMode ?? null,
-    );
-
-    const agent = this.agentFactory.createAgent(agentConfig) as AgentLike & {
-      start?: () => void;
+    return {
+      agentName: agentDef.name,
+      agentConfig: new AgentConfig(
+        agentDef.name,
+        agentDef.role,
+        agentDef.description,
+        llmInstance,
+        resolvedPrompt,
+        tools,
+        autoExecuteTools,
+        inputProcessors,
+        llmResponseProcessors,
+        systemPromptProcessors,
+        toolExecutionResultProcessors,
+        toolInvocationPreprocessors,
+        workspaceInstance ?? null,
+        lifecycleProcessors,
+        initialCustomData,
+        skillPaths,
+        appConfigProvider.config.getMemoryDir(),
+        skillAccessMode ?? null,
+      ),
     };
-    agent.start?.();
-    await this.waitForIdle(agent as Agent);
-    logger.info(
-      `Successfully created and started agent instance '${agent.agentId}' from definition '${agentDef.name}'.`,
-    );
-    return agent.agentId;
   }
 
   getAgentInstance(agentId: string): AgentLike | null {
