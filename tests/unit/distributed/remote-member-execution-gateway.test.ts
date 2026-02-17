@@ -19,7 +19,7 @@ describe("RemoteMemberExecutionGateway", () => {
       teamRunId: "run-1",
       runVersion: 1,
       kind: "RUN_BOOTSTRAP",
-      payload: { teamDefinitionId: "def-1", memberConfigs: [] },
+      payload: { teamDefinitionId: "def-1", memberBindings: [] },
     });
     await gateway.dispatchEnvelope({
       envelopeId: "env-1",

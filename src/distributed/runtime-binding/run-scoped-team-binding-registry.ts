@@ -6,7 +6,7 @@ export type RunScopedTeamBinding = {
   runVersion: RunVersion;
   teamDefinitionId: string;
   runtimeTeamId: string;
-  memberConfigs: TeamMemberConfigInput[];
+  memberBindings: TeamMemberConfigInput[];
   boundAtIso: string;
 };
 
@@ -15,7 +15,7 @@ type BindRunInput = {
   runVersion: RunVersion;
   teamDefinitionId: string;
   runtimeTeamId: string;
-  memberConfigs: TeamMemberConfigInput[];
+  memberBindings: TeamMemberConfigInput[];
 };
 
 const normalizeRequiredString = (value: string, field: string): string => {
@@ -33,6 +33,9 @@ const cloneMemberConfigInput = (config: TeamMemberConfigInput): TeamMemberConfig
   autoExecuteTools: config.autoExecuteTools,
   workspaceId: config.workspaceId ?? null,
   llmConfig: config.llmConfig ? { ...config.llmConfig } : null,
+  memberRouteKey: config.memberRouteKey ?? null,
+  memberAgentId: config.memberAgentId ?? null,
+  memoryDir: config.memoryDir ?? null,
 });
 
 const cloneBinding = (binding: RunScopedTeamBinding): RunScopedTeamBinding => ({
@@ -40,7 +43,7 @@ const cloneBinding = (binding: RunScopedTeamBinding): RunScopedTeamBinding => ({
   runVersion: binding.runVersion,
   teamDefinitionId: binding.teamDefinitionId,
   runtimeTeamId: binding.runtimeTeamId,
-  memberConfigs: binding.memberConfigs.map((item) => cloneMemberConfigInput(item)),
+  memberBindings: binding.memberBindings.map((item) => cloneMemberConfigInput(item)),
   boundAtIso: binding.boundAtIso,
 });
 
@@ -67,7 +70,7 @@ export class RunScopedTeamBindingRegistry {
       runVersion: input.runVersion,
       teamDefinitionId,
       runtimeTeamId,
-      memberConfigs: input.memberConfigs.map((item) => cloneMemberConfigInput(item)),
+      memberBindings: input.memberBindings.map((item) => cloneMemberConfigInput(item)),
       boundAtIso: new Date().toISOString(),
     };
 

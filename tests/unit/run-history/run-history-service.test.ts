@@ -42,7 +42,7 @@ const dirExists = async (dirPath: string): Promise<boolean> => {
 
 const writeRunFiles = async (
   memoryDir: string,
-  runId: string,
+  agentId: string,
   manifest: {
     agentDefinitionId: string;
     workspaceRootPath: string;
@@ -51,7 +51,7 @@ const writeRunFiles = async (
   },
   userMessage: string,
 ): Promise<void> => {
-  const agentDir = path.join(memoryDir, "agents", runId);
+  const agentDir = path.join(memoryDir, "agents", agentId);
   await fs.mkdir(agentDir, { recursive: true });
   await fs.writeFile(
     path.join(agentDir, "run_manifest.json"),
@@ -109,7 +109,7 @@ describe("RunHistoryService", () => {
     expect(groups[0]?.workspaceName).toBe("autobyteus_org");
     expect(groups[0]?.agents[0]?.agentName).toBe("SuperAgent");
     expect(groups[0]?.agents[0]?.runs[0]).toMatchObject({
-      runId: "run-1",
+      agentId: "run-1",
       summary: "Describe messaging bindings",
       isActive: true,
       lastKnownStatus: "ACTIVE",
@@ -134,8 +134,8 @@ describe("RunHistoryService", () => {
     expect(config.editableFields.llmModelIdentifier).toBe(true);
     expect(config.editableFields.workspaceRootPath).toBe(false);
 
-    mockAgentManager.getAgentInstance.mockImplementation((runId: string) =>
-      runId === "run-1" ? ({ agentId: "run-1" } as any) : null,
+    mockAgentManager.getAgentInstance.mockImplementation((agentId: string) =>
+      agentId === "run-1" ? ({ agentId: "run-1" } as any) : null,
     );
     config = await service.getRunResumeConfig("run-1");
     expect(config.isActive).toBe(true);
@@ -163,14 +163,14 @@ describe("RunHistoryService", () => {
 
     const groups = await service.listRunHistory();
     expect(groups[0]?.agents[0]?.runs[0]).toMatchObject({
-      runId: "run-1",
+      agentId: "run-1",
       lastKnownStatus: "ACTIVE",
     });
   });
 
   it("marks run as idle after termination", async () => {
     await service.upsertRunHistoryRow({
-      runId: "run-1",
+      agentId: "run-1",
       manifest: {
         agentDefinitionId: "agent-def-1",
         workspaceRootPath: "/tmp/autobyteus_org",
@@ -191,7 +191,7 @@ describe("RunHistoryService", () => {
 
   it("maps AGENT_STATUS_UPDATED new_status payload to run history status", async () => {
     await service.upsertRunHistoryRow({
-      runId: "run-1",
+      agentId: "run-1",
       manifest: {
         agentDefinitionId: "agent-def-1",
         workspaceRootPath: "/tmp/autobyteus_org",
@@ -227,7 +227,7 @@ describe("RunHistoryService", () => {
       "Describe messaging bindings",
     );
     await service.upsertRunHistoryRow({
-      runId: "run-1",
+      agentId: "run-1",
       manifest: {
         agentDefinitionId: "agent-def-1",
         workspaceRootPath: "/tmp/autobyteus_org",
@@ -250,8 +250,8 @@ describe("RunHistoryService", () => {
   });
 
   it("rejects deleting an active run", async () => {
-    mockAgentManager.getAgentInstance.mockImplementation((runId: string) =>
-      runId === "run-1" ? ({ agentId: "run-1" } as any) : null,
+    mockAgentManager.getAgentInstance.mockImplementation((agentId: string) =>
+      agentId === "run-1" ? ({ agentId: "run-1" } as any) : null,
     );
 
     const result = await service.deleteRunHistory("run-1");
@@ -267,7 +267,7 @@ describe("RunHistoryService", () => {
 
   it("treats missing run directory as deletable and prunes index row", async () => {
     await service.upsertRunHistoryRow({
-      runId: "run-ghost",
+      agentId: "run-ghost",
       manifest: {
         agentDefinitionId: "agent-def-1",
         workspaceRootPath: "/tmp/autobyteus_org",

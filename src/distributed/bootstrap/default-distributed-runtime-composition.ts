@@ -213,7 +213,24 @@ const getPayloadRecord = (payload: unknown): Record<string, unknown> => {
   return payload as Record<string, unknown>;
 };
 
-const normalizeMemberConfigSnapshot = (
+const normalizeOptionalBootstrapBindingField = (
+  value: unknown,
+  field: string,
+): string | null | undefined => {
+  if (value === null) {
+    return null;
+  }
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new Error(`${field} must be a string when provided.`);
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const normalizeBootstrapMemberBindingSnapshot = (
   raw: unknown,
   fieldPrefix: string,
 ): TeamMemberConfigInput => {
@@ -245,6 +262,18 @@ const normalizeMemberConfigSnapshot = (
     payload.llmConfig && typeof payload.llmConfig === "object" && !Array.isArray(payload.llmConfig)
       ? (payload.llmConfig as Record<string, unknown>)
       : null;
+  const memberRouteKey = normalizeOptionalBootstrapBindingField(
+    payload.memberRouteKey,
+    `${fieldPrefix}.memberRouteKey`,
+  );
+  const memberAgentId = normalizeOptionalBootstrapBindingField(
+    payload.memberAgentId,
+    `${fieldPrefix}.memberAgentId`,
+  );
+  const memoryDir = normalizeOptionalBootstrapBindingField(
+    payload.memoryDir,
+    `${fieldPrefix}.memoryDir`,
+  );
 
   return {
     memberName,
@@ -253,17 +282,29 @@ const normalizeMemberConfigSnapshot = (
     autoExecuteTools: payload.autoExecuteTools,
     workspaceId,
     llmConfig,
+    memberRouteKey,
+    memberAgentId,
+    memoryDir,
   };
 };
 
-const normalizeMemberConfigSnapshotList = (raw: unknown): TeamMemberConfigInput[] => {
-  if (!Array.isArray(raw)) {
-    throw new Error("payload.memberConfigs must be an array.");
+const normalizeBootstrapMemberBindingSnapshotList = (
+  payload: Record<string, unknown>,
+): TeamMemberConfigInput[] => {
+  const list = Array.isArray(payload.memberBindings)
+    ? payload.memberBindings
+    : Array.isArray(payload.memberConfigs)
+      ? payload.memberConfigs
+      : null;
+  if (!Array.isArray(list)) {
+    throw new Error("payload.memberBindings must be an array.");
   }
-  if (raw.length === 0) {
-    throw new Error("payload.memberConfigs must include at least one member config.");
+  if (list.length === 0) {
+    throw new Error("payload.memberBindings must include at least one member binding.");
   }
-  return raw.map((entry, index) => normalizeMemberConfigSnapshot(entry, `payload.memberConfigs[${index}]`));
+  return list.map((entry, index) =>
+    normalizeBootstrapMemberBindingSnapshot(entry, `payload.memberBindings[${index}]`),
+  );
 };
 
 const resolveTeamByDefinitionId = (
@@ -532,15 +573,15 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     };
   };
 
-  const resolveBootstrapConfigSnapshot = (teamDefinitionId: string): TeamMemberConfigInput[] => {
-    const memberConfigs = teamInstanceManager.getTeamMemberConfigsByDefinitionId(teamDefinitionId);
-    if (memberConfigs.length === 0) {
+  const resolveBootstrapBindingSnapshot = (teamDefinitionId: string): TeamMemberConfigInput[] => {
+    const memberBindings = teamInstanceManager.getTeamMemberConfigsByDefinitionId(teamDefinitionId);
+    if (memberBindings.length === 0) {
       throw new TeamCommandIngressError(
         "TEAM_BOOTSTRAP_CONFIG_UNAVAILABLE",
         `No member config snapshot is available for team definition '${teamDefinitionId}'.`,
       );
     }
-    return memberConfigs;
+    return memberBindings;
   };
 
   const dispatchRemoteBootstrapEnvelope = async (input: {
@@ -550,7 +591,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     teamDefinitionId: string;
     hostNodeId: string;
   }): Promise<void> => {
-    const memberConfigs = resolveBootstrapConfigSnapshot(input.teamDefinitionId);
+    const memberBindings = resolveBootstrapBindingSnapshot(input.teamDefinitionId);
     await hostNodeBridgeClient.sendCommand(
       input.targetNodeId,
       envelopeBuilder.buildEnvelope({
@@ -559,7 +600,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         kind: "RUN_BOOTSTRAP",
         payload: {
           teamDefinitionId: input.teamDefinitionId,
-          memberConfigs,
+          memberBindings,
           hostNodeId: input.hostNodeId,
         },
       }),
@@ -573,7 +614,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         String(payload.teamDefinitionId ?? ""),
         "payload.teamDefinitionId",
       );
-      const memberConfigs = normalizeMemberConfigSnapshotList(payload.memberConfigs);
+      const memberBindings = normalizeBootstrapMemberBindingSnapshotList(payload);
       const bootstrapHostNodeId =
         normalizeRouteSegment(payload.hostNodeId) ?? hostNodeId;
       const existingBinding = runScopedTeamBindingRegistry.tryResolveRun(envelope.teamRunId);
@@ -590,11 +631,11 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
 
       let runtimeTeamId = teamInstanceManager.getTeamIdByDefinitionId(teamDefinitionId);
       if (!runtimeTeamId) {
-        runtimeTeamId = await teamInstanceManager.createTeamInstance(teamDefinitionId, memberConfigs);
+        runtimeTeamId = await teamInstanceManager.createTeamInstance(teamDefinitionId, memberBindings);
       } else {
         const existingTeam = teamInstanceManager.getTeamInstance(runtimeTeamId);
         if (!existingTeam) {
-          runtimeTeamId = await teamInstanceManager.createTeamInstance(teamDefinitionId, memberConfigs);
+          runtimeTeamId = await teamInstanceManager.createTeamInstance(teamDefinitionId, memberBindings);
         }
       }
 
@@ -603,7 +644,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         runVersion: envelope.runVersion,
         teamDefinitionId,
         runtimeTeamId,
-        memberConfigs,
+        memberBindings,
       });
       hostNodeIdByRunId.set(envelope.teamRunId, bootstrapHostNodeId);
 

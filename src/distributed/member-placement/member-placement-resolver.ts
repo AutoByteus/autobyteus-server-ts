@@ -5,12 +5,28 @@ import {
 } from "../policies/default-placement-policy.js";
 import { PlacementConstraintPolicy } from "../policies/placement-constraint-policy.js";
 
+const EMBEDDED_LOCAL_NODE_ID = "embedded-local";
+
 const normalizeNodeId = (value: string | null | undefined): string | null => {
   if (value === null || value === undefined) {
     return null;
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+};
+
+const canonicalizePlacementHintNodeId = (
+  value: string | null | undefined,
+  defaultNodeId: string | null,
+): string | null => {
+  const normalized = normalizeNodeId(value);
+  if (!normalized) {
+    return null;
+  }
+  if (normalized === EMBEDDED_LOCAL_NODE_ID && defaultNodeId) {
+    return defaultNodeId;
+  }
+  return normalized;
 };
 
 export type MemberPlacementSource = "required" | "home" | "preferred" | "default";
@@ -43,6 +59,7 @@ export class MemberPlacementResolver {
   }
 
   resolvePlacement(input: ResolvePlacementInput): PlacementByMember {
+    const canonicalDefaultNodeId = normalizeNodeId(input.defaultNodeId);
     const knownNodeIds = new Set(input.nodeSnapshots.map((node) => node.nodeId));
     const availableNodeIds = new Set(
       input.nodeSnapshots
@@ -53,13 +70,20 @@ export class MemberPlacementResolver {
     const placementByMember: PlacementByMember = {};
 
     for (const member of input.teamDefinition.nodes) {
+      const canonicalizedMember = {
+        ...member,
+        homeNodeId: canonicalizePlacementHintNodeId(member.homeNodeId, canonicalDefaultNodeId),
+        requiredNodeId: canonicalizePlacementHintNodeId(member.requiredNodeId, canonicalDefaultNodeId),
+        preferredNodeId: canonicalizePlacementHintNodeId(member.preferredNodeId, canonicalDefaultNodeId),
+      };
+
       this.placementConstraintPolicy.validateRequiredAndPreferred(
-        member,
+        canonicalizedMember,
         knownNodeIds,
         availableNodeIds
       );
 
-      const requiredNodeId = normalizeNodeId(member.requiredNodeId);
+      const requiredNodeId = normalizeNodeId(canonicalizedMember.requiredNodeId);
       if (requiredNodeId) {
         placementByMember[member.memberName] = {
           memberName: member.memberName,
@@ -69,7 +93,7 @@ export class MemberPlacementResolver {
         continue;
       }
 
-      const homeNodeId = normalizeNodeId(member.homeNodeId);
+      const homeNodeId = normalizeNodeId(canonicalizedMember.homeNodeId);
       if (homeNodeId && availableNodeIds.has(homeNodeId)) {
         placementByMember[member.memberName] = {
           memberName: member.memberName,
@@ -79,7 +103,7 @@ export class MemberPlacementResolver {
         continue;
       }
 
-      const preferredNodeId = normalizeNodeId(member.preferredNodeId);
+      const preferredNodeId = normalizeNodeId(canonicalizedMember.preferredNodeId);
       if (preferredNodeId && availableNodeIds.has(preferredNodeId)) {
         placementByMember[member.memberName] = {
           memberName: member.memberName,
@@ -92,7 +116,7 @@ export class MemberPlacementResolver {
       const nodeId = this.defaultPlacementPolicy.assignByCapabilityAndHealth(
         member,
         input.nodeSnapshots,
-        input.defaultNodeId
+        canonicalDefaultNodeId
       );
 
       placementByMember[member.memberName] = {

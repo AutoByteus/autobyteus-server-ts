@@ -17,7 +17,7 @@ type AgentLike = {
 
 export interface ContinueRunInput {
   userInput: AgentUserInput;
-  runId?: string | null;
+  agentId?: string | null;
   agentDefinitionId?: string | null;
   workspaceRootPath?: string | null;
   workspaceId?: string | null;
@@ -28,7 +28,7 @@ export interface ContinueRunInput {
 }
 
 export interface ContinueRunResult {
-  runId: string;
+  agentId: string;
   ignoredConfigFields: string[];
 }
 
@@ -61,33 +61,33 @@ export class RunContinuationService {
       throw new Error("userInput.content is required.");
     }
 
-    if (input.runId?.trim()) {
-      return this.continueExistingRun(input.runId.trim(), input);
+    if (input.agentId?.trim()) {
+      return this.continueExistingRun(input.agentId.trim(), input);
     }
     return this.createAndContinueNewRun(input);
   }
 
   private async continueExistingRun(
-    runId: string,
+    agentId: string,
     input: ContinueRunInput,
   ): Promise<ContinueRunResult> {
     const overrides = this.toRuntimeOverrides(input);
-    const activeAgent = this.agentInstanceManager.getAgentInstance(runId) as AgentLike | null;
+    const activeAgent = this.agentInstanceManager.getAgentInstance(agentId) as AgentLike | null;
     const ignoredConfigFields: string[] = [];
 
     if (activeAgent) {
       ignoredConfigFields.push(...this.detectIgnoredActiveOverrides(overrides));
       await activeAgent.postUserMessage(UserInputConverter.toAgentInputUserMessage(input.userInput));
-      await this.indexStore.updateRow(runId, {
+      await this.indexStore.updateRow(agentId, {
         lastKnownStatus: "ACTIVE",
         lastActivityAt: new Date().toISOString(),
       });
-      return { runId, ignoredConfigFields };
+      return { agentId, ignoredConfigFields };
     }
 
-    const manifest = await this.manifestStore.readManifest(runId);
+    const manifest = await this.manifestStore.readManifest(agentId);
     if (!manifest) {
-      throw new Error(`Run '${runId}' cannot be continued because manifest is missing.`);
+      throw new Error(`Run '${agentId}' cannot be continued because manifest is missing.`);
     }
 
     const effectiveConfig = this.mergeInactiveOverrides(manifest, overrides);
@@ -95,7 +95,7 @@ export class RunContinuationService {
       effectiveConfig.workspaceRootPath,
     );
     await this.agentInstanceManager.restoreAgentInstance({
-      agentId: runId,
+      agentId: agentId,
       agentDefinitionId: effectiveConfig.agentDefinitionId,
       llmModelIdentifier: effectiveConfig.llmModelIdentifier,
       autoExecuteTools: effectiveConfig.autoExecuteTools,
@@ -104,21 +104,21 @@ export class RunContinuationService {
       skillAccessMode: effectiveConfig.skillAccessMode,
     });
 
-    const restored = this.agentInstanceManager.getAgentInstance(runId) as AgentLike | null;
+    const restored = this.agentInstanceManager.getAgentInstance(agentId) as AgentLike | null;
     if (!restored) {
-      throw new Error(`Run '${runId}' restore failed.`);
+      throw new Error(`Run '${agentId}' restore failed.`);
     }
 
-    await this.manifestStore.writeManifest(runId, effectiveConfig);
+    await this.manifestStore.writeManifest(agentId, effectiveConfig);
     await restored.postUserMessage(UserInputConverter.toAgentInputUserMessage(input.userInput));
     await this.runHistoryService.upsertRunHistoryRow({
-      runId,
+      agentId,
       manifest: effectiveConfig,
       summary: compactSummary(input.userInput.content),
       lastKnownStatus: "ACTIVE",
       lastActivityAt: new Date().toISOString(),
     });
-    return { runId, ignoredConfigFields };
+    return { agentId, ignoredConfigFields };
   }
 
   private async createAndContinueNewRun(input: ContinueRunInput): Promise<ContinueRunResult> {
@@ -137,7 +137,7 @@ export class RunContinuationService {
       workspaceId = workspace.workspaceId;
     }
 
-    const runId = await this.agentInstanceManager.createAgentInstance({
+    const agentId = await this.agentInstanceManager.createAgentInstance({
       agentDefinitionId: input.agentDefinitionId.trim(),
       llmModelIdentifier: input.llmModelIdentifier.trim(),
       autoExecuteTools: input.autoExecuteTools ?? false,
@@ -146,9 +146,9 @@ export class RunContinuationService {
       skillAccessMode: input.skillAccessMode ?? null,
     });
 
-    const agent = this.agentInstanceManager.getAgentInstance(runId) as AgentLike | null;
+    const agent = this.agentInstanceManager.getAgentInstance(agentId) as AgentLike | null;
     if (!agent) {
-      throw new Error(`Newly created run '${runId}' was not found.`);
+      throw new Error(`Newly created run '${agentId}' was not found.`);
     }
 
     const resolvedWorkspaceRootPath = this.resolveWorkspaceRootPath({
@@ -164,9 +164,9 @@ export class RunContinuationService {
       skillAccessMode: input.skillAccessMode ?? null,
     };
 
-    await this.manifestStore.writeManifest(runId, manifest);
+    await this.manifestStore.writeManifest(agentId, manifest);
     await this.runHistoryService.upsertRunHistoryRow({
-      runId,
+      agentId,
       manifest,
       summary: compactSummary(input.userInput.content),
       lastKnownStatus: "ACTIVE",
@@ -174,7 +174,7 @@ export class RunContinuationService {
     });
 
     await agent.postUserMessage(UserInputConverter.toAgentInputUserMessage(input.userInput));
-    return { runId, ignoredConfigFields: [] };
+    return { agentId, ignoredConfigFields: [] };
   }
 
   private toRuntimeOverrides(input: ContinueRunInput): RunRuntimeOverrides {

@@ -51,6 +51,11 @@ const createManager = (overrides: Partial<ConstructorParameters<typeof AgentTeam
   const fakeTeam = { teamId: "test_team_123", start: vi.fn() };
   const teamFactory = {
     createTeam: vi.fn().mockReturnValue(fakeTeam),
+    createTeamWithId: vi.fn().mockImplementation((teamId: string) => ({
+      ...fakeTeam,
+      teamId,
+      start: vi.fn(),
+    })),
     removeTeam: vi.fn().mockResolvedValue(true),
     getTeam: vi.fn().mockReturnValue(fakeTeam),
     listActiveTeamIds: vi.fn().mockReturnValue(["test_team_123"]),
@@ -165,12 +170,17 @@ describe("AgentTeamInstanceManager integration", () => {
         agentDefinitionId: "1",
         llmModelIdentifier: "gpt-4o",
         autoExecuteTools: false,
+        memberRouteKey: "TheCoordinator",
+        memberAgentId: "member_coord_001",
+        memoryDir: "/tmp/team-memory",
       },
       {
         memberName: "TheWorker",
         agentDefinitionId: "2",
         llmModelIdentifier: "claude-3",
         autoExecuteTools: true,
+        memberRouteKey: "TheWorker",
+        memberAgentId: "member_worker_001",
       },
     ];
 
@@ -190,9 +200,67 @@ describe("AgentTeamInstanceManager integration", () => {
     expect(coordConfig).toBeInstanceOf(AgentConfig);
     expect((coordConfig as AgentConfig).name).toBe("TheCoordinator");
     expect((coordConfig as AgentConfig).autoExecuteTools).toBe(false);
+    expect((coordConfig as AgentConfig).initialCustomData?.teamMemberIdentity).toEqual({
+      memberRouteKey: "TheCoordinator",
+      memberAgentId: "member_coord_001",
+    });
+    expect((coordConfig as AgentConfig).initialCustomData?.teamRestore).toEqual({
+      TheCoordinator: {
+        memberAgentId: "member_coord_001",
+        memoryDir: "/tmp/team-memory",
+      },
+    });
     expect(workerConfig).toBeInstanceOf(AgentConfig);
     expect((workerConfig as AgentConfig).name).toBe("TheWorker");
     expect((workerConfig as AgentConfig).autoExecuteTools).toBe(true);
+    expect((workerConfig as AgentConfig).initialCustomData?.teamMemberIdentity).toEqual({
+      memberRouteKey: "TheWorker",
+      memberAgentId: "member_worker_001",
+    });
+  });
+
+  it("creates a team instance with a preferred team id", async () => {
+    const { manager, teamDefinitionService, agentDefinitionService, teamFactory } = createManager();
+
+    const coordAgentDef = new AgentDefinition({
+      id: "1",
+      name: "CoordinatorBlueprint",
+      role: "Coord",
+      description: "...",
+    });
+
+    agentDefinitionService.getAgentDefinitionById.mockResolvedValue(coordAgentDef);
+    teamDefinitionService.getDefinitionById.mockResolvedValue(
+      new AgentTeamDefinition({
+        id: "main1",
+        name: "MainTeam",
+        description: "...",
+        nodes: [
+          new TeamMember({
+            memberName: "TheCoordinator",
+            referenceId: "1",
+            referenceType: NodeType.AGENT,
+          }),
+        ],
+        coordinatorMemberName: "TheCoordinator",
+      }),
+    );
+
+    const createdTeamId = await manager.createTeamInstanceWithId("team_restore_001", "main1", [
+      {
+        memberName: "TheCoordinator",
+        agentDefinitionId: "1",
+        llmModelIdentifier: "gpt-4o",
+        autoExecuteTools: false,
+      },
+    ]);
+
+    expect(teamFactory.createTeamWithId).toHaveBeenCalledTimes(1);
+    expect(teamFactory.createTeamWithId).toHaveBeenCalledWith(
+      "team_restore_001",
+      expect.any(AgentTeamConfig),
+    );
+    expect(createdTeamId).toBe("team_restore_001");
   });
 
   it("throws when member config is missing", async () => {

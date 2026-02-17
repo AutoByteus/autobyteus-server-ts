@@ -20,14 +20,14 @@ describe("Distributed run stop cleanup integration", () => {
       dispatchRunBootstrap: async (envelope) => {
         const payload = envelope.payload as {
           teamDefinitionId: string;
-          memberConfigs: any[];
+          memberBindings: any[];
         };
         registry.bindRun({
           teamRunId: envelope.teamRunId,
           runVersion: envelope.runVersion,
           teamDefinitionId: payload.teamDefinitionId,
           runtimeTeamId: "worker-team-1",
-          memberConfigs: payload.memberConfigs,
+          memberBindings: payload.memberBindings,
         });
       },
       dispatchInterAgentMessage: async (envelope) => {
@@ -93,7 +93,7 @@ describe("Distributed run stop cleanup integration", () => {
           kind: "RUN_BOOTSTRAP",
           payload: {
             teamDefinitionId: input.teamDefinitionId,
-            memberConfigs: [
+            memberBindings: [
               {
                 memberName: "helper",
                 agentDefinitionId: "agent-2",

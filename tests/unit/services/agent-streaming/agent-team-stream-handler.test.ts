@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   AgentEventRebroadcastPayload,
+  AgentTeamStatusUpdateData,
   AgentTeamStreamEvent,
   SubTeamEventRebroadcastPayload,
   StreamEventType,
@@ -101,6 +102,48 @@ describe("AgentTeamStreamHandler", () => {
       origin: "local",
     });
     expect(message.payload.event_scope).toBe("member_scoped");
+  });
+
+  it("publishes stream activity to team run history sink", () => {
+    const activitySink = {
+      onTeamStreamMessage: expect.any(Function),
+    } as any;
+    activitySink.onTeamStreamMessage = vi.fn();
+    const ingress = {
+      issueToolApprovalTokenFromActiveRun: () => null,
+      resolveActiveRun: () => ({
+        teamId: "team-1",
+        teamRunId: "run-1",
+        runVersion: 2,
+        hostNodeId: "node-host",
+      }),
+    } as any;
+    const handler = new AgentTeamStreamHandler(
+      undefined,
+      {
+        getTeamInstance: () => null,
+        getTeamEventStream: () => null,
+      } as any,
+      ingress,
+      new TeamEventAggregator(),
+      activitySink,
+    );
+
+    const teamEvent = new AgentTeamStreamEvent({
+      team_id: "team-1",
+      event_source_type: "TEAM",
+      data: new AgentTeamStatusUpdateData({
+        new_status: "idle",
+      }),
+    });
+    handler.convertTeamEvent(teamEvent);
+
+    expect(activitySink.onTeamStreamMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        teamId: "team-1",
+        messageType: ServerMessageType.TEAM_STATUS,
+      }),
+    );
   });
 
   it("propagates hierarchical member route key for sub-team member events", () => {

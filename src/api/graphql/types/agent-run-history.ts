@@ -18,7 +18,7 @@ import { getRunProjectionService } from "../../../run-history/services/run-proje
 @ObjectType()
 class RunHistoryItemObject {
   @Field(() => String)
-  runId!: string;
+  agentId!: string;
 
   @Field(() => String)
   summary!: string;
@@ -60,7 +60,7 @@ class RunHistoryWorkspaceGroupObject {
 @ObjectType()
 class RunProjectionPayload {
   @Field(() => String)
-  runId!: string;
+  agentId!: string;
 
   @Field(() => [GraphQLJSON])
   conversation!: Array<Record<string, unknown>>;
@@ -114,7 +114,7 @@ class RunManifestConfigObject {
 @ObjectType()
 class RunResumeConfigPayload {
   @Field(() => String)
-  runId!: string;
+  agentId!: string;
 
   @Field(() => Boolean)
   isActive!: boolean;
@@ -132,7 +132,7 @@ class ContinueRunInput {
   userInput!: AgentUserInput;
 
   @Field(() => String, { nullable: true })
-  runId?: string | null;
+  agentId?: string | null;
 
   @Field(() => String, { nullable: true })
   agentDefinitionId?: string | null;
@@ -165,7 +165,7 @@ class ContinueRunMutationResult {
   message!: string;
 
   @Field(() => String, { nullable: true })
-  runId?: string | null;
+  agentId?: string | null;
 
   @Field(() => [String])
   ignoredConfigFields!: string[];
@@ -181,7 +181,7 @@ class DeleteRunHistoryMutationResult {
 }
 
 @Resolver()
-export class RunHistoryResolver {
+export class AgentRunHistoryResolver {
   private runHistoryService = getRunHistoryService();
   private runProjectionService = getRunProjectionService();
   private runContinuationService = getRunContinuationService();
@@ -195,16 +195,16 @@ export class RunHistoryResolver {
 
   @Query(() => RunProjectionPayload)
   async getRunProjection(
-    @Arg("runId", () => String) runId: string,
+    @Arg("agentId", () => String) agentId: string,
   ): Promise<RunProjectionPayload> {
-    return this.runProjectionService.getProjection(runId);
+    return this.runProjectionService.getProjection(agentId);
   }
 
   @Query(() => RunResumeConfigPayload)
   async getRunResumeConfig(
-    @Arg("runId", () => String) runId: string,
+    @Arg("agentId", () => String) agentId: string,
   ): Promise<RunResumeConfigPayload> {
-    return this.runHistoryService.getRunResumeConfig(runId);
+    return this.runHistoryService.getRunResumeConfig(agentId);
   }
 
   @Mutation(() => ContinueRunMutationResult)
@@ -216,14 +216,14 @@ export class RunHistoryResolver {
       return {
         success: true,
         message: "Run continued successfully.",
-        runId: result.runId,
+        agentId: result.agentId,
         ignoredConfigFields: result.ignoredConfigFields,
       };
     } catch (error) {
       return {
         success: false,
         message: String(error),
-        runId: input.runId ?? null,
+        agentId: input.agentId ?? null,
         ignoredConfigFields: [],
       };
     }
@@ -231,10 +231,10 @@ export class RunHistoryResolver {
 
   @Mutation(() => DeleteRunHistoryMutationResult)
   async deleteRunHistory(
-    @Arg("runId", () => String) runId: string,
+    @Arg("agentId", () => String) agentId: string,
   ): Promise<DeleteRunHistoryMutationResult> {
     try {
-      return await this.runHistoryService.deleteRunHistory(runId);
+      return await this.runHistoryService.deleteRunHistory(agentId);
     } catch (error) {
       return {
         success: false,

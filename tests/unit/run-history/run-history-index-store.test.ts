@@ -29,7 +29,7 @@ describe("RunHistoryIndexStore", () => {
 
   it("upserts and reads rows", async () => {
     await store.upsertRow({
-      runId: "run-1",
+      agentId: "run-1",
       agentDefinitionId: "agent-1",
       agentName: "SuperAgent",
       workspaceRootPath: "/ws/a",
@@ -39,7 +39,7 @@ describe("RunHistoryIndexStore", () => {
     });
 
     await store.upsertRow({
-      runId: "run-2",
+      agentId: "run-2",
       agentDefinitionId: "agent-2",
       agentName: "DB Agent",
       workspaceRootPath: "/ws/b",
@@ -50,12 +50,12 @@ describe("RunHistoryIndexStore", () => {
 
     const rows = await store.listRows();
     expect(rows).toHaveLength(2);
-    expect(rows.map((row) => row.runId).sort()).toEqual(["run-1", "run-2"]);
+    expect(rows.map((row) => row.agentId).sort()).toEqual(["run-1", "run-2"]);
   });
 
-  it("updates an existing row without changing runId", async () => {
+  it("updates an existing row without changing agentId", async () => {
     await store.upsertRow({
-      runId: "run-1",
+      agentId: "run-1",
       agentDefinitionId: "agent-1",
       agentName: "SuperAgent",
       workspaceRootPath: "/ws/a",
@@ -71,15 +71,15 @@ describe("RunHistoryIndexStore", () => {
 
     const row = await store.getRow("run-1");
     expect(row).toMatchObject({
-      runId: "run-1",
+      agentId: "run-1",
       summary: "new",
       lastKnownStatus: "ERROR",
     });
   });
 
-  it("removes a row by runId and ignores non-existent rows", async () => {
+  it("removes a row by agentId and ignores non-existent rows", async () => {
     await store.upsertRow({
-      runId: "run-1",
+      agentId: "run-1",
       agentDefinitionId: "agent-1",
       agentName: "SuperAgent",
       workspaceRootPath: "/ws/a",
@@ -88,7 +88,7 @@ describe("RunHistoryIndexStore", () => {
       lastKnownStatus: "ACTIVE",
     });
     await store.upsertRow({
-      runId: "run-2",
+      agentId: "run-2",
       agentDefinitionId: "agent-2",
       agentName: "DB Agent",
       workspaceRootPath: "/ws/b",
@@ -101,6 +101,6 @@ describe("RunHistoryIndexStore", () => {
     await store.removeRow("missing-run");
 
     const rows = await store.listRows();
-    expect(rows.map((row) => row.runId)).toEqual(["run-2"]);
+    expect(rows.map((row) => row.agentId)).toEqual(["run-2"]);
   });
 });

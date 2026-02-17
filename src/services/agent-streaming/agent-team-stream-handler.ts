@@ -27,9 +27,14 @@ import {
 } from "../../distributed/bootstrap/default-distributed-runtime-composition.js";
 import {
   TeamCommandIngressService,
+  TeamCommandIngressError,
   type ToolApprovalToken,
 } from "../../distributed/ingress/team-command-ingress-service.js";
 import { TeamEventAggregator } from "../../distributed/event-aggregation/team-event-aggregator.js";
+import {
+  getTeamRunActivitySinkService,
+  type TeamRunActivitySinkService,
+} from "../../run-history/services/team-run-activity-sink-service.js";
 
 export type WebSocketConnection = {
   send: (data: string) => void;
@@ -112,6 +117,7 @@ export class AgentTeamStreamHandler {
   private teamManager: AgentTeamInstanceManager;
   private teamCommandIngressService: TeamCommandIngressService;
   private teamEventAggregator: TeamEventAggregator;
+  private teamRunActivitySinkService: TeamRunActivitySinkService;
   private activeTasks = new Map<string, Promise<void>>();
   private eventStreams = new Map<string, AgentTeamEventStream>();
   private connectionBySessionId = new Map<string, WebSocketConnection>();
@@ -121,11 +127,13 @@ export class AgentTeamStreamHandler {
     teamManager: AgentTeamInstanceManager = AgentTeamInstanceManager.getInstance(),
     teamCommandIngressService: TeamCommandIngressService = getDefaultTeamCommandIngressService(),
     teamEventAggregator: TeamEventAggregator = getDefaultTeamEventAggregator(),
+    teamRunActivitySinkService: TeamRunActivitySinkService = getTeamRunActivitySinkService(),
   ) {
     this.sessionManager = sessionManager;
     this.teamManager = teamManager;
     this.teamCommandIngressService = teamCommandIngressService;
     this.teamEventAggregator = teamEventAggregator;
+    this.teamRunActivitySinkService = teamRunActivitySinkService;
   }
 
   async connect(connection: WebSocketConnection, teamId: string): Promise<string | null> {
@@ -228,7 +236,7 @@ export class AgentTeamStreamHandler {
     teamId: string;
     projection: DistributedTeamStreamProjection;
   }): number {
-    const message = this.createDistributedMessage(input.projection);
+    const message = this.createDistributedMessage(input.teamId, input.projection);
     const sessions = this.sessionManager.getSessionsForAgent(input.teamId);
 
     let publishedCount = 0;
@@ -315,15 +323,37 @@ export class AgentTeamStreamHandler {
     payload: Record<string, unknown>,
     approved: boolean,
   ): Promise<void> {
-    const token = AgentTeamStreamHandler.extractToolApprovalToken(payload);
-    if (!token) {
-      logger.warn("Team tool approval missing valid approval_token payload.");
-      return;
-    }
-    const agentName =
+    let token = AgentTeamStreamHandler.extractToolApprovalToken(payload);
+    const payloadAgentName =
       (typeof payload.agent_name === "string" && payload.agent_name.trim().length > 0
-        ? payload.agent_name
-        : null) ?? token.targetMemberName;
+        ? payload.agent_name.trim()
+        : null) ??
+      (typeof payload.target_member_name === "string" && payload.target_member_name.trim().length > 0
+        ? payload.target_member_name.trim()
+        : null);
+
+    if (!token) {
+      const invocationId =
+        typeof payload.invocation_id === "string" && payload.invocation_id.trim().length > 0
+          ? payload.invocation_id.trim()
+          : null;
+      if (invocationId && payloadAgentName) {
+        token = this.teamCommandIngressService.issueToolApprovalTokenFromActiveRun({
+          teamId,
+          invocationId,
+          targetMemberName: payloadAgentName,
+        });
+      }
+    }
+
+    if (!token) {
+      throw new TeamCommandIngressError(
+        "APPROVAL_TOKEN_REQUIRED",
+        "Team tool approval requires a valid approval token or resolvable invocation target.",
+      );
+    }
+
+    const agentName = token.targetMemberName;
     const reason = typeof payload.reason === "string" ? payload.reason : null;
     await this.teamCommandIngressService.dispatchToolApproval({
       teamId,
@@ -434,6 +464,7 @@ export class AgentTeamStreamHandler {
   ): ServerMessage {
     const run = this.teamCommandIngressService.resolveActiveRun(event.team_id);
     if (!run) {
+      this.publishTeamHistoryActivity(event.team_id, message.type, message.payload);
       return message;
     }
 
@@ -446,7 +477,7 @@ export class AgentTeamStreamHandler {
     });
     const basePayload =
       message.payload && typeof message.payload === "object" ? message.payload : {};
-    return new ServerMessage(message.type, {
+    const envelopedMessage = new ServerMessage(message.type, {
       ...basePayload,
       team_stream_event_envelope: {
         team_run_id: aggregatedEvent.teamRunId,
@@ -458,9 +489,14 @@ export class AgentTeamStreamHandler {
         received_at: aggregatedEvent.receivedAtIso,
       },
     });
+    this.publishTeamHistoryActivity(event.team_id, envelopedMessage.type, envelopedMessage.payload);
+    return envelopedMessage;
   }
 
-  private createDistributedMessage(projection: DistributedTeamStreamProjection): ServerMessage {
+  private createDistributedMessage(
+    teamId: string,
+    projection: DistributedTeamStreamProjection,
+  ): ServerMessage {
     const basePayload: Record<string, unknown> =
       projection.payload && typeof projection.payload === "object" && !Array.isArray(projection.payload)
         ? { ...(projection.payload as Record<string, unknown>) }
@@ -503,7 +539,21 @@ export class AgentTeamStreamHandler {
       payload.event_type = projection.eventType;
     }
 
-    return new ServerMessage(messageType, payload);
+    const message = new ServerMessage(messageType, payload);
+    this.publishTeamHistoryActivity(teamId, message.type, message.payload);
+    return message;
+  }
+
+  private publishTeamHistoryActivity(teamId: string, messageType: string, payload: unknown): void {
+    try {
+      this.teamRunActivitySinkService.onTeamStreamMessage({
+        teamId,
+        messageType,
+        payload,
+      });
+    } catch (error) {
+      logger.warn(`Failed to publish team history activity for '${teamId}': ${String(error)}`);
+    }
   }
 
   private static resolveDistributedMessageType(
@@ -564,22 +614,33 @@ export class AgentTeamStreamHandler {
       return null;
     }
     const token = rawToken as Record<string, unknown>;
+    const parsePositiveInt = (value: unknown): number | null => {
+      if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+        return value;
+      }
+      if (typeof value === "string") {
+        const normalized = value.trim();
+        if (!normalized) {
+          return null;
+        }
+        const parsed = Number(normalized);
+        if (Number.isInteger(parsed) && parsed > 0) {
+          return parsed;
+        }
+      }
+      return null;
+    };
     const teamRunId =
       (typeof token.teamRunId === "string" && token.teamRunId) ||
       (typeof token.team_run_id === "string" && token.team_run_id) ||
       null;
-    const runVersion =
-      (typeof token.runVersion === "number" && token.runVersion) ||
-      (typeof token.run_version === "number" && token.run_version) ||
-      null;
+    const runVersion = parsePositiveInt(token.runVersion) ?? parsePositiveInt(token.run_version);
     const invocationId =
       (typeof token.invocationId === "string" && token.invocationId) ||
       (typeof token.invocation_id === "string" && token.invocation_id) ||
       null;
     const invocationVersion =
-      (typeof token.invocationVersion === "number" && token.invocationVersion) ||
-      (typeof token.invocation_version === "number" && token.invocation_version) ||
-      null;
+      parsePositiveInt(token.invocationVersion) ?? parsePositiveInt(token.invocation_version);
     const targetMemberName =
       (typeof token.targetMemberName === "string" && token.targetMemberName) ||
       (typeof token.target_member_name === "string" && token.target_member_name) ||

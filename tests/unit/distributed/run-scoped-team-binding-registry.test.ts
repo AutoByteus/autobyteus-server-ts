@@ -12,7 +12,7 @@ describe("RunScopedTeamBindingRegistry", () => {
       runVersion: 2,
       teamDefinitionId: "def-1",
       runtimeTeamId: "team-runtime-1",
-      memberConfigs: [
+      memberBindings: [
         {
           memberName: "leader",
           agentDefinitionId: "agent-1",
@@ -20,6 +20,9 @@ describe("RunScopedTeamBindingRegistry", () => {
           autoExecuteTools: true,
           workspaceId: "workspace-1",
           llmConfig: { temperature: 0.1 },
+          memberRouteKey: "coordinator/leader",
+          memberAgentId: "member_leader_1",
+          memoryDir: "/tmp/memory/agent_teams/team-1/member_leader_1",
         },
       ],
     });
@@ -27,11 +30,24 @@ describe("RunScopedTeamBindingRegistry", () => {
     const resolved = registry.resolveRun("run-1");
     expect(resolved.teamDefinitionId).toBe("def-1");
     expect(resolved.runtimeTeamId).toBe("team-runtime-1");
-    expect(resolved.memberConfigs[0]?.memberName).toBe("leader");
+    expect(resolved.memberBindings[0]?.memberName).toBe("leader");
+    expect(resolved.memberBindings[0]?.memberRouteKey).toBe("coordinator/leader");
+    expect(resolved.memberBindings[0]?.memberAgentId).toBe("member_leader_1");
+    expect(resolved.memberBindings[0]?.memoryDir).toBe(
+      "/tmp/memory/agent_teams/team-1/member_leader_1",
+    );
 
-    resolved.memberConfigs[0]!.memberName = "mutated";
+    resolved.memberBindings[0]!.memberName = "mutated";
+    resolved.memberBindings[0]!.memberRouteKey = "mutated-route";
+    resolved.memberBindings[0]!.memberAgentId = "mutated-agent";
+    resolved.memberBindings[0]!.memoryDir = "/tmp/mutated";
     const reResolved = registry.resolveRun("run-1");
-    expect(reResolved.memberConfigs[0]?.memberName).toBe("leader");
+    expect(reResolved.memberBindings[0]?.memberName).toBe("leader");
+    expect(reResolved.memberBindings[0]?.memberRouteKey).toBe("coordinator/leader");
+    expect(reResolved.memberBindings[0]?.memberAgentId).toBe("member_leader_1");
+    expect(reResolved.memberBindings[0]?.memoryDir).toBe(
+      "/tmp/memory/agent_teams/team-1/member_leader_1",
+    );
   });
 
   it("throws when resolving a missing run binding", () => {
@@ -47,7 +63,7 @@ describe("RunScopedTeamBindingRegistry", () => {
       runVersion: 1,
       teamDefinitionId: "def-2",
       runtimeTeamId: "team-runtime-2",
-      memberConfigs: [],
+      memberBindings: [],
     });
 
     expect(registry.unbindRun("run-2")).toBe(true);

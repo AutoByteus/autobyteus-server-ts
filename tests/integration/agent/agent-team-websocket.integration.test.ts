@@ -292,6 +292,51 @@ describe("Agent team websocket integration", () => {
       agentName: "alpha",
     });
 
+    socket.send(
+      JSON.stringify({
+        type: "APPROVE_TOOL",
+        payload: {
+          invocation_id: "inv-23",
+          reason: "approved-without-token",
+          agent_name: "alpha",
+        },
+      }),
+    );
+
+    await waitForCondition(() => team.approvals.length === 2);
+    expect(team.approvals[1]).toMatchObject({
+      invocationId: "inv-23",
+      approved: true,
+      reason: "approved-without-token",
+      agentName: "alpha",
+    });
+
+    socket.send(
+      JSON.stringify({
+        type: "APPROVE_TOOL",
+        payload: {
+          invocation_id: "inv-24",
+          approval_token: {
+            teamRunId: "run-1",
+            runVersion: "1",
+            invocationId: "inv-24",
+            invocationVersion: "1",
+            targetMemberName: "alpha",
+          },
+          reason: "approved-string-version",
+          agent_name: "sub-team/alpha",
+        },
+      }),
+    );
+
+    await waitForCondition(() => team.approvals.length === 3);
+    expect(team.approvals[2]).toMatchObject({
+      invocationId: "inv-24",
+      approved: true,
+      reason: "approved-string-version",
+      agentName: "alpha",
+    });
+
     socket.close();
     await app.close();
   });

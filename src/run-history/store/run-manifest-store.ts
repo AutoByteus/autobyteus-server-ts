@@ -61,13 +61,13 @@ export class RunManifestStore {
     this.baseDir = path.join(memoryDir, "agents");
   }
 
-  getManifestPath(runId: string): string {
-    return path.join(this.baseDir, runId, "run_manifest.json");
+  getManifestPath(agentId: string): string {
+    return path.join(this.baseDir, agentId, "run_manifest.json");
   }
 
-  async readManifest(runId: string): Promise<RunManifest | null> {
+  async readManifest(agentId: string): Promise<RunManifest | null> {
     try {
-      const manifestPath = this.getManifestPath(runId);
+      const manifestPath = this.getManifestPath(agentId);
       const raw = await fs.readFile(manifestPath, "utf-8");
       const parsed = JSON.parse(raw);
       const manifest = validateManifest(parsed);
@@ -79,15 +79,15 @@ export class RunManifestStore {
     } catch (error) {
       const message = String(error);
       if (!message.includes("ENOENT")) {
-        logger.warn(`Failed reading run manifest for ${runId}: ${message}`);
+        logger.warn(`Failed reading run manifest for ${agentId}: ${message}`);
       }
       return null;
     }
   }
 
-  async writeManifest(runId: string, manifest: RunManifest): Promise<void> {
+  async writeManifest(agentId: string, manifest: RunManifest): Promise<void> {
     const normalized = normalizeManifest(manifest);
-    const manifestPath = this.getManifestPath(runId);
+    const manifestPath = this.getManifestPath(agentId);
     await fs.mkdir(path.dirname(manifestPath), { recursive: true });
     await fs.writeFile(manifestPath, JSON.stringify(normalized, null, 2), "utf-8");
   }

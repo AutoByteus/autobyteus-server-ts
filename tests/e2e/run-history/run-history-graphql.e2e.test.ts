@@ -9,7 +9,7 @@ import { buildGraphqlSchema } from "../../../src/api/graphql/schema.js";
 import { appConfigProvider } from "../../../src/config/app-config-provider.js";
 
 type RunHistoryIndexRow = {
-  runId: string;
+  agentId: string;
   agentDefinitionId: string;
   agentName: string;
   workspaceRootPath: string;
@@ -73,11 +73,11 @@ describe("Run history GraphQL e2e", () => {
 
   afterEach(() => {
     const index = readIndex(indexFilePath);
-    index.rows = index.rows.filter((row) => !createdRunIds.has(row.runId));
+    index.rows = index.rows.filter((row) => !createdRunIds.has(row.agentId));
     writeIndex(indexFilePath, index);
 
-    for (const runId of createdRunIds) {
-      fs.rmSync(path.join(memoryDir, "agents", runId), { recursive: true, force: true });
+    for (const agentId of createdRunIds) {
+      fs.rmSync(path.join(memoryDir, "agents", agentId), { recursive: true, force: true });
     }
     createdRunIds.clear();
   });
@@ -104,10 +104,10 @@ describe("Run history GraphQL e2e", () => {
   };
 
   it("deletes inactive run history and removes the memory directory", async () => {
-    const runId = `run_history_delete_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    createdRunIds.add(runId);
+    const agentId = `run_history_delete_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    createdRunIds.add(agentId);
 
-    const runDir = path.join(memoryDir, "agents", runId);
+    const runDir = path.join(memoryDir, "agents", agentId);
     fs.mkdirSync(runDir, { recursive: true });
     fs.writeFileSync(path.join(runDir, "raw_traces.jsonl"), "", "utf-8");
     fs.writeFileSync(
@@ -125,9 +125,9 @@ describe("Run history GraphQL e2e", () => {
 
     const index = readIndex(indexFilePath);
     index.rows = index.rows
-      .filter((row) => row.runId !== runId)
+      .filter((row) => row.agentId !== agentId)
       .concat({
-        runId,
+        agentId,
         agentDefinitionId: "agent-def-e2e",
         agentName: "E2E Agent",
         workspaceRootPath: "/tmp/e2e",
@@ -138,8 +138,8 @@ describe("Run history GraphQL e2e", () => {
     writeIndex(indexFilePath, index);
 
     const deleteMutation = `
-      mutation DeleteRunHistory($runId: String!) {
-        deleteRunHistory(runId: $runId) {
+      mutation DeleteRunHistory($agentId: String!) {
+        deleteRunHistory(agentId: $agentId) {
           success
           message
         }
@@ -147,7 +147,7 @@ describe("Run history GraphQL e2e", () => {
     `;
     const deleted = await execGraphql<{
       deleteRunHistory: { success: boolean; message: string };
-    }>(deleteMutation, { runId });
+    }>(deleteMutation, { agentId });
     expect(deleted.deleteRunHistory.success).toBe(true);
     expect(fs.existsSync(runDir)).toBe(false);
 
@@ -156,7 +156,7 @@ describe("Run history GraphQL e2e", () => {
         listRunHistory(limitPerAgent: 10) {
           agents {
             runs {
-              runId
+              agentId
             }
           }
         }
@@ -165,7 +165,7 @@ describe("Run history GraphQL e2e", () => {
     const listed = await execGraphql<{
       listRunHistory: Array<{
         agents: Array<{
-          runs: Array<{ runId: string }>;
+          runs: Array<{ agentId: string }>;
         }>;
       }>;
     }>(listQuery);
@@ -173,14 +173,14 @@ describe("Run history GraphQL e2e", () => {
     const remainingRunIds = listed.listRunHistory
       .flatMap((workspace) => workspace.agents)
       .flatMap((agent) => agent.runs)
-      .map((run) => run.runId);
-    expect(remainingRunIds.includes(runId)).toBe(false);
+      .map((run) => run.agentId);
+    expect(remainingRunIds.includes(agentId)).toBe(false);
   });
 
   it("rejects path-traversal-like run IDs", async () => {
     const deleteMutation = `
-      mutation DeleteRunHistory($runId: String!) {
-        deleteRunHistory(runId: $runId) {
+      mutation DeleteRunHistory($agentId: String!) {
+        deleteRunHistory(agentId: $agentId) {
           success
           message
         }
@@ -188,21 +188,21 @@ describe("Run history GraphQL e2e", () => {
     `;
     const result = await execGraphql<{
       deleteRunHistory: { success: boolean; message: string };
-    }>(deleteMutation, { runId: "../escape" });
+    }>(deleteMutation, { agentId: "../escape" });
 
     expect(result.deleteRunHistory.success).toBe(false);
     expect(result.deleteRunHistory.message).toContain("Invalid");
   });
 
   it("deletes stale index rows even when run directory is missing", async () => {
-    const runId = `run_history_stale_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    createdRunIds.add(runId);
+    const agentId = `run_history_stale_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    createdRunIds.add(agentId);
 
     const index = readIndex(indexFilePath);
     index.rows = index.rows
-      .filter((row) => row.runId !== runId)
+      .filter((row) => row.agentId !== agentId)
       .concat({
-        runId,
+        agentId,
         agentDefinitionId: "agent-def-e2e",
         agentName: "E2E Agent",
         workspaceRootPath: "/tmp/e2e",
@@ -213,8 +213,8 @@ describe("Run history GraphQL e2e", () => {
     writeIndex(indexFilePath, index);
 
     const deleteMutation = `
-      mutation DeleteRunHistory($runId: String!) {
-        deleteRunHistory(runId: $runId) {
+      mutation DeleteRunHistory($agentId: String!) {
+        deleteRunHistory(agentId: $agentId) {
           success
           message
         }
@@ -222,10 +222,10 @@ describe("Run history GraphQL e2e", () => {
     `;
     const deleted = await execGraphql<{
       deleteRunHistory: { success: boolean; message: string };
-    }>(deleteMutation, { runId });
+    }>(deleteMutation, { agentId });
     expect(deleted.deleteRunHistory.success).toBe(true);
 
     const updatedIndex = readIndex(indexFilePath);
-    expect(updatedIndex.rows.some((row) => row.runId === runId)).toBe(false);
+    expect(updatedIndex.rows.some((row) => row.agentId === agentId)).toBe(false);
   });
 });

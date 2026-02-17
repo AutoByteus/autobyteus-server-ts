@@ -29,6 +29,7 @@ import { PromptLoader, getPromptLoader } from "../../prompt-engineering/utils/pr
 import { SkillService } from "../../skills/services/skill-service.js";
 import { WorkspaceManager, getWorkspaceManager } from "../../workspaces/workspace-manager.js";
 import { AgentTeamCreationError, AgentTeamTerminationError } from "../errors.js";
+import { normalizeMemberRouteKey } from "../../run-history/utils/team-member-agent-id.js";
 
 const logger = {
   info: (...args: unknown[]) => console.info(...args),
@@ -36,14 +37,26 @@ const logger = {
   error: (...args: unknown[]) => console.error(...args),
 };
 
-const cloneMemberConfigInput = (config: TeamMemberConfigInput): TeamMemberConfigInput => ({
-  memberName: config.memberName,
-  agentDefinitionId: config.agentDefinitionId,
-  llmModelIdentifier: config.llmModelIdentifier,
-  autoExecuteTools: config.autoExecuteTools,
-  workspaceId: config.workspaceId ?? null,
-  llmConfig: config.llmConfig ? { ...config.llmConfig } : null,
-});
+const cloneMemberConfigInput = (config: TeamMemberConfigInput): TeamMemberConfigInput => {
+  const cloned: TeamMemberConfigInput = {
+    memberName: config.memberName,
+    agentDefinitionId: config.agentDefinitionId,
+    llmModelIdentifier: config.llmModelIdentifier,
+    autoExecuteTools: config.autoExecuteTools,
+    workspaceId: config.workspaceId ?? null,
+    llmConfig: config.llmConfig ? { ...config.llmConfig } : null,
+  };
+  if (typeof config.memberRouteKey === "string") {
+    cloned.memberRouteKey = config.memberRouteKey;
+  }
+  if (typeof config.memberAgentId === "string") {
+    cloned.memberAgentId = config.memberAgentId;
+  }
+  if (typeof config.memoryDir === "string") {
+    cloned.memoryDir = config.memoryDir;
+  }
+  return cloned;
+};
 
 type TeamFactoryLike = typeof defaultAgentTeamFactory;
 type LlmFactoryLike = typeof LLMFactory;
@@ -81,6 +94,9 @@ export type TeamMemberConfigInput = {
   autoExecuteTools: boolean;
   workspaceId?: string | null;
   llmConfig?: Record<string, unknown> | null;
+  memberRouteKey?: string | null;
+  memberAgentId?: string | null;
+  memoryDir?: string | null;
 };
 
 type AgentTeamInstanceManagerOptions = {
@@ -148,30 +164,64 @@ export class AgentTeamInstanceManager {
     teamDefinitionId: string,
     memberConfigs: TeamMemberConfigInput[],
   ): Promise<string> {
+    return this.createTeamInstanceInternal({
+      teamDefinitionId,
+      memberConfigs,
+      preferredTeamId: null,
+    });
+  }
+
+  async createTeamInstanceWithId(
+    teamId: string,
+    teamDefinitionId: string,
+    memberConfigs: TeamMemberConfigInput[],
+  ): Promise<string> {
+    return this.createTeamInstanceInternal({
+      teamDefinitionId,
+      memberConfigs,
+      preferredTeamId: teamId,
+    });
+  }
+
+  private async createTeamInstanceInternal(input: {
+    teamDefinitionId: string;
+    memberConfigs: TeamMemberConfigInput[];
+    preferredTeamId: string | null;
+  }): Promise<string> {
     logger.info(
-      `Attempting to create agent team instance from definition ID: ${teamDefinitionId}`,
+      `Attempting to create agent team instance from definition ID: ${input.teamDefinitionId}`,
     );
 
     try {
-      const memberConfigSnapshots = memberConfigs.map((config) => cloneMemberConfigInput(config));
+      const memberConfigSnapshots = input.memberConfigs.map((config) => cloneMemberConfigInput(config));
       const memberConfigsMap: Record<string, TeamMemberConfigInput> = {};
       for (const config of memberConfigSnapshots) {
         memberConfigsMap[config.memberName] = config;
+        if (typeof config.memberRouteKey === "string" && config.memberRouteKey.trim()) {
+          const normalizedRouteKey = normalizeMemberRouteKey(config.memberRouteKey);
+          memberConfigsMap[normalizedRouteKey] = config;
+        }
       }
 
       const teamConfig = await this.buildTeamConfigFromDefinition(
-        teamDefinitionId,
+        input.teamDefinitionId,
         memberConfigsMap,
         new Set(),
       );
 
-      const team = this.teamFactory.createTeam(teamConfig) as TeamLike & {
-        start?: () => void;
-      };
+      const createTeamWithId = (this.teamFactory as any).createTeamWithId;
+      const team =
+        input.preferredTeamId && typeof createTeamWithId === "function"
+          ? (createTeamWithId.call(this.teamFactory, input.preferredTeamId, teamConfig) as TeamLike & {
+              start?: () => void;
+            })
+          : (this.teamFactory.createTeam(teamConfig) as TeamLike & {
+              start?: () => void;
+            });
       const teamMemberNames = teamConfig.nodes.map((node) => node.name);
-      this.teamDefinitionIdByTeamId.set(team.teamId, teamDefinitionId);
-      this.teamIdByTeamDefinitionId.set(teamDefinitionId, team.teamId);
-      this.memberConfigsByTeamDefinitionId.set(teamDefinitionId, memberConfigSnapshots);
+      this.teamDefinitionIdByTeamId.set(team.teamId, input.teamDefinitionId);
+      this.teamIdByTeamDefinitionId.set(input.teamDefinitionId, team.teamId);
+      this.memberConfigsByTeamDefinitionId.set(input.teamDefinitionId, memberConfigSnapshots);
       this.memberNamesByTeamId.set(team.teamId, teamMemberNames);
       team.start?.();
       await this.waitForIdle(team, 120.0);
@@ -182,7 +232,7 @@ export class AgentTeamInstanceManager {
       return team.teamId;
     } catch (error) {
       logger.error(
-        `Failed to create agent team from definition ID '${teamDefinitionId}': ${String(error)}`,
+        `Failed to create agent team from definition ID '${input.teamDefinitionId}': ${String(error)}`,
       );
       if (error instanceof AgentTeamCreationError) {
         throw error;
@@ -195,6 +245,7 @@ export class AgentTeamInstanceManager {
     memberName: string,
     agentDefinitionId: string,
     memberConfig: TeamMemberConfigInput,
+    memberRouteKey: string,
   ): Promise<AgentConfig> {
     const agentDef = await this.agentDefinitionService.getAgentDefinitionById(agentDefinitionId);
     if (!agentDef) {
@@ -342,10 +393,38 @@ export class AgentTeamInstanceManager {
       config,
     );
 
-    const initialCustomData = {
+    const initialCustomData: Record<string, unknown> = {
       agent_definition_id: agentDefinitionId,
       is_first_user_turn: true,
     };
+
+    const normalizedRouteKey = normalizeMemberRouteKey(
+      memberConfig.memberRouteKey ?? memberRouteKey,
+    );
+    const memberAgentId =
+      typeof memberConfig.memberAgentId === "string" && memberConfig.memberAgentId.trim().length > 0
+        ? memberConfig.memberAgentId.trim()
+        : null;
+    const memoryDir =
+      typeof memberConfig.memoryDir === "string" && memberConfig.memoryDir.trim().length > 0
+        ? memberConfig.memoryDir.trim()
+        : null;
+
+    if (memberAgentId) {
+      initialCustomData.teamMemberIdentity = {
+        memberRouteKey: normalizedRouteKey,
+        memberAgentId,
+      };
+
+      if (memoryDir) {
+        initialCustomData.teamRestore = {
+          [memberName]: {
+            memberAgentId,
+            memoryDir,
+          },
+        };
+      }
+    }
 
     return new AgentConfig(
       memberName,
@@ -371,6 +450,7 @@ export class AgentTeamInstanceManager {
     teamDefinitionId: string,
     memberConfigsMap: Record<string, TeamMemberConfigInput>,
     visited: Set<string>,
+    routePrefix: string = "",
   ): Promise<AgentTeamConfig> {
     if (visited.has(teamDefinitionId)) {
       throw new AgentTeamCreationError(
@@ -386,8 +466,11 @@ export class AgentTeamInstanceManager {
 
     const hydratedConfigs: Record<string, AgentConfig | AgentTeamConfig> = {};
     for (const member of teamDef.nodes) {
+      const memberRouteKey = routePrefix
+        ? normalizeMemberRouteKey(`${routePrefix}/${member.memberName}`)
+        : normalizeMemberRouteKey(member.memberName);
       if (member.referenceType === NodeType.AGENT) {
-        const memberConfig = memberConfigsMap[member.memberName];
+        const memberConfig = memberConfigsMap[memberRouteKey] ?? memberConfigsMap[member.memberName];
         if (!memberConfig) {
           throw new AgentTeamCreationError(
             `Configuration for team member '${member.memberName}' was not provided.`,
@@ -397,12 +480,14 @@ export class AgentTeamInstanceManager {
           member.memberName,
           member.referenceId,
           memberConfig,
+          memberRouteKey,
         );
       } else if (member.referenceType === NodeType.AGENT_TEAM) {
         hydratedConfigs[member.memberName] = await this.buildTeamConfigFromDefinition(
           member.referenceId,
           memberConfigsMap,
           new Set(visited),
+          memberRouteKey,
         );
       }
     }

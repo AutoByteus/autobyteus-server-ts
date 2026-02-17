@@ -101,6 +101,43 @@ describe("MemberPlacementResolver", () => {
     expect(placement.observer?.nodeId).toBe("node-b");
   });
 
+  it("maps embedded-local homeNodeId to default node id", () => {
+    const teamDefinition = buildTeamDefinition();
+    teamDefinition.nodes[0]!.requiredNodeId = null;
+    teamDefinition.nodes[1]!.preferredNodeId = null;
+    teamDefinition.nodes[2]!.homeNodeId = "embedded-local";
+
+    const placement = resolver.resolvePlacement({
+      teamDefinition,
+      nodeSnapshots: [
+        { nodeId: "node-runtime", isHealthy: true },
+        { nodeId: "node-remote", isHealthy: true },
+      ],
+      defaultNodeId: "node-runtime",
+    });
+
+    expect(placement.observer?.source).toBe("home");
+    expect(placement.observer?.nodeId).toBe("node-runtime");
+  });
+
+  it("maps embedded-local requiredNodeId to default node id", () => {
+    const teamDefinition = buildTeamDefinition();
+    teamDefinition.nodes[1]!.preferredNodeId = null;
+    teamDefinition.nodes[0]!.requiredNodeId = "embedded-local";
+
+    const placement = resolver.resolvePlacement({
+      teamDefinition,
+      nodeSnapshots: [
+        { nodeId: "node-runtime", isHealthy: true },
+        { nodeId: "node-remote", isHealthy: true },
+      ],
+      defaultNodeId: "node-runtime",
+    });
+
+    expect(placement.leader?.source).toBe("required");
+    expect(placement.leader?.nodeId).toBe("node-runtime");
+  });
+
   it("throws for unknown hint node ids", () => {
     const teamDefinition = buildTeamDefinition();
     teamDefinition.nodes[1]!.preferredNodeId = "node-missing";

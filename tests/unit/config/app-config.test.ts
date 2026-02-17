@@ -11,6 +11,7 @@ const ENV_KEYS = [
   "DB_TYPE",
   "DB_NAME",
   "DATABASE_URL",
+  "AUTOBYTEUS_MEMORY_DIR",
   "AUTOBYTEUS_SKILLS_PATHS",
   "LOG_LEVEL",
 ];
@@ -66,6 +67,23 @@ describe("AppConfig", () => {
     expect(config.get("DATABASE_URL")).toBe(`file:${expectedDbPath}`);
     expect(process.env.DATABASE_URL).toBe(`file:${expectedDbPath}`);
     expect(fs.existsSync(path.join(configDir, "logs"))).toBe(true);
+
+    await fsPromises.rm(configDir, { recursive: true, force: true });
+  });
+
+  it("uses AUTOBYTEUS_MEMORY_DIR when provided", async () => {
+    const configDir = await createTempConfigDir(
+      "AUTOBYTEUS_SERVER_HOST=http://localhost:8000\nAPP_ENV=test\nDB_TYPE=sqlite\nAUTOBYTEUS_MEMORY_DIR=./custom-memory\n",
+    );
+    const config = new AppConfig();
+    config.setCustomAppDataDir(configDir);
+
+    config.initialize();
+
+    const expectedMemoryDir = path.resolve(configDir, "custom-memory");
+    expect(config.getMemoryDir()).toBe(expectedMemoryDir);
+    expect(process.env.AUTOBYTEUS_MEMORY_DIR).toBe(expectedMemoryDir);
+    expect(fs.existsSync(expectedMemoryDir)).toBe(true);
 
     await fsPromises.rm(configDir, { recursive: true, force: true });
   });

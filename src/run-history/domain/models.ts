@@ -13,7 +13,7 @@ export type RunEditableFieldFlags = {
 };
 
 export interface RunHistoryIndexRow {
-  runId: string;
+  agentId: string;
   agentDefinitionId: string;
   agentName: string;
   workspaceRootPath: string;
@@ -45,7 +45,7 @@ export interface RunRuntimeOverrides {
 }
 
 export interface RunHistoryItem {
-  runId: string;
+  agentId: string;
   summary: string;
   lastActivityAt: string;
   lastKnownStatus: RunKnownStatus;
@@ -65,7 +65,7 @@ export interface RunHistoryWorkspaceGroup {
 }
 
 export interface RunResumeConfig {
-  runId: string;
+  agentId: string;
   isActive: boolean;
   manifestConfig: RunManifest;
   editableFields: RunEditableFieldFlags;
