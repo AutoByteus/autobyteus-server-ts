@@ -4,7 +4,7 @@ import { AgentTeamDefinition, TeamMember } from "../../../src/agent-team-definit
 import { MemberPlacementResolver } from "../../../src/distributed/member-placement/member-placement-resolver.js";
 
 describe("Distributed run placement integration", () => {
-  it("resolves required/preferred/default placements into a frozen map", () => {
+  it("resolves home/default placements into a frozen map", () => {
     const teamDefinition = new AgentTeamDefinition({
       id: "def-1",
       name: "dist-team",
@@ -15,13 +15,13 @@ describe("Distributed run placement integration", () => {
           memberName: "leader",
           referenceId: "agent-1",
           referenceType: NodeType.AGENT,
-          requiredNodeId: "node-a",
+          homeNodeId: "node-a",
         }),
         new TeamMember({
           memberName: "helper",
           referenceId: "agent-2",
           referenceType: NodeType.AGENT,
-          preferredNodeId: "node-b",
+          homeNodeId: "node-b",
         }),
         new TeamMember({
           memberName: "observer",
@@ -42,9 +42,9 @@ describe("Distributed run placement integration", () => {
     });
 
     expect(placement.leader?.nodeId).toBe("node-a");
-    expect(placement.leader?.source).toBe("required");
+    expect(placement.leader?.source).toBe("home");
     expect(placement.helper?.nodeId).toBe("node-b");
-    expect(placement.helper?.source).toBe("preferred");
+    expect(placement.helper?.source).toBe("home");
     expect(placement.observer?.nodeId).toBe("node-c");
     expect(placement.observer?.source).toBe("default");
   });

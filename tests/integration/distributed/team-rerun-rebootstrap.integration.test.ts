@@ -66,13 +66,13 @@ describe("Distributed team rerun rebootstrap integration", () => {
           memberName: "leader",
           referenceId: "agent-leader",
           referenceType: NodeType.AGENT,
-          requiredNodeId: "node-host",
+          homeNodeId: "node-host",
         }),
         new TeamMember({
           memberName: "helper",
           referenceId: "agent-helper",
           referenceType: NodeType.AGENT,
-          requiredNodeId: "node-worker-1",
+          homeNodeId: "node-worker-1",
         }),
       ],
     });

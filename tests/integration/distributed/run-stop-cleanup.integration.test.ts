@@ -68,13 +68,13 @@ describe("Distributed run stop cleanup integration", () => {
           memberName: "leader",
           referenceId: "agent-1",
           referenceType: NodeType.AGENT,
-          requiredNodeId: "node-host",
+          homeNodeId: "node-host",
         }),
         new TeamMember({
           memberName: "helper",
           referenceId: "agent-2",
           referenceType: NodeType.AGENT,
-          requiredNodeId: "node-worker-1",
+          homeNodeId: "node-worker-1",
         }),
       ],
     });

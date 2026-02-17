@@ -15,7 +15,7 @@ const normalizeNodeId = (value: string | null | undefined): string | null => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
-const canonicalizePlacementHintNodeId = (
+const canonicalizeHomeNodeId = (
   value: string | null | undefined,
   defaultNodeId: string | null,
 ): string | null => {
@@ -29,7 +29,7 @@ const canonicalizePlacementHintNodeId = (
   return normalized;
 };
 
-export type MemberPlacementSource = "required" | "home" | "preferred" | "default";
+export type MemberPlacementSource = "home" | "default";
 
 export type MemberPlacement = {
   memberName: string;
@@ -72,26 +72,14 @@ export class MemberPlacementResolver {
     for (const member of input.teamDefinition.nodes) {
       const canonicalizedMember = {
         ...member,
-        homeNodeId: canonicalizePlacementHintNodeId(member.homeNodeId, canonicalDefaultNodeId),
-        requiredNodeId: canonicalizePlacementHintNodeId(member.requiredNodeId, canonicalDefaultNodeId),
-        preferredNodeId: canonicalizePlacementHintNodeId(member.preferredNodeId, canonicalDefaultNodeId),
+        homeNodeId: canonicalizeHomeNodeId(member.homeNodeId, canonicalDefaultNodeId),
       };
 
-      this.placementConstraintPolicy.validateRequiredAndPreferred(
+      this.placementConstraintPolicy.validateHomeNodeOwnership(
         canonicalizedMember,
         knownNodeIds,
         availableNodeIds
       );
-
-      const requiredNodeId = normalizeNodeId(canonicalizedMember.requiredNodeId);
-      if (requiredNodeId) {
-        placementByMember[member.memberName] = {
-          memberName: member.memberName,
-          nodeId: requiredNodeId,
-          source: "required",
-        };
-        continue;
-      }
 
       const homeNodeId = normalizeNodeId(canonicalizedMember.homeNodeId);
       if (homeNodeId && availableNodeIds.has(homeNodeId)) {
@@ -99,16 +87,6 @@ export class MemberPlacementResolver {
           memberName: member.memberName,
           nodeId: homeNodeId,
           source: "home",
-        };
-        continue;
-      }
-
-      const preferredNodeId = normalizeNodeId(canonicalizedMember.preferredNodeId);
-      if (preferredNodeId && availableNodeIds.has(preferredNodeId)) {
-        placementByMember[member.memberName] = {
-          memberName: member.memberName,
-          nodeId: preferredNodeId,
-          source: "preferred",
         };
         continue;
       }

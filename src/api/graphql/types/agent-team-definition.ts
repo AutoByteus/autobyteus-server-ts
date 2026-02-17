@@ -46,12 +46,6 @@ export class TeamMember {
 
   @Field(() => String, { nullable: true })
   homeNodeId?: string | null;
-
-  @Field(() => String, { nullable: true })
-  requiredNodeId?: string | null;
-
-  @Field(() => String, { nullable: true })
-  preferredNodeId?: string | null;
 }
 
 @ObjectType()
@@ -91,12 +85,6 @@ export class TeamMemberInput {
 
   @Field(() => String, { nullable: true })
   homeNodeId?: string | null;
-
-  @Field(() => String, { nullable: true })
-  requiredNodeId?: string | null;
-
-  @Field(() => String, { nullable: true })
-  preferredNodeId?: string | null;
 }
 
 @InputType()
@@ -197,8 +185,6 @@ export class AgentTeamDefinitionResolver {
             referenceId: node.referenceId,
             referenceType: node.referenceType,
             homeNodeId: normalizeRequiredString(node.homeNodeId ?? DEFAULT_HOME_NODE_ID, "homeNodeId"),
-            requiredNodeId: node.requiredNodeId ?? null,
-            preferredNodeId: node.preferredNodeId ?? null,
           }),
       );
 
@@ -235,8 +221,6 @@ export class AgentTeamDefinitionResolver {
                   referenceId: node.referenceId,
                   referenceType: node.referenceType,
                   homeNodeId: normalizeRequiredString(node.homeNodeId ?? DEFAULT_HOME_NODE_ID, "homeNodeId"),
-                  requiredNodeId: node.requiredNodeId ?? null,
-                  preferredNodeId: node.preferredNodeId ?? null,
                 }),
             );
 

@@ -54,8 +54,7 @@ describe("Agent team definitions GraphQL e2e", () => {
             memberName
             referenceId
             referenceType
-            requiredNodeId
-            preferredNodeId
+            homeNodeId
           }
         }
       }
@@ -73,8 +72,7 @@ describe("Agent team definitions GraphQL e2e", () => {
           memberName: string;
           referenceId: string;
           referenceType: string;
-          requiredNodeId: string | null;
-          preferredNodeId: string | null;
+          homeNodeId: string | null;
         }>;
       };
     }>(createMutation, {
@@ -89,15 +87,13 @@ describe("Agent team definitions GraphQL e2e", () => {
             memberName: "leader",
             referenceId: "agent-1",
             referenceType: "AGENT",
-            requiredNodeId: "embedded-local",
-            preferredNodeId: "remote-node-1",
+            homeNodeId: "embedded-local",
           },
           {
             memberName: "helper",
             referenceId: "agent-2",
             referenceType: "AGENT",
-            requiredNodeId: null,
-            preferredNodeId: "remote-node-2",
+            homeNodeId: "remote-node-2",
           },
         ],
       },
@@ -108,10 +104,8 @@ describe("Agent team definitions GraphQL e2e", () => {
       "http://localhost:8000/rest/files/images/e2e-team-avatar.png",
     );
     expect(created.createAgentTeamDefinition.nodes.length).toBe(2);
-    expect(created.createAgentTeamDefinition.nodes[0]?.requiredNodeId).toBe("embedded-local");
-    expect(created.createAgentTeamDefinition.nodes[0]?.preferredNodeId).toBe("remote-node-1");
-    expect(created.createAgentTeamDefinition.nodes[1]?.requiredNodeId).toBeNull();
-    expect(created.createAgentTeamDefinition.nodes[1]?.preferredNodeId).toBe("remote-node-2");
+    expect(created.createAgentTeamDefinition.nodes[0]?.homeNodeId).toBe("embedded-local");
+    expect(created.createAgentTeamDefinition.nodes[1]?.homeNodeId).toBe("remote-node-2");
 
     const updateMutation = `
       mutation UpdateTeam($input: UpdateAgentTeamDefinitionInput!) {
@@ -122,8 +116,7 @@ describe("Agent team definitions GraphQL e2e", () => {
           avatarUrl
           nodes {
             memberName
-            requiredNodeId
-            preferredNodeId
+            homeNodeId
           }
         }
       }
@@ -136,8 +129,7 @@ describe("Agent team definitions GraphQL e2e", () => {
         avatarUrl: string | null;
         nodes: Array<{
           memberName: string;
-          requiredNodeId: string | null;
-          preferredNodeId: string | null;
+          homeNodeId: string | null;
         }>;
       };
     }>(updateMutation, {
@@ -151,15 +143,13 @@ describe("Agent team definitions GraphQL e2e", () => {
             memberName: "leader",
             referenceId: "agent-1",
             referenceType: "AGENT",
-            requiredNodeId: "remote-node-1",
-            preferredNodeId: "remote-node-2",
+            homeNodeId: "remote-node-1",
           },
           {
             memberName: "helper",
             referenceId: "agent-2",
             referenceType: "AGENT",
-            requiredNodeId: null,
-            preferredNodeId: null,
+            homeNodeId: "embedded-local",
           },
         ],
       },
@@ -167,10 +157,8 @@ describe("Agent team definitions GraphQL e2e", () => {
     expect(updated.updateAgentTeamDefinition.description).toBe("Updated team description");
     expect(updated.updateAgentTeamDefinition.role).toBe("UpdatedRole");
     expect(updated.updateAgentTeamDefinition.avatarUrl).toBeNull();
-    expect(updated.updateAgentTeamDefinition.nodes[0]?.requiredNodeId).toBe("remote-node-1");
-    expect(updated.updateAgentTeamDefinition.nodes[0]?.preferredNodeId).toBe("remote-node-2");
-    expect(updated.updateAgentTeamDefinition.nodes[1]?.requiredNodeId).toBeNull();
-    expect(updated.updateAgentTeamDefinition.nodes[1]?.preferredNodeId).toBeNull();
+    expect(updated.updateAgentTeamDefinition.nodes[0]?.homeNodeId).toBe("remote-node-1");
+    expect(updated.updateAgentTeamDefinition.nodes[1]?.homeNodeId).toBe("embedded-local");
 
     const query = `
       query GetTeam($id: String!) {

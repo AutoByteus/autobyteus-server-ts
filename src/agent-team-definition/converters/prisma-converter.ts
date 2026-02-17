@@ -43,10 +43,6 @@ const parseNodes = (value: unknown): TeamMember[] => {
       const referenceId = (record.referenceId ?? record.reference_id) as string | undefined;
       const referenceTypeRaw = record.referenceType ?? record.reference_type;
       const homeNodeId = (record.homeNodeId ?? record.home_node_id) as string | null | undefined;
-      const requiredNodeId =
-        (record.requiredNodeId ?? record.required_node_id) as string | null | undefined;
-      const preferredNodeId =
-        (record.preferredNodeId ?? record.preferred_node_id) as string | null | undefined;
       const referenceType = parseNodeType(referenceTypeRaw);
 
       if (!memberName || !referenceId || !referenceType) {
@@ -58,8 +54,6 @@ const parseNodes = (value: unknown): TeamMember[] => {
         referenceId,
         referenceType,
         homeNodeId: normalizeOptionalString(homeNodeId) ?? DEFAULT_HOME_NODE_ID,
-        requiredNodeId: normalizeOptionalString(requiredNodeId),
-        preferredNodeId: normalizeOptionalString(preferredNodeId),
       });
     })
     .filter((node): node is TeamMember => node !== null);
@@ -70,8 +64,6 @@ const toNodePayload = (node: TeamMember): Record<string, unknown> => ({
   reference_id: node.referenceId,
   reference_type: node.referenceType,
   home_node_id: normalizeOptionalString(node.homeNodeId) ?? DEFAULT_HOME_NODE_ID,
-  required_node_id: normalizeOptionalString(node.requiredNodeId),
-  preferred_node_id: normalizeOptionalString(node.preferredNodeId),
 });
 
 const normalizeOptionalString = (value: string | null | undefined): string | null => {
