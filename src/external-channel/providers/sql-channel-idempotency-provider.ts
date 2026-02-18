@@ -93,7 +93,19 @@ const toRecord = (value: {
   expiresAt: value.expiresAt,
 });
 
-const isUniqueConstraintError = (error: unknown): boolean =>
-  error instanceof Prisma.PrismaClientKnownRequestError &&
-  error.code === "P2002";
+const isUniqueConstraintError = (error: unknown): boolean => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return error.code === "P2002";
+  }
 
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const prismaLike = error as { code?: unknown; name?: unknown };
+  return (
+    prismaLike.code === "P2002" &&
+    typeof prismaLike.name === "string" &&
+    prismaLike.name.includes("PrismaClientKnownRequestError")
+  );
+};

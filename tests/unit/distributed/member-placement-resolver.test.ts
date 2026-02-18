@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { NodeType } from "../../../src/agent-team-definition/domain/enums.js";
 import { AgentTeamDefinition, TeamMember } from "../../../src/agent-team-definition/domain/models.js";
 import { MemberPlacementResolver } from "../../../src/distributed/member-placement/member-placement-resolver.js";
@@ -8,7 +8,11 @@ import {
 } from "../../../src/distributed/policies/placement-constraint-policy.js";
 
 describe("MemberPlacementResolver", () => {
-  const resolver = new MemberPlacementResolver();
+  let resolver: MemberPlacementResolver;
+
+  beforeEach(() => {
+    resolver = new MemberPlacementResolver();
+  });
 
   const buildTeamDefinition = () =>
     new AgentTeamDefinition({
@@ -72,6 +76,8 @@ describe("MemberPlacementResolver", () => {
     const placement = resolver.resolvePlacement({
       teamDefinition,
       nodeSnapshots: [
+        { nodeId: "node-a", isHealthy: true },
+        { nodeId: "node-b", isHealthy: true },
         { nodeId: "node-runtime", isHealthy: true },
         { nodeId: "node-remote", isHealthy: true },
       ],
@@ -110,5 +116,20 @@ describe("MemberPlacementResolver", () => {
         ],
       }),
     ).toThrow(HomeNodeUnavailableError);
+  });
+
+  it("does not translate stale homeNodeId values", () => {
+    const teamDefinition = buildTeamDefinition();
+    teamDefinition.nodes[1]!.homeNodeId = "remote-legacy";
+
+    expect(() =>
+      resolver.resolvePlacement({
+        teamDefinition,
+        nodeSnapshots: [
+          { nodeId: "node-a", isHealthy: true },
+          { nodeId: "node-b", isHealthy: true },
+        ],
+      }),
+    ).toThrow(UnknownHomeNodeError);
   });
 });

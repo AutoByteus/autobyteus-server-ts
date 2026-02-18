@@ -32,6 +32,7 @@ const cloneMemberConfigInput = (config: TeamMemberConfigInput): TeamMemberConfig
   llmModelIdentifier: config.llmModelIdentifier,
   autoExecuteTools: config.autoExecuteTools,
   workspaceId: config.workspaceId ?? null,
+  workspaceRootPath: config.workspaceRootPath ?? null,
   llmConfig: config.llmConfig ? { ...config.llmConfig } : null,
   memberRouteKey: config.memberRouteKey ?? null,
   memberAgentId: config.memberAgentId ?? null,

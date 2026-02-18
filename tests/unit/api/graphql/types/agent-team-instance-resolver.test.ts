@@ -122,6 +122,7 @@ describe("AgentTeamInstanceResolver sendMessageToTeam", () => {
           agentDefinitionId: "agent-1",
           llmModelIdentifier: "model-a",
           autoExecuteTools: true,
+          workspaceRootPath: "/tmp/remote-ws",
         },
       ],
       userInput: {
@@ -144,6 +145,7 @@ describe("AgentTeamInstanceResolver sendMessageToTeam", () => {
         memberName: "leader",
         memberRouteKey: "leader",
         memberAgentId: buildTeamMemberAgentId(createdTeamId, "leader"),
+        workspaceRootPath: "/tmp/remote-ws",
       }),
     ]);
 
@@ -163,6 +165,7 @@ describe("AgentTeamInstanceResolver sendMessageToTeam", () => {
             expect.objectContaining({
               memberRouteKey: "leader",
               memberAgentId: buildTeamMemberAgentId(createdTeamId, "leader"),
+              workspaceRootPath: "/tmp/remote-ws",
             }),
           ],
         }),

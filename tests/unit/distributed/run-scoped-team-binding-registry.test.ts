@@ -19,6 +19,7 @@ describe("RunScopedTeamBindingRegistry", () => {
           llmModelIdentifier: "gpt-4o-mini",
           autoExecuteTools: true,
           workspaceId: "workspace-1",
+          workspaceRootPath: "/workspace/remote",
           llmConfig: { temperature: 0.1 },
           memberRouteKey: "coordinator/leader",
           memberAgentId: "member_leader_1",
@@ -33,6 +34,7 @@ describe("RunScopedTeamBindingRegistry", () => {
     expect(resolved.memberBindings[0]?.memberName).toBe("leader");
     expect(resolved.memberBindings[0]?.memberRouteKey).toBe("coordinator/leader");
     expect(resolved.memberBindings[0]?.memberAgentId).toBe("member_leader_1");
+    expect(resolved.memberBindings[0]?.workspaceRootPath).toBe("/workspace/remote");
     expect(resolved.memberBindings[0]?.memoryDir).toBe(
       "/tmp/memory/agent_teams/team-1/member_leader_1",
     );
@@ -40,11 +42,13 @@ describe("RunScopedTeamBindingRegistry", () => {
     resolved.memberBindings[0]!.memberName = "mutated";
     resolved.memberBindings[0]!.memberRouteKey = "mutated-route";
     resolved.memberBindings[0]!.memberAgentId = "mutated-agent";
+    resolved.memberBindings[0]!.workspaceRootPath = "/tmp/mutated-root";
     resolved.memberBindings[0]!.memoryDir = "/tmp/mutated";
     const reResolved = registry.resolveRun("run-1");
     expect(reResolved.memberBindings[0]?.memberName).toBe("leader");
     expect(reResolved.memberBindings[0]?.memberRouteKey).toBe("coordinator/leader");
     expect(reResolved.memberBindings[0]?.memberAgentId).toBe("member_leader_1");
+    expect(reResolved.memberBindings[0]?.workspaceRootPath).toBe("/workspace/remote");
     expect(reResolved.memberBindings[0]?.memoryDir).toBe(
       "/tmp/memory/agent_teams/team-1/member_leader_1",
     );

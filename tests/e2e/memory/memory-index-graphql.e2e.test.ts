@@ -25,11 +25,14 @@ describe("Memory index GraphQL e2e", () => {
   let tempRoot: string;
   let usingTemp = false;
   let memoryDir: string;
+  let previousMemoryDir: string | undefined;
   const createdAgentIds: string[] = [];
   const config = appConfigProvider.config;
 
   beforeAll(async () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "autobyteus-memory-index-"));
+    previousMemoryDir = process.env.AUTOBYTEUS_MEMORY_DIR;
+    process.env.AUTOBYTEUS_MEMORY_DIR = path.join(tempRoot, "memory");
     if (!config.isInitialized()) {
       config.setCustomAppDataDir(tempRoot);
       usingTemp = true;
@@ -52,7 +55,12 @@ describe("Memory index GraphQL e2e", () => {
   });
 
   afterAll(() => {
-    if (usingTemp) {
+    if (previousMemoryDir === undefined) {
+      delete process.env.AUTOBYTEUS_MEMORY_DIR;
+    } else {
+      process.env.AUTOBYTEUS_MEMORY_DIR = previousMemoryDir;
+    }
+    if (fs.existsSync(tempRoot)) {
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }
   });

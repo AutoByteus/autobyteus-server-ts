@@ -38,9 +38,11 @@ export class WorkerEventUplinkClient {
     targetHostNodeId: string = this.hostNodeId,
   ): Promise<void> {
     const endpoint = this.nodeDirectoryService.resolveDistributedEventUrl(targetHostNodeId);
-    const body = JSON.stringify(event);
+    // Sign the exact normalized JSON payload sent on the wire.
+    const normalizedEvent = JSON.parse(JSON.stringify(event)) as RemoteExecutionEvent;
+    const body = JSON.stringify(normalizedEvent);
     const headers = this.internalEnvelopeAuth.signRequest({
-      body: event,
+      body: normalizedEvent,
       securityMode: this.defaultSecurityMode,
     });
 

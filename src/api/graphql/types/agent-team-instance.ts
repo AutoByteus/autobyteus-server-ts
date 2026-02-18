@@ -17,6 +17,7 @@ import { getDefaultTeamCommandIngressService } from "../../../distributed/bootst
 import { TeamRunManifest } from "../../../run-history/domain/team-models.js";
 import { getTeamRunContinuationService } from "../../../run-history/services/team-run-continuation-service.js";
 import { getTeamRunHistoryService } from "../../../run-history/services/team-run-history-service.js";
+import { getWorkspaceManager } from "../../../workspaces/workspace-manager.js";
 import {
   buildTeamMemberAgentId,
   normalizeMemberRouteKey,
@@ -88,6 +89,9 @@ export class TeamMemberConfigInput {
   @Field(() => String, { nullable: true })
   workspaceId?: string | null;
 
+  @Field(() => String, { nullable: true })
+  workspaceRootPath?: string | null;
+
   @Field(() => GraphQLJSON, { nullable: true })
   llmConfig?: Record<string, unknown> | null;
 
@@ -157,6 +161,7 @@ export class AgentTeamInstanceResolver {
   private readonly teamRunHistoryService = getTeamRunHistoryService();
   private readonly teamRunContinuationService = getTeamRunContinuationService();
   private readonly teamDefinitionService = AgentTeamDefinitionService.getInstance();
+  private readonly workspaceManager = getWorkspaceManager();
 
   private get agentTeamInstanceManager(): AgentTeamInstanceManager {
     return AgentTeamInstanceManager.getInstance();
@@ -183,11 +188,39 @@ export class AgentTeamInstanceResolver {
         llmModelIdentifier: config.llmModelIdentifier.trim(),
         autoExecuteTools: Boolean(config.autoExecuteTools),
         workspaceId: config.workspaceId ?? null,
+        workspaceRootPath:
+          typeof config.workspaceRootPath === "string" && config.workspaceRootPath.trim().length > 0
+            ? config.workspaceRootPath.trim()
+            : null,
         llmConfig: config.llmConfig ?? null,
         memberRouteKey,
         memberAgentId,
       };
     });
+  }
+
+  private resolveWorkspaceRootPath(config: TeamMemberConfigInput): string | null {
+    if (typeof config.workspaceRootPath === "string" && config.workspaceRootPath.trim().length > 0) {
+      return config.workspaceRootPath.trim();
+    }
+    if (typeof config.workspaceId !== "string" || config.workspaceId.trim().length === 0) {
+      return null;
+    }
+    const workspace = this.workspaceManager.getWorkspaceById(config.workspaceId.trim());
+    if (!workspace) {
+      return null;
+    }
+    const rootPath =
+      typeof (workspace as { rootPath?: unknown }).rootPath === "string"
+        ? ((workspace as { rootPath: string }).rootPath ?? null)
+        : typeof workspace.getBasePath === "function"
+          ? workspace.getBasePath()
+          : null;
+    if (typeof rootPath !== "string") {
+      return null;
+    }
+    const normalized = rootPath.trim();
+    return normalized.length > 0 ? normalized : null;
   }
 
   private buildTeamRunManifest(options: {
@@ -213,7 +246,7 @@ export class AgentTeamInstanceResolver {
         llmModelIdentifier: config.llmModelIdentifier.trim(),
         autoExecuteTools: Boolean(config.autoExecuteTools),
         llmConfig: config.llmConfig ?? null,
-        workspaceRootPath: null,
+        workspaceRootPath: this.resolveWorkspaceRootPath(config),
         hostNodeId: null,
       };
     });

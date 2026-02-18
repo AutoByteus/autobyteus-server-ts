@@ -72,7 +72,10 @@ export class MemberPlacementResolver {
     for (const member of input.teamDefinition.nodes) {
       const canonicalizedMember = {
         ...member,
-        homeNodeId: canonicalizeHomeNodeId(member.homeNodeId, canonicalDefaultNodeId),
+        homeNodeId: canonicalizeHomeNodeId(
+          member.homeNodeId,
+          canonicalDefaultNodeId,
+        ),
       };
 
       this.placementConstraintPolicy.validateHomeNodeOwnership(

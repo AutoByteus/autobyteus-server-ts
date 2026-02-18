@@ -37,6 +37,25 @@ const logger = {
   error: (...args: unknown[]) => console.error(...args),
 };
 
+const EMBEDDED_LOCAL_NODE_ID = "embedded-local";
+
+const normalizeOptionalString = (value: string | null | undefined): string | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const isMemberLocalToNode = (memberHomeNodeId: string | null | undefined): boolean => {
+  const normalizedHomeNodeId = normalizeOptionalString(memberHomeNodeId);
+  if (!normalizedHomeNodeId || normalizedHomeNodeId === EMBEDDED_LOCAL_NODE_ID) {
+    return true;
+  }
+  const localNodeId = normalizeOptionalString(process.env.AUTOBYTEUS_NODE_ID);
+  return !!localNodeId && normalizedHomeNodeId === localNodeId;
+};
+
 const cloneMemberConfigInput = (config: TeamMemberConfigInput): TeamMemberConfigInput => {
   const cloned: TeamMemberConfigInput = {
     memberName: config.memberName,
@@ -44,6 +63,7 @@ const cloneMemberConfigInput = (config: TeamMemberConfigInput): TeamMemberConfig
     llmModelIdentifier: config.llmModelIdentifier,
     autoExecuteTools: config.autoExecuteTools,
     workspaceId: config.workspaceId ?? null,
+    workspaceRootPath: config.workspaceRootPath ?? null,
     llmConfig: config.llmConfig ? { ...config.llmConfig } : null,
   };
   if (typeof config.memberRouteKey === "string") {
@@ -93,6 +113,7 @@ export type TeamMemberConfigInput = {
   llmModelIdentifier: string;
   autoExecuteTools: boolean;
   workspaceId?: string | null;
+  workspaceRootPath?: string | null;
   llmConfig?: Record<string, unknown> | null;
   memberRouteKey?: string | null;
   memberAgentId?: string | null;
@@ -246,6 +267,7 @@ export class AgentTeamInstanceManager {
     agentDefinitionId: string,
     memberConfig: TeamMemberConfigInput,
     memberRouteKey: string,
+    memberHomeNodeId: string | null | undefined,
   ): Promise<AgentConfig> {
     const agentDef = await this.agentDefinitionService.getAgentDefinitionById(agentDefinitionId);
     if (!agentDef) {
@@ -364,9 +386,17 @@ export class AgentTeamInstanceManager {
       }
     }
 
-    let workspaceInstance = memberConfig.workspaceId
-      ? this.workspaceManager.getWorkspaceById(memberConfig.workspaceId)
-      : undefined;
+    const workspaceId = normalizeOptionalString(memberConfig.workspaceId);
+    const workspaceRootPath = normalizeOptionalString(memberConfig.workspaceRootPath);
+    let workspaceInstance = workspaceId ? this.workspaceManager.getWorkspaceById(workspaceId) : undefined;
+    if (!workspaceInstance && !workspaceId && workspaceRootPath && isMemberLocalToNode(memberHomeNodeId)) {
+      workspaceInstance = await this.workspaceManager.ensureWorkspaceByRootPath(workspaceRootPath);
+    }
+    if (!workspaceInstance && workspaceId) {
+      logger.warn(
+        `Workspace '${workspaceId}' not found for member '${memberName}'. Proceeding without workspace binding.`,
+      );
+    }
 
     const skillPaths: string[] = [];
     if (agentDef.skillNames?.length) {
@@ -476,11 +506,23 @@ export class AgentTeamInstanceManager {
             `Configuration for team member '${member.memberName}' was not provided.`,
           );
         }
+        const normalizedHomeNodeId = normalizeOptionalString(member.homeNodeId);
+        const requiresLocalWorkspacePath =
+          normalizedHomeNodeId !== null &&
+          normalizedHomeNodeId !== EMBEDDED_LOCAL_NODE_ID &&
+          isMemberLocalToNode(member.homeNodeId) &&
+          !normalizeOptionalString(memberConfig.workspaceId);
+        if (requiresLocalWorkspacePath && !normalizeOptionalString(memberConfig.workspaceRootPath)) {
+          throw new AgentTeamCreationError(
+            `Remote member '${member.memberName}' requires workspaceRootPath on node '${normalizeOptionalString(process.env.AUTOBYTEUS_NODE_ID) ?? "local"}'.`,
+          );
+        }
         hydratedConfigs[member.memberName] = await this.buildAgentConfigFromDefinition(
           member.memberName,
           member.referenceId,
           memberConfig,
           memberRouteKey,
+          member.homeNodeId,
         );
       } else if (member.referenceType === NodeType.AGENT_TEAM) {
         hydratedConfigs[member.memberName] = await this.buildTeamConfigFromDefinition(

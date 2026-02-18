@@ -32,9 +32,11 @@ export class HostDistributedCommandClient {
 
   async sendCommand(targetNodeId: string, envelope: TeamEnvelope): Promise<void> {
     const endpoint = this.nodeDirectoryService.resolveDistributedCommandUrl(targetNodeId);
-    const body = JSON.stringify(envelope);
+    // Sign the exact normalized JSON payload sent on the wire.
+    const normalizedEnvelope = JSON.parse(JSON.stringify(envelope)) as TeamEnvelope;
+    const body = JSON.stringify(normalizedEnvelope);
     const headers = this.internalEnvelopeAuth.signRequest({
-      body: envelope,
+      body: normalizedEnvelope,
       securityMode: this.defaultSecurityMode,
     });
 

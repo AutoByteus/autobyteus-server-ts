@@ -8,7 +8,13 @@ import {
 import {
   type InterAgentMessageRequestEvent,
 } from "autobyteus-ts/agent-team/events/agent-team-events.js";
+import { NodeType } from "../../agent-team-definition/domain/enums.js";
 import { AgentTeamDefinitionService } from "../../agent-team-definition/services/agent-team-definition-service.js";
+import {
+  AgentTeamDefinition as DomainAgentTeamDefinition,
+  AgentTeamDefinitionUpdate,
+  TeamMember as DomainTeamMember,
+} from "../../agent-team-definition/domain/models.js";
 import {
   AgentTeamInstanceManager,
   type TeamMemberConfigInput,
@@ -89,6 +95,8 @@ const normalizeOptionalString = (value: string | null | undefined): string | nul
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
 };
+
+const EMBEDDED_LOCAL_NODE_ID = "embedded-local";
 
 const normalizeRequiredString = (value: string, field: string): string => {
   const normalized = value.trim();
@@ -258,6 +266,10 @@ const normalizeBootstrapMemberBindingSnapshot = (
     payload.workspaceId === null || payload.workspaceId === undefined
       ? null
       : normalizeRequiredString(String(payload.workspaceId), `${fieldPrefix}.workspaceId`);
+  const workspaceRootPath = normalizeOptionalBootstrapBindingField(
+    payload.workspaceRootPath,
+    `${fieldPrefix}.workspaceRootPath`,
+  );
   const llmConfig =
     payload.llmConfig && typeof payload.llmConfig === "object" && !Array.isArray(payload.llmConfig)
       ? (payload.llmConfig as Record<string, unknown>)
@@ -281,11 +293,199 @@ const normalizeBootstrapMemberBindingSnapshot = (
     llmModelIdentifier,
     autoExecuteTools: payload.autoExecuteTools,
     workspaceId,
+    workspaceRootPath,
     llmConfig,
     memberRouteKey,
     memberAgentId,
     memoryDir,
   };
+};
+
+const normalizeBootstrapNodeType = (value: unknown, field: string): NodeType => {
+  if (value === NodeType.AGENT || value === NodeType.AGENT_TEAM) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    throw new Error(`${field} must be a valid node type string.`);
+  }
+  const normalized = value.trim().toUpperCase();
+  if (normalized === NodeType.AGENT) {
+    return NodeType.AGENT;
+  }
+  if (normalized === NodeType.AGENT_TEAM) {
+    return NodeType.AGENT_TEAM;
+  }
+  throw new Error(`${field} must be either '${NodeType.AGENT}' or '${NodeType.AGENT_TEAM}'.`);
+};
+
+const normalizeBootstrapTeamDefinitionSnapshot = (
+  raw: unknown,
+): DomainAgentTeamDefinition | null => {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  if (!raw || typeof raw !== "object") {
+    throw new Error("payload.teamDefinitionSnapshot must be an object when provided.");
+  }
+  const payload = raw as Record<string, unknown>;
+  const name = normalizeRequiredString(String(payload.name ?? ""), "payload.teamDefinitionSnapshot.name");
+  const description = normalizeRequiredString(
+    String(payload.description ?? ""),
+    "payload.teamDefinitionSnapshot.description",
+  );
+  const coordinatorMemberName = normalizeRequiredString(
+    String(payload.coordinatorMemberName ?? ""),
+    "payload.teamDefinitionSnapshot.coordinatorMemberName",
+  );
+  if (!Array.isArray(payload.nodes) || payload.nodes.length === 0) {
+    throw new Error("payload.teamDefinitionSnapshot.nodes must be a non-empty array.");
+  }
+
+  const nodes = payload.nodes.map((entry, index) => {
+    if (!entry || typeof entry !== "object") {
+      throw new Error(`payload.teamDefinitionSnapshot.nodes[${index}] must be an object.`);
+    }
+    const node = entry as Record<string, unknown>;
+    const memberName = normalizeRequiredString(
+      String(node.memberName ?? ""),
+      `payload.teamDefinitionSnapshot.nodes[${index}].memberName`,
+    );
+    const referenceId = normalizeRequiredString(
+      String(node.referenceId ?? ""),
+      `payload.teamDefinitionSnapshot.nodes[${index}].referenceId`,
+    );
+    const referenceType = normalizeBootstrapNodeType(
+      node.referenceType,
+      `payload.teamDefinitionSnapshot.nodes[${index}].referenceType`,
+    );
+    const homeNodeId =
+      normalizeOptionalString(
+        typeof node.homeNodeId === "string" ? node.homeNodeId : null,
+      ) ?? "embedded-local";
+    return new DomainTeamMember({
+      memberName,
+      referenceId,
+      referenceType,
+      homeNodeId,
+    });
+  });
+
+  return new DomainAgentTeamDefinition({
+    name,
+    description,
+    coordinatorMemberName,
+    nodes,
+    role: normalizeOptionalString(typeof payload.role === "string" ? payload.role : null),
+    avatarUrl: normalizeOptionalString(typeof payload.avatarUrl === "string" ? payload.avatarUrl : null),
+  });
+};
+
+const serializeTeamDefinitionSnapshot = (definition: DomainAgentTeamDefinition): Record<string, unknown> => ({
+  name: definition.name,
+  description: definition.description,
+  coordinatorMemberName: definition.coordinatorMemberName,
+  role: definition.role ?? null,
+  avatarUrl: definition.avatarUrl ?? null,
+  nodes: definition.nodes.map((node) => ({
+    memberName: node.memberName,
+    referenceId: node.referenceId,
+    referenceType: node.referenceType,
+    homeNodeId: node.homeNodeId ?? "embedded-local",
+  })),
+});
+
+const normalizeHomeNodeId = (value: string | null | undefined): string => {
+  const normalized = normalizeOptionalString(value);
+  return normalized ?? EMBEDDED_LOCAL_NODE_ID;
+};
+
+const buildTeamDefinitionNodeSignature = (definition: DomainAgentTeamDefinition): string[] =>
+  definition.nodes
+    .map((node) =>
+      [
+        normalizeRequiredString(node.memberName, "teamDefinition.nodes[].memberName"),
+        normalizeRequiredString(node.referenceId, "teamDefinition.nodes[].referenceId"),
+        normalizeBootstrapNodeType(node.referenceType, "teamDefinition.nodes[].referenceType"),
+        normalizeHomeNodeId(node.homeNodeId),
+      ].join("|"),
+    )
+    .sort();
+
+const teamDefinitionMatchesSnapshot = (
+  existing: DomainAgentTeamDefinition,
+  snapshot: DomainAgentTeamDefinition,
+): boolean => {
+  if (existing.coordinatorMemberName !== snapshot.coordinatorMemberName) {
+    return false;
+  }
+  const existingNodeSignature = buildTeamDefinitionNodeSignature(existing);
+  const snapshotNodeSignature = buildTeamDefinitionNodeSignature(snapshot);
+  if (existingNodeSignature.length !== snapshotNodeSignature.length) {
+    return false;
+  }
+  for (let index = 0; index < existingNodeSignature.length; index += 1) {
+    if (existingNodeSignature[index] !== snapshotNodeSignature[index]) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const toTeamDefinitionUpdate = (
+  snapshot: DomainAgentTeamDefinition,
+): AgentTeamDefinitionUpdate =>
+  new AgentTeamDefinitionUpdate({
+    name: snapshot.name,
+    description: snapshot.description,
+    coordinatorMemberName: snapshot.coordinatorMemberName,
+    role: snapshot.role ?? null,
+    avatarUrl: snapshot.avatarUrl ?? null,
+    nodes: snapshot.nodes.map(
+      (node) =>
+        new DomainTeamMember({
+          memberName: node.memberName,
+          referenceId: node.referenceId,
+          referenceType: node.referenceType,
+          homeNodeId: normalizeHomeNodeId(node.homeNodeId),
+        }),
+    ),
+  });
+
+const normalizeMemberBindingForComparison = (binding: TeamMemberConfigInput) => ({
+  memberName: normalizeRequiredString(binding.memberName, "memberBinding.memberName"),
+  memberRouteKey: normalizeOptionalString(binding.memberRouteKey ?? null),
+  memberAgentId: normalizeOptionalString(binding.memberAgentId ?? null),
+  agentDefinitionId: normalizeRequiredString(
+    binding.agentDefinitionId,
+    "memberBinding.agentDefinitionId",
+  ),
+  llmModelIdentifier: normalizeRequiredString(
+    binding.llmModelIdentifier,
+    "memberBinding.llmModelIdentifier",
+  ),
+  autoExecuteTools: binding.autoExecuteTools,
+  workspaceId: normalizeOptionalString(binding.workspaceId ?? null),
+  workspaceRootPath: normalizeOptionalString(binding.workspaceRootPath ?? null),
+  llmConfig: binding.llmConfig ?? null,
+  memoryDir: normalizeOptionalString(binding.memoryDir ?? null),
+});
+
+const memberBindingsMatch = (
+  existing: TeamMemberConfigInput[],
+  requested: TeamMemberConfigInput[],
+): boolean => {
+  if (existing.length !== requested.length) {
+    return false;
+  }
+  const sortKey = (binding: ReturnType<typeof normalizeMemberBindingForComparison>): string =>
+    [binding.memberRouteKey ?? binding.memberName, binding.memberAgentId ?? ""].join("|");
+  const existingNormalized = existing
+    .map(normalizeMemberBindingForComparison)
+    .sort((left, right) => sortKey(left).localeCompare(sortKey(right)));
+  const requestedNormalized = requested
+    .map(normalizeMemberBindingForComparison)
+    .sort((left, right) => sortKey(left).localeCompare(sortKey(right)));
+  return JSON.stringify(existingNormalized) === JSON.stringify(requestedNormalized);
 };
 
 const normalizeBootstrapMemberBindingSnapshotList = (
@@ -472,6 +672,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
   });
   const runScopedTeamBindingRegistry = new RunScopedTeamBindingRegistry();
   const hostNodeIdByRunId = new Map<string, string>();
+  const workerTeamDefinitionIdByHostTeamDefinitionId = new Map<string, string>();
   const eventForwarderByRunId = new Map<string, TeamEventForwarder>();
 
   const stopEventForwarder = async (teamRunId: string): Promise<void> => {
@@ -584,6 +785,90 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     return memberBindings;
   };
 
+  const resolveBootstrapTeamDefinitionSnapshot = async (
+    teamDefinitionId: string,
+  ): Promise<Record<string, unknown>> => {
+    const definition = await teamDefinitionService.getDefinitionById(teamDefinitionId);
+    if (!definition) {
+      throw new TeamCommandIngressError(
+        "TEAM_BOOTSTRAP_DEFINITION_UNAVAILABLE",
+        `No team definition snapshot is available for '${teamDefinitionId}'.`,
+      );
+    }
+    return serializeTeamDefinitionSnapshot(definition);
+  };
+
+  const resolveWorkerTeamDefinitionId = async (input: {
+    hostTeamDefinitionId: string;
+    snapshot: DomainAgentTeamDefinition | null;
+  }): Promise<string> => {
+    const mapped = workerTeamDefinitionIdByHostTeamDefinitionId.get(input.hostTeamDefinitionId) ?? null;
+    if (mapped) {
+      const existingMapped = await teamDefinitionService.getDefinitionById(mapped);
+      if (existingMapped) {
+        return mapped;
+      }
+      workerTeamDefinitionIdByHostTeamDefinitionId.delete(input.hostTeamDefinitionId);
+    }
+
+    const direct = await teamDefinitionService.getDefinitionById(input.hostTeamDefinitionId);
+    if (direct?.id) {
+      if (input.snapshot && !teamDefinitionMatchesSnapshot(direct, input.snapshot)) {
+        await teamDefinitionService.updateDefinition(direct.id, toTeamDefinitionUpdate(input.snapshot));
+      }
+      workerTeamDefinitionIdByHostTeamDefinitionId.set(input.hostTeamDefinitionId, direct.id);
+      return direct.id;
+    }
+
+    if (!input.snapshot) {
+      throw new TeamCommandIngressError(
+        "TEAM_BOOTSTRAP_DEFINITION_UNAVAILABLE",
+        `Team definition '${input.hostTeamDefinitionId}' is unavailable on worker and no snapshot was provided.`,
+      );
+    }
+
+    const allDefinitions = await teamDefinitionService.getAllDefinitions();
+    const byName = allDefinitions.find(
+      (definition) =>
+        definition.name === input.snapshot?.name &&
+        definition.coordinatorMemberName === input.snapshot?.coordinatorMemberName,
+    );
+    if (byName?.id) {
+      if (!teamDefinitionMatchesSnapshot(byName, input.snapshot)) {
+        await teamDefinitionService.updateDefinition(byName.id, toTeamDefinitionUpdate(input.snapshot));
+      }
+      workerTeamDefinitionIdByHostTeamDefinitionId.set(input.hostTeamDefinitionId, byName.id);
+      return byName.id;
+    }
+
+    const created = await teamDefinitionService.createDefinition(
+      new DomainAgentTeamDefinition({
+        name: input.snapshot.name,
+        description: input.snapshot.description,
+        coordinatorMemberName: input.snapshot.coordinatorMemberName,
+        role: input.snapshot.role ?? null,
+        avatarUrl: input.snapshot.avatarUrl ?? null,
+        nodes: input.snapshot.nodes.map(
+          (node) =>
+            new DomainTeamMember({
+              memberName: node.memberName,
+              referenceId: node.referenceId,
+              referenceType: node.referenceType,
+              homeNodeId: node.homeNodeId ?? "embedded-local",
+            }),
+        ),
+      }),
+    );
+    if (!created.id) {
+      throw new TeamCommandIngressError(
+        "TEAM_BOOTSTRAP_DEFINITION_UNAVAILABLE",
+        `Failed to create worker-local team definition for host definition '${input.hostTeamDefinitionId}'.`,
+      );
+    }
+    workerTeamDefinitionIdByHostTeamDefinitionId.set(input.hostTeamDefinitionId, created.id);
+    return created.id;
+  };
+
   const dispatchRemoteBootstrapEnvelope = async (input: {
     targetNodeId: string;
     teamRunId: string;
@@ -592,6 +877,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     hostNodeId: string;
   }): Promise<void> => {
     const memberBindings = resolveBootstrapBindingSnapshot(input.teamDefinitionId);
+    const teamDefinitionSnapshot = await resolveBootstrapTeamDefinitionSnapshot(input.teamDefinitionId);
     await hostNodeBridgeClient.sendCommand(
       input.targetNodeId,
       envelopeBuilder.buildEnvelope({
@@ -600,6 +886,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         kind: "RUN_BOOTSTRAP",
         payload: {
           teamDefinitionId: input.teamDefinitionId,
+          teamDefinitionSnapshot,
           memberBindings,
           hostNodeId: input.hostNodeId,
         },
@@ -610,10 +897,17 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
   const remoteMemberExecutionGateway = new RemoteMemberExecutionGateway({
     dispatchRunBootstrap: async (envelope) => {
       const payload = getPayloadRecord(envelope.payload);
-      const teamDefinitionId = normalizeRequiredString(
+      const hostTeamDefinitionId = normalizeRequiredString(
         String(payload.teamDefinitionId ?? ""),
         "payload.teamDefinitionId",
       );
+      const teamDefinitionSnapshot = normalizeBootstrapTeamDefinitionSnapshot(
+        payload.teamDefinitionSnapshot,
+      );
+      const workerTeamDefinitionId = await resolveWorkerTeamDefinitionId({
+        hostTeamDefinitionId,
+        snapshot: teamDefinitionSnapshot,
+      });
       const memberBindings = normalizeBootstrapMemberBindingSnapshotList(payload);
       const bootstrapHostNodeId =
         normalizeRouteSegment(payload.hostNodeId) ?? hostNodeId;
@@ -629,20 +923,31 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         teamEventAggregator.finalizeRun(envelope.teamRunId);
       }
 
-      let runtimeTeamId = teamInstanceManager.getTeamIdByDefinitionId(teamDefinitionId);
+      let runtimeTeamId = teamInstanceManager.getTeamIdByDefinitionId(workerTeamDefinitionId);
       if (!runtimeTeamId) {
-        runtimeTeamId = await teamInstanceManager.createTeamInstance(teamDefinitionId, memberBindings);
+        runtimeTeamId = await teamInstanceManager.createTeamInstance(workerTeamDefinitionId, memberBindings);
       } else {
         const existingTeam = teamInstanceManager.getTeamInstance(runtimeTeamId);
         if (!existingTeam) {
-          runtimeTeamId = await teamInstanceManager.createTeamInstance(teamDefinitionId, memberBindings);
+          runtimeTeamId = await teamInstanceManager.createTeamInstance(workerTeamDefinitionId, memberBindings);
+        } else {
+          const existingBindings = teamInstanceManager.getTeamMemberConfigsByDefinitionId(
+            workerTeamDefinitionId,
+          );
+          if (!memberBindingsMatch(existingBindings, memberBindings)) {
+            await teamInstanceManager.terminateTeamInstance(runtimeTeamId);
+            runtimeTeamId = await teamInstanceManager.createTeamInstance(
+              workerTeamDefinitionId,
+              memberBindings,
+            );
+          }
         }
       }
 
       runScopedTeamBindingRegistry.bindRun({
         teamRunId: envelope.teamRunId,
         runVersion: envelope.runVersion,
-        teamDefinitionId,
+        teamDefinitionId: hostTeamDefinitionId,
         runtimeTeamId,
         memberBindings,
       });
@@ -654,6 +959,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         teamManager.setTeamRoutingPort(
           new WorkerUplinkRoutingAdapter({
             teamRunId: envelope.teamRunId,
+            teamDefinitionId: hostTeamDefinitionId,
             runVersion: envelope.runVersion,
             forwardToHost: async (forwardEnvelope) => {
               await hostNodeBridgeClient.sendCommand(bootstrapHostNodeId, forwardEnvelope);
