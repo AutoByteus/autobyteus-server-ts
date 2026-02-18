@@ -21,6 +21,7 @@ node_modules/
 /media/
 /download/
 /temp_workspace/
+/tmp-migrate-*/
 
 # OS / editor
 .DS_Store
