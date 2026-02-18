@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { RemoteEventRebroadcastService } from "../../event-aggregation/remote-event-rebroadcast-service.js";
 import type { TeamEventAggregator } from "../../event-aggregation/team-event-aggregator.js";
+import { RemoteEventIdempotencyPolicy } from "../../policies/remote-event-idempotency-policy.js";
 import type { RunVersionFencingPolicy } from "../../policies/run-version-fencing-policy.js";
 import type {
   InternalEnvelopeAuth,
@@ -11,6 +12,7 @@ type HostDistributedEventRouteDependencies = {
   teamEventAggregator: TeamEventAggregator;
   internalEnvelopeAuth: InternalEnvelopeAuth;
   runVersionFencingPolicy?: RunVersionFencingPolicy;
+  remoteEventIdempotencyPolicy?: RemoteEventIdempotencyPolicy;
   securityMode?: TransportSecurityMode;
   remoteEventRebroadcastService?: RemoteEventRebroadcastService;
 };
@@ -19,6 +21,7 @@ type RemoteEventBody = {
   teamRunId: string;
   runVersion: string | number;
   sourceNodeId: string;
+  sourceEventId: string;
   eventType: string;
   payload: unknown;
   memberName?: string | null;
@@ -37,6 +40,7 @@ const isRemoteEventBody = (value: unknown): value is RemoteEventBody => {
     typeof record.teamRunId === "string" &&
     (typeof record.runVersion === "string" || typeof record.runVersion === "number") &&
     typeof record.sourceNodeId === "string" &&
+    typeof record.sourceEventId === "string" &&
     typeof record.eventType === "string" &&
     "payload" in record
   );
@@ -80,6 +84,19 @@ export async function registerHostDistributedEventRoutes(
           reason: "STALE_RUN_VERSION",
         });
       }
+    }
+
+    const isDuplicate = deps.remoteEventIdempotencyPolicy?.shouldDropDuplicate({
+      teamRunId: request.body.teamRunId,
+      sourceNodeId: request.body.sourceNodeId,
+      sourceEventId: request.body.sourceEventId,
+    }) ?? false;
+    if (isDuplicate) {
+      return reply.code(202).send({
+        accepted: true,
+        dropped: true,
+        reason: "DUPLICATE_SOURCE_EVENT",
+      });
     }
 
     const aggregatedEvent = deps.teamEventAggregator.publishRemoteEvent({

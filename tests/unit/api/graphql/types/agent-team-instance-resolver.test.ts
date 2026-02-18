@@ -5,11 +5,26 @@ const mockManager = vi.hoisted(() => ({
   getTeamInstance: vi.fn(),
   listActiveInstances: vi.fn(),
   createTeamInstance: vi.fn(),
+  createTeamInstanceWithId: vi.fn(),
   terminateTeamInstance: vi.fn(),
 }));
 
 const mockIngressService = vi.hoisted(() => ({
   dispatchUserMessage: vi.fn(),
+}));
+
+const mockTeamRunHistoryService = vi.hoisted(() => ({
+  upsertTeamRunHistoryRow: vi.fn(),
+  onTeamEvent: vi.fn(),
+  onTeamTerminated: vi.fn(),
+}));
+
+const mockTeamRunContinuationService = vi.hoisted(() => ({
+  continueTeamRun: vi.fn(),
+}));
+
+const mockTeamDefinitionService = vi.hoisted(() => ({
+  getDefinitionById: vi.fn(),
 }));
 
 vi.mock("../../../../../src/agent-team-execution/services/agent-team-instance-manager.js", () => ({
@@ -22,22 +37,42 @@ vi.mock("../../../../../src/distributed/bootstrap/default-distributed-runtime-co
   getDefaultTeamCommandIngressService: () => mockIngressService,
 }));
 
+vi.mock("../../../../../src/run-history/services/team-run-history-service.js", () => ({
+  getTeamRunHistoryService: () => mockTeamRunHistoryService,
+}));
+
+vi.mock("../../../../../src/run-history/services/team-run-continuation-service.js", () => ({
+  getTeamRunContinuationService: () => mockTeamRunContinuationService,
+}));
+
+vi.mock("../../../../../src/agent-team-definition/services/agent-team-definition-service.js", () => ({
+  AgentTeamDefinitionService: {
+    getInstance: () => mockTeamDefinitionService,
+  },
+}));
+
 import { AgentTeamInstanceResolver } from "../../../../../src/api/graphql/types/agent-team-instance.js";
+import { buildTeamMemberAgentId } from "../../../../../src/run-history/utils/team-member-agent-id.js";
 
 describe("AgentTeamInstanceResolver sendMessageToTeam", () => {
   beforeEach(() => {
     mockManager.getTeamInstance.mockReset();
     mockManager.listActiveInstances.mockReset();
     mockManager.createTeamInstance.mockReset();
+    mockManager.createTeamInstanceWithId.mockReset();
     mockManager.terminateTeamInstance.mockReset();
     mockIngressService.dispatchUserMessage.mockReset();
+    mockTeamRunHistoryService.upsertTeamRunHistoryRow.mockReset();
+    mockTeamRunHistoryService.onTeamEvent.mockReset();
+    mockTeamRunHistoryService.onTeamTerminated.mockReset();
+    mockTeamRunContinuationService.continueTeamRun.mockReset();
+    mockTeamDefinitionService.getDefinitionById.mockReset();
   });
 
-  it("dispatches to ingress for existing team using targetMemberName", async () => {
-    mockIngressService.dispatchUserMessage.mockResolvedValue({
+  it("uses team-run continuation flow for existing team history send", async () => {
+    mockTeamRunContinuationService.continueTeamRun.mockResolvedValue({
       teamId: "team-1",
-      teamRunId: "run-1",
-      runVersion: 2,
+      restored: true,
     });
 
     const resolver = new AgentTeamInstanceResolver();
@@ -54,19 +89,24 @@ describe("AgentTeamInstanceResolver sendMessageToTeam", () => {
       success: true,
       teamId: "team-1",
     });
-    expect(mockIngressService.dispatchUserMessage).toHaveBeenCalledWith(
+    expect(mockTeamRunContinuationService.continueTeamRun).toHaveBeenCalledWith(
       expect.objectContaining({
         teamId: "team-1",
-        targetMemberName: "helper",
+        targetMemberRouteKey: "helper",
       }),
     );
-    const dispatchInput = mockIngressService.dispatchUserMessage.mock.calls[0]?.[0];
-    expect(dispatchInput.userMessage.content).toBe("hello team");
+    expect(mockIngressService.dispatchUserMessage).not.toHaveBeenCalled();
     expect(mockManager.createTeamInstance).not.toHaveBeenCalled();
+    expect(mockManager.createTeamInstanceWithId).not.toHaveBeenCalled();
+    expect(mockTeamRunHistoryService.onTeamEvent).not.toHaveBeenCalled();
   });
 
   it("lazy-creates team then dispatches via ingress", async () => {
-    mockManager.createTeamInstance.mockResolvedValue("team-new");
+    mockManager.createTeamInstanceWithId.mockImplementation(async (teamId: string) => teamId);
+    mockTeamDefinitionService.getDefinitionById.mockResolvedValue({
+      name: "Class Room Simulation",
+      coordinatorMemberName: "leader",
+    });
     mockIngressService.dispatchUserMessage.mockResolvedValue({
       teamId: "team-new",
       teamRunId: "run-9",
@@ -82,6 +122,7 @@ describe("AgentTeamInstanceResolver sendMessageToTeam", () => {
           agentDefinitionId: "agent-1",
           llmModelIdentifier: "model-a",
           autoExecuteTools: true,
+          workspaceRootPath: "/tmp/remote-ws",
         },
       ],
       userInput: {
@@ -90,15 +131,104 @@ describe("AgentTeamInstanceResolver sendMessageToTeam", () => {
       },
     } as any);
 
+    expect(mockManager.createTeamInstanceWithId).toHaveBeenCalledTimes(1);
+    const [createdTeamId, createdTeamDefinitionId, createdMemberConfigs] =
+      mockManager.createTeamInstanceWithId.mock.calls[0] ?? [];
     expect(result).toMatchObject({
       success: true,
-      teamId: "team-new",
+      teamId: createdTeamId,
     });
-    expect(mockManager.createTeamInstance).toHaveBeenCalledTimes(1);
+    expect(createdTeamId).toMatch(/^team_[a-f0-9]{8}$/);
+    expect(createdTeamDefinitionId).toBe("def-1");
+    expect(createdMemberConfigs).toEqual([
+      expect.objectContaining({
+        memberName: "leader",
+        memberRouteKey: "leader",
+        memberAgentId: buildTeamMemberAgentId(createdTeamId, "leader"),
+        workspaceRootPath: "/tmp/remote-ws",
+      }),
+    ]);
+
     expect(mockIngressService.dispatchUserMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        teamId: "team-new",
+        teamId: createdTeamId,
       }),
     );
+    expect(mockTeamRunHistoryService.upsertTeamRunHistoryRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        teamId: createdTeamId,
+        manifest: expect.objectContaining({
+          teamDefinitionId: "def-1",
+          teamDefinitionName: "Class Room Simulation",
+          coordinatorMemberRouteKey: "leader",
+          memberBindings: [
+            expect.objectContaining({
+              memberRouteKey: "leader",
+              memberAgentId: buildTeamMemberAgentId(createdTeamId, "leader"),
+              workspaceRootPath: "/tmp/remote-ws",
+            }),
+          ],
+        }),
+      }),
+    );
+    expect(mockTeamRunHistoryService.onTeamEvent).toHaveBeenCalledWith(
+      createdTeamId,
+      expect.objectContaining({
+        status: "ACTIVE",
+      }),
+    );
+  });
+
+  it("persists fallback manifest metadata when team definition lookup is unavailable", async () => {
+    mockManager.createTeamInstanceWithId.mockImplementation(async (teamId: string) => teamId);
+    mockTeamDefinitionService.getDefinitionById.mockResolvedValue(null);
+    mockIngressService.dispatchUserMessage.mockResolvedValue({
+      teamId: "team-any",
+      teamRunId: "run-9",
+      runVersion: 1,
+    });
+
+    const resolver = new AgentTeamInstanceResolver();
+    await resolver.sendMessageToTeam({
+      teamDefinitionId: "def-fallback",
+      memberConfigs: [
+        {
+          memberName: "professor",
+          agentDefinitionId: "agent-1",
+          llmModelIdentifier: "model-a",
+          autoExecuteTools: true,
+        },
+        {
+          memberName: "student",
+          agentDefinitionId: "agent-2",
+          llmModelIdentifier: "model-a",
+          autoExecuteTools: true,
+        },
+      ],
+      userInput: {
+        content: "start",
+        contextFiles: null,
+      },
+    } as any);
+
+    expect(mockTeamRunHistoryService.upsertTeamRunHistoryRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        manifest: expect.objectContaining({
+          teamDefinitionName: "def-fallback",
+          coordinatorMemberRouteKey: "professor",
+        }),
+      }),
+    );
+    expect(mockManager.createTeamInstanceWithId).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks team run idle in history when terminate succeeds", async () => {
+    mockManager.terminateTeamInstance.mockResolvedValue(true);
+
+    const resolver = new AgentTeamInstanceResolver();
+    const result = await resolver.terminateAgentTeamInstance("team-terminate");
+
+    expect(result).toMatchObject({ success: true });
+    expect(mockTeamRunHistoryService.onTeamTerminated).toHaveBeenCalledWith("team-terminate");
   });
 });

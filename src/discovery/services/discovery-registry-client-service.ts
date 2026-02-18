@@ -17,6 +17,11 @@ type PeersResponse = {
   peers?: DiscoveryPeerRecord[];
 };
 
+type DiscoveryAcceptedResponse = {
+  accepted?: boolean;
+  code?: string;
+};
+
 const normalizeRequiredString = (value: string, field: string): string => {
   const normalized = value.trim();
   if (normalized.length === 0) {
@@ -48,6 +53,8 @@ export class DiscoveryRegistryClientService {
   private readonly fetchImpl: typeof fetch;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private syncTimer: NodeJS.Timeout | null = null;
+  private registrationInFlight: Promise<void> | null = null;
+  private registered = false;
 
   constructor(options: DiscoveryRegistryClientServiceOptions) {
     this.selfIdentity = options.selfIdentity;
@@ -68,7 +75,7 @@ export class DiscoveryRegistryClientService {
     }
 
     this.heartbeatTimer = setInterval(() => {
-      void this.sendHeartbeat().catch(() => {
+      void this.sendHeartbeatWithRegistrationRecovery().catch(() => {
         // transient LAN transport failures are retried on next heartbeat tick
       });
     }, this.heartbeatIntervalMs);
@@ -80,7 +87,8 @@ export class DiscoveryRegistryClientService {
     }, this.syncIntervalMs);
 
     try {
-      await this.registerToDiscoveryRegistry();
+      await this.ensureRegistered();
+      await this.sendHeartbeatWithRegistrationRecovery();
       await this.syncPeersFromRegistry();
     } catch {
       // The periodic loops above keep retrying; startup should remain non-fatal.
@@ -113,10 +121,21 @@ export class DiscoveryRegistryClientService {
     });
 
     if (!response.ok) {
+      this.registered = false;
       throw new Error(
         `Discovery register failed with status ${response.status}: ${await response.text()}`,
       );
     }
+
+    const payload = (await response.json()) as DiscoveryAcceptedResponse;
+    if (payload.accepted === false && payload.code !== "SELF_REGISTRATION_NOOP") {
+      this.registered = false;
+      throw new Error(
+        `Discovery register rejected: ${payload.code ?? "UNKNOWN"}`,
+      );
+    }
+
+    this.registered = true;
   }
 
   async sendHeartbeat(): Promise<void> {
@@ -135,6 +154,11 @@ export class DiscoveryRegistryClientService {
         `Discovery heartbeat failed with status ${response.status}: ${await response.text()}`,
       );
     }
+
+    const payload = (await response.json()) as DiscoveryAcceptedResponse;
+    if (payload.accepted === false) {
+      throw new Error(`Discovery heartbeat rejected: ${payload.code ?? "UNKNOWN"}`);
+    }
   }
 
   async syncPeersFromRegistry(): Promise<void> {
@@ -151,5 +175,38 @@ export class DiscoveryRegistryClientService {
     const payload = (await response.json()) as PeersResponse;
     const peers = Array.isArray(payload?.peers) ? payload.peers : [];
     this.registryService.mergePeers(peers);
+  }
+
+  private async ensureRegistered(): Promise<void> {
+    if (this.registered) {
+      return;
+    }
+
+    if (this.registrationInFlight) {
+      await this.registrationInFlight;
+      return;
+    }
+
+    this.registrationInFlight = this.registerToDiscoveryRegistry().finally(() => {
+      this.registrationInFlight = null;
+    });
+    await this.registrationInFlight;
+  }
+
+  private async sendHeartbeatWithRegistrationRecovery(): Promise<void> {
+    await this.ensureRegistered();
+
+    try {
+      await this.sendHeartbeat();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("HEARTBEAT_UNKNOWN_NODE")) {
+        throw error;
+      }
+
+      this.registered = false;
+      await this.ensureRegistered();
+      await this.sendHeartbeat();
+    }
   }
 }

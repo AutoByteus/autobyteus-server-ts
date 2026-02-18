@@ -27,9 +27,9 @@ vi.mock("../../../../../src/run-history/services/run-continuation-service.js", (
   getRunContinuationService: () => mockRunContinuationService,
 }));
 
-import { RunHistoryResolver } from "../../../../../src/api/graphql/types/run-history.js";
+import { AgentRunHistoryResolver } from "../../../../../src/api/graphql/types/agent-run-history.js";
 
-describe("RunHistoryResolver", () => {
+describe("AgentRunHistoryResolver", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -43,7 +43,7 @@ describe("RunHistoryResolver", () => {
       },
     ]);
 
-    const resolver = new RunHistoryResolver();
+    const resolver = new AgentRunHistoryResolver();
     const result = await resolver.listRunHistory(5);
 
     expect(mockRunHistoryService.listRunHistory).toHaveBeenCalledWith(5);
@@ -52,13 +52,13 @@ describe("RunHistoryResolver", () => {
 
   it("delegates getRunProjection and getRunResumeConfig queries", async () => {
     mockRunProjectionService.getProjection.mockReturnValue({
-      runId: "run-1",
+      agentId: "run-1",
       conversation: [],
       summary: null,
       lastActivityAt: null,
     });
     mockRunHistoryService.getRunResumeConfig.mockResolvedValue({
-      runId: "run-1",
+      agentId: "run-1",
       isActive: false,
       manifestConfig: {
         agentDefinitionId: "agent-def-1",
@@ -77,29 +77,29 @@ describe("RunHistoryResolver", () => {
       },
     });
 
-    const resolver = new RunHistoryResolver();
+    const resolver = new AgentRunHistoryResolver();
     const projection = await resolver.getRunProjection("run-1");
     const resume = await resolver.getRunResumeConfig("run-1");
 
-    expect(projection.runId).toBe("run-1");
-    expect(resume.runId).toBe("run-1");
+    expect(projection.agentId).toBe("run-1");
+    expect(resume.agentId).toBe("run-1");
   });
 
   it("returns success payload for continueRun mutation", async () => {
     mockRunContinuationService.continueRun.mockResolvedValue({
-      runId: "run-1",
+      agentId: "run-1",
       ignoredConfigFields: ["llmModelIdentifier"],
     });
 
-    const resolver = new RunHistoryResolver();
+    const resolver = new AgentRunHistoryResolver();
     const result = await resolver.continueRun({
-      runId: "run-1",
+      agentId: "run-1",
       userInput: { content: "hello", contextFiles: null },
     } as any);
 
     expect(result).toMatchObject({
       success: true,
-      runId: "run-1",
+      agentId: "run-1",
       ignoredConfigFields: ["llmModelIdentifier"],
     });
   });
@@ -107,14 +107,14 @@ describe("RunHistoryResolver", () => {
   it("returns failure payload for continueRun mutation errors", async () => {
     mockRunContinuationService.continueRun.mockRejectedValue(new Error("restore failed"));
 
-    const resolver = new RunHistoryResolver();
+    const resolver = new AgentRunHistoryResolver();
     const result = await resolver.continueRun({
-      runId: "run-1",
+      agentId: "run-1",
       userInput: { content: "hello", contextFiles: null },
     } as any);
 
     expect(result.success).toBe(false);
-    expect(result.runId).toBe("run-1");
+    expect(result.agentId).toBe("run-1");
     expect(result.message).toContain("restore failed");
   });
 
@@ -124,7 +124,7 @@ describe("RunHistoryResolver", () => {
       message: "Run deleted.",
     });
 
-    const resolver = new RunHistoryResolver();
+    const resolver = new AgentRunHistoryResolver();
     const result = await resolver.deleteRunHistory("run-1");
 
     expect(mockRunHistoryService.deleteRunHistory).toHaveBeenCalledWith("run-1");
@@ -137,7 +137,7 @@ describe("RunHistoryResolver", () => {
   it("maps deleteRunHistory unexpected errors to failure payload", async () => {
     mockRunHistoryService.deleteRunHistory.mockRejectedValue(new Error("delete failed"));
 
-    const resolver = new RunHistoryResolver();
+    const resolver = new AgentRunHistoryResolver();
     const result = await resolver.deleteRunHistory("run-1");
 
     expect(result.success).toBe(false);

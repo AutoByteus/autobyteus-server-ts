@@ -113,6 +113,7 @@ describe("Remote event rebroadcast integration", () => {
       teamRunId: "run-1",
       runVersion: 3,
       sourceNodeId: "node-worker",
+      sourceEventId: "evt-1",
       eventType: "ASSISTANT_CHUNK",
       memberName: "helper",
       agentId: "agent-remote-1",
@@ -143,6 +144,108 @@ describe("Remote event rebroadcast integration", () => {
       origin: "remote",
       event_type: "ASSISTANT_CHUNK",
     });
+
+    await handler.disconnect(sessionId!);
+    await app.close();
+  });
+
+  it("preserves nested member_route_key and leaf agent_name for remote rebroadcast payloads", async () => {
+    const now = 1_700_000_000_000;
+    const secret = "shared-secret";
+    const sentMessages: string[] = [];
+    const stream = new FakeTeamStream();
+
+    const handler = new AgentTeamStreamHandler(
+      new AgentSessionManager(),
+      {
+        getTeamInstance: (teamId: string) => (teamId === "team-1" ? { teamId } : null),
+        getTeamEventStream: (teamId: string) => (teamId === "team-1" ? stream : null),
+      } as any,
+      {
+        issueToolApprovalTokenFromActiveRun: () => null,
+        resolveActiveRun: () => null,
+      } as any,
+      new TeamEventAggregator(),
+    );
+
+    const sessionId = await handler.connect(
+      {
+        send: (payload) => sentMessages.push(payload),
+        close: () => undefined,
+      },
+      "team-1",
+    );
+    expect(sessionId).toBeTruthy();
+
+    const rebroadcastService = new RemoteEventRebroadcastService({
+      teamRunLocator: {
+        resolveByTeamRunId: (teamRunId: string) =>
+          teamRunId === "run-1"
+            ? {
+                teamId: "team-1",
+                teamDefinitionId: "def-1",
+                coordinatorMemberName: "leader",
+                teamRunId: "run-1",
+                runVersion: 3,
+                hostNodeId: "node-host",
+              }
+            : null,
+      } as any,
+      teamStreamProjector: handler,
+    });
+
+    const signer = new InternalEnvelopeAuth({
+      localNodeId: "node-worker",
+      resolveSecretByKeyId: () => secret,
+      now: () => now,
+    });
+    const verifier = new InternalEnvelopeAuth({
+      localNodeId: "node-host",
+      resolveSecretByKeyId: () => secret,
+      allowedNodeIds: ["node-worker"],
+      now: () => now,
+    });
+
+    const app = fastify();
+    await registerHostDistributedEventRoutes(app, {
+      teamEventAggregator: new TeamEventAggregator(),
+      internalEnvelopeAuth: verifier,
+      securityMode: "strict_signed",
+      remoteEventRebroadcastService: rebroadcastService,
+    });
+
+    const payload = {
+      teamRunId: "run-1",
+      runVersion: 3,
+      sourceNodeId: "node-worker",
+      sourceEventId: "evt-nested-1",
+      eventType: "assistant_chunk",
+      memberName: "sub-team/worker-b",
+      agentId: "agent-remote-b",
+      payload: {
+        content: "nested hello",
+        is_complete: false,
+        agent_name: "worker-b",
+        member_route_key: "sub-team/worker-b",
+        event_scope: "member_scoped",
+      },
+    };
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/distributed/v1/events",
+      payload,
+      headers: signer.signRequest({ body: payload, securityMode: "strict_signed" }),
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(sentMessages).toHaveLength(2);
+
+    const distributedMessage = JSON.parse(sentMessages[1] ?? "{}");
+    expect(distributedMessage.type).toBe("ASSISTANT_CHUNK");
+    expect(distributedMessage.payload.agent_name).toBe("worker-b");
+    expect(distributedMessage.payload.member_route_key).toBe("sub-team/worker-b");
+    expect(distributedMessage.payload.agent_id).toBe("agent-remote-b");
 
     await handler.disconnect(sessionId!);
     await app.close();

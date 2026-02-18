@@ -45,7 +45,7 @@ describe("Distributed remote bootstrap integration", () => {
           kind: "RUN_BOOTSTRAP",
           payload: {
             teamDefinitionId: "def-1",
-            memberConfigs: [
+            memberBindings: [
               {
                 memberName: "helper",
                 agentDefinitionId: "agent-1",

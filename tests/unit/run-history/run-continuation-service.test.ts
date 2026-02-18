@@ -64,7 +64,7 @@ describe("RunContinuationService", () => {
     mockAgentManager.getAgentInstance.mockReturnValue({ postUserMessage });
 
     const result = await service.continueRun({
-      runId: "run-1",
+      agentId: "run-1",
       userInput: { content: "Continue this task", contextFiles: null } as any,
       llmModelIdentifier: "new-model",
       autoExecuteTools: true,
@@ -73,7 +73,7 @@ describe("RunContinuationService", () => {
       llmConfig: { temperature: 0.8 },
     });
 
-    expect(result.runId).toBe("run-1");
+    expect(result.agentId).toBe("run-1");
     expect(result.ignoredConfigFields.sort()).toEqual([
       "autoExecuteTools",
       "llmConfig",
@@ -99,8 +99,8 @@ describe("RunContinuationService", () => {
       postUserMessage: vi.fn().mockResolvedValue(undefined),
     };
     let restored = false;
-    mockAgentManager.getAgentInstance.mockImplementation((runId: string) => {
-      if (runId !== "run-1") {
+    mockAgentManager.getAgentInstance.mockImplementation((agentId: string) => {
+      if (agentId !== "run-1") {
         return null;
       }
       return restored ? restoredAgent : null;
@@ -110,7 +110,7 @@ describe("RunContinuationService", () => {
     });
 
     const result = await service.continueRun({
-      runId: "run-1",
+      agentId: "run-1",
       userInput: { content: "Continue with new model", contextFiles: null } as any,
       llmModelIdentifier: "model-new",
       autoExecuteTools: true,
@@ -119,7 +119,7 @@ describe("RunContinuationService", () => {
       llmConfig: { temperature: 0.9 },
     });
 
-    expect(result.runId).toBe("run-1");
+    expect(result.agentId).toBe("run-1");
     expect(mockAgentManager.restoreAgentInstance).toHaveBeenCalledWith({
       agentId: "run-1",
       agentDefinitionId: "agent-def-1",
@@ -143,8 +143,8 @@ describe("RunContinuationService", () => {
   it("creates and continues a new run with manifest persisted", async () => {
     const agent = { postUserMessage: vi.fn().mockResolvedValue(undefined) };
     mockAgentManager.createAgentInstance.mockResolvedValue("run-new");
-    mockAgentManager.getAgentInstance.mockImplementation((runId: string) =>
-      runId === "run-new" ? agent : null,
+    mockAgentManager.getAgentInstance.mockImplementation((agentId: string) =>
+      agentId === "run-new" ? agent : null,
     );
 
     const result = await service.continueRun({
@@ -157,7 +157,7 @@ describe("RunContinuationService", () => {
       skillAccessMode: SkillAccessMode.PRELOADED_ONLY,
     });
 
-    expect(result.runId).toBe("run-new");
+    expect(result.agentId).toBe("run-new");
     expect(mockWorkspaceManager.ensureWorkspaceByRootPath).toHaveBeenCalledWith(
       path.resolve("/tmp/new-workspace"),
     );

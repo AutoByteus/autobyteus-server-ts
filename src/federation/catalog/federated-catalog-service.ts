@@ -1,5 +1,6 @@
 import { AgentDefinitionService } from "../../agent-definition/services/agent-definition-service.js";
 import { AgentTeamDefinitionService } from "../../agent-team-definition/services/agent-team-definition-service.js";
+import { getDiscoveryRuntime } from "../../discovery/runtime/discovery-runtime.js";
 import {
   NodeCatalogRemoteClient,
 } from "./node-catalog-remote-client.js";
@@ -17,6 +18,13 @@ type AgentDefinitionServiceLike = {
 type AgentTeamDefinitionServiceLike = {
   getAllDefinitions: AgentTeamDefinitionService["getAllDefinitions"];
 };
+
+type CanonicalRemoteNodeResolution = {
+  nodeId: string;
+  nodeName?: string | null;
+} | null;
+
+type CanonicalRemoteNodeResolver = (node: FederatedCatalogNodeInput) => CanonicalRemoteNodeResolution;
 
 const normalizeOptionalString = (value: string | null | undefined): string | null => {
   if (value === null || value === undefined) {
@@ -91,23 +99,28 @@ export class FederatedCatalogService {
   private readonly agentDefinitionService: AgentDefinitionServiceLike;
   private readonly agentTeamDefinitionService: AgentTeamDefinitionServiceLike;
   private readonly nodeCatalogRemoteClient: NodeCatalogRemoteClient;
+  private readonly canonicalRemoteNodeResolver: CanonicalRemoteNodeResolver;
 
   constructor(options: {
     agentDefinitionService?: AgentDefinitionServiceLike;
     agentTeamDefinitionService?: AgentTeamDefinitionServiceLike;
     nodeCatalogRemoteClient?: NodeCatalogRemoteClient;
+    canonicalRemoteNodeResolver?: CanonicalRemoteNodeResolver;
   } = {}) {
     this.agentDefinitionService = options.agentDefinitionService ?? AgentDefinitionService.getInstance();
     this.agentTeamDefinitionService =
       options.agentTeamDefinitionService ?? AgentTeamDefinitionService.getInstance();
     this.nodeCatalogRemoteClient = options.nodeCatalogRemoteClient ?? new NodeCatalogRemoteClient();
+    this.canonicalRemoteNodeResolver =
+      options.canonicalRemoteNodeResolver ?? ((node) => this.resolveCanonicalRemoteNodeFromDiscovery(node));
   }
 
   async listCatalogByNodes(input: { nodes: FederatedCatalogNodeInput[] }): Promise<FederatedNodeCatalog[]> {
     const uniqueNodes = this.uniqueNodes(input.nodes);
+    const canonicalNodes = this.uniqueNodes(uniqueNodes.map((node) => this.resolveCanonicalRemoteNode(node)));
 
     const results = await Promise.all(
-      uniqueNodes.map(async (node) => {
+      canonicalNodes.map(async (node) => {
         if (isRemoteNode(node)) {
           return this.nodeCatalogRemoteClient.fetchNodeCatalog(node);
         }
@@ -183,5 +196,51 @@ export class FederatedCatalogService {
       });
     }
     return Array.from(byNodeId.values());
+  }
+
+  private resolveCanonicalRemoteNode(node: FederatedCatalogNodeInput): FederatedCatalogNodeInput {
+    if (!isRemoteNode(node)) {
+      return node;
+    }
+
+    try {
+      const resolvedCanonical = this.canonicalRemoteNodeResolver(node);
+      if (!resolvedCanonical?.nodeId?.trim()) {
+        return node;
+      }
+
+      const canonicalNodeId = resolvedCanonical.nodeId.trim();
+
+      return {
+        ...node,
+        nodeId: canonicalNodeId,
+        nodeName: node.nodeName.trim() || normalizeOptionalString(resolvedCanonical.nodeName) || canonicalNodeId,
+      };
+    } catch {
+      return node;
+    }
+  }
+
+  private resolveCanonicalRemoteNodeFromDiscovery(
+    node: FederatedCatalogNodeInput,
+  ): CanonicalRemoteNodeResolution {
+    const runtime = getDiscoveryRuntime();
+    if (!runtime.roleConfig.discoveryEnabled) {
+      return null;
+    }
+
+    const normalizedInputBaseUrl = normalizeBaseUrl(node.baseUrl);
+    const matchingPeer = runtime.registryService
+      .listPeers()
+      .find((peer) => normalizeBaseUrl(peer.baseUrl) === normalizedInputBaseUrl);
+
+    if (!matchingPeer) {
+      return null;
+    }
+
+    return {
+      nodeId: matchingPeer.nodeId,
+      nodeName: matchingPeer.nodeName,
+    };
   }
 }

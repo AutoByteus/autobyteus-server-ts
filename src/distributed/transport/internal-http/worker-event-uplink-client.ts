@@ -33,11 +33,16 @@ export class WorkerEventUplinkClient {
     this.requestTimeoutMs = options.requestTimeoutMs ?? 6_000;
   }
 
-  async publishRemoteEvent(event: RemoteExecutionEvent): Promise<void> {
-    const endpoint = this.nodeDirectoryService.resolveDistributedEventUrl(this.hostNodeId);
-    const body = JSON.stringify(event);
+  async publishRemoteEvent(
+    event: RemoteExecutionEvent,
+    targetHostNodeId: string = this.hostNodeId,
+  ): Promise<void> {
+    const endpoint = this.nodeDirectoryService.resolveDistributedEventUrl(targetHostNodeId);
+    // Sign the exact normalized JSON payload sent on the wire.
+    const normalizedEvent = JSON.parse(JSON.stringify(event)) as RemoteExecutionEvent;
+    const body = JSON.stringify(normalizedEvent);
     const headers = this.internalEnvelopeAuth.signRequest({
-      body: event,
+      body: normalizedEvent,
       securityMode: this.defaultSecurityMode,
     });
 
@@ -56,7 +61,7 @@ export class WorkerEventUplinkClient {
       if (!response.ok) {
         const responseBody = await response.text();
         throw new Error(
-          `Worker event uplink failed (${response.status}) for host node '${this.hostNodeId}': ${responseBody}`,
+          `Worker event uplink failed (${response.status}) for host node '${targetHostNodeId}': ${responseBody}`,
         );
       }
     } finally {

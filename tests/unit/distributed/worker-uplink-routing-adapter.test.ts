@@ -6,6 +6,7 @@ describe("WorkerUplinkRoutingAdapter", () => {
     const forwardToHost = vi.fn(async () => undefined);
     const adapter = new WorkerUplinkRoutingAdapter({
       teamRunId: "run-77",
+      teamDefinitionId: "team-def-5",
       runVersion: 12,
       forwardToHost,
     });
@@ -24,6 +25,13 @@ describe("WorkerUplinkRoutingAdapter", () => {
         teamRunId: "run-77",
         runVersion: 12,
         kind: "INTER_AGENT_MESSAGE_REQUEST",
+        payload: expect.objectContaining({
+          teamDefinitionId: "team-def-5",
+          senderAgentId: "agent-1",
+          recipientName: "agent-2",
+          content: "hello",
+          messageType: "message",
+        }),
       })
     );
   });
@@ -31,6 +39,7 @@ describe("WorkerUplinkRoutingAdapter", () => {
   it("returns rejected result when forwarding fails", async () => {
     const adapter = new WorkerUplinkRoutingAdapter({
       teamRunId: "run-77",
+      teamDefinitionId: "team-def-5",
       runVersion: 12,
       forwardToHost: async () => {
         throw new Error("uplink unavailable");

@@ -183,10 +183,13 @@ export class AppConfig {
 
   private initMemoryPath(): void {
     const memoryDir = this.getMemoryDir();
-    if (!this.get("AUTOBYTEUS_MEMORY_DIR")) {
+    const configuredMemoryDir = this.get("AUTOBYTEUS_MEMORY_DIR");
+    if (!configuredMemoryDir) {
       this.set("AUTOBYTEUS_MEMORY_DIR", memoryDir);
+    } else {
+      this.configData.AUTOBYTEUS_MEMORY_DIR = memoryDir;
     }
-    process.env.AUTOBYTEUS_MEMORY_DIR ??= memoryDir;
+    process.env.AUTOBYTEUS_MEMORY_DIR = memoryDir;
   }
 
   private loadEnvironmentInternal(): void {
@@ -273,7 +276,13 @@ export class AppConfig {
   }
 
   getMemoryDir(): string {
-    const memoryDir = path.join(this.dataDir, "memory");
+    const configuredPath = this.get("AUTOBYTEUS_MEMORY_DIR");
+    const memoryDir =
+      typeof configuredPath === "string" && configuredPath.trim().length > 0
+        ? (path.isAbsolute(configuredPath.trim())
+            ? path.resolve(configuredPath.trim())
+            : path.resolve(this.dataDir, configuredPath.trim()))
+        : path.join(this.dataDir, "memory");
     fs.mkdirSync(memoryDir, { recursive: true });
     return memoryDir;
   }

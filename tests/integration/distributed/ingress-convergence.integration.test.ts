@@ -13,18 +13,18 @@ const buildDefinition = () =>
     description: "distributed",
     coordinatorMemberName: "leader",
     nodes: [
-      new TeamMember({
-        memberName: "leader",
-        referenceId: "agent-1",
-        referenceType: NodeType.AGENT,
-        requiredNodeId: "node-host",
-      }),
-      new TeamMember({
-        memberName: "helper",
-        referenceId: "agent-2",
-        referenceType: NodeType.AGENT,
-        preferredNodeId: "node-worker-1",
-      }),
+        new TeamMember({
+          memberName: "leader",
+          referenceId: "agent-1",
+          referenceType: NodeType.AGENT,
+          homeNodeId: "node-host",
+        }),
+        new TeamMember({
+          memberName: "helper",
+          referenceId: "agent-2",
+          referenceType: NodeType.AGENT,
+          homeNodeId: "node-worker-1",
+        }),
     ],
   });
 

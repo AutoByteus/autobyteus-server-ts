@@ -114,4 +114,62 @@ describe('FederatedCatalogService', () => {
     expect(scope?.status).toBe('degraded');
     expect(scope?.errorMessage).toMatch(/db unavailable/);
   });
+
+  it('canonicalizes remote node id from runtime resolver', async () => {
+    const fetchNodeCatalog = vi.fn().mockImplementation(async (node: { nodeId: string; nodeName: string; baseUrl: string }) => ({
+      nodeId: node.nodeId,
+      nodeName: node.nodeName,
+      baseUrl: node.baseUrl,
+      status: 'ready',
+      errorMessage: null,
+      agents: [
+        {
+          homeNodeId: node.nodeId,
+          definitionId: 'remote-agent-id',
+          name: 'Remote Agent',
+          role: 'worker',
+          description: 'Remote worker',
+          avatarUrl: null,
+          toolNames: [],
+          skillNames: [],
+        },
+      ],
+      teams: [],
+    }));
+
+    const service = new FederatedCatalogService({
+      agentDefinitionService: {
+        getAllAgentDefinitions: vi.fn().mockResolvedValue([]),
+      } as any,
+      agentTeamDefinitionService: {
+        getAllDefinitions: vi.fn().mockResolvedValue([]),
+      } as any,
+      nodeCatalogRemoteClient: {
+        fetchNodeCatalog,
+      } as any,
+      canonicalRemoteNodeResolver: () => ({
+        nodeId: 'node-canonical-remote',
+        nodeName: 'Docker 8001',
+      }),
+    });
+
+    const result = await service.listCatalogByNodes({
+      nodes: [
+        {
+          nodeId: 'remote-legacy-id',
+          nodeName: 'Docker 8001',
+          baseUrl: 'http://localhost:8001',
+          nodeType: 'remote',
+        },
+      ],
+    });
+
+    expect(fetchNodeCatalog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodeId: 'node-canonical-remote',
+      }),
+    );
+    expect(result[0]?.nodeId).toBe('node-canonical-remote');
+    expect(result[0]?.agents[0]?.homeNodeId).toBe('node-canonical-remote');
+  });
 });

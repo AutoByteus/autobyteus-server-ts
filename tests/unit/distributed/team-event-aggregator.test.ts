@@ -63,4 +63,35 @@ describe("TeamEventAggregator", () => {
     expect(publishSink).toHaveBeenCalledTimes(1);
     expect(publishSink).toHaveBeenCalledWith(event);
   });
+
+  it("evicts run sequence state when finalized", () => {
+    const aggregator = new TeamEventAggregator();
+
+    aggregator.publishLocalEvent({
+      teamRunId: "run-1",
+      runVersion: 1,
+      sourceNodeId: "node-host",
+      eventType: "A",
+      payload: {},
+    });
+    aggregator.publishLocalEvent({
+      teamRunId: "run-1",
+      runVersion: 1,
+      sourceNodeId: "node-host",
+      eventType: "B",
+      payload: {},
+    });
+
+    expect(aggregator.finalizeRun("run-1")).toBe(true);
+
+    const next = aggregator.publishLocalEvent({
+      teamRunId: "run-1",
+      runVersion: 2,
+      sourceNodeId: "node-host",
+      eventType: "C",
+      payload: {},
+    });
+    expect(next.sequence).toBe(1);
+    expect(aggregator.finalizeRun("run-missing")).toBe(false);
+  });
 });

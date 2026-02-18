@@ -4,7 +4,7 @@ import { MemoryFileStore } from "../../agent-memory-view/store/memory-file-store
 import { appConfigProvider } from "../../config/app-config-provider.js";
 
 export interface RunProjection {
-  runId: string;
+  agentId: string;
   conversation: MemoryConversationEntry[];
   summary: string | null;
   lastActivityAt: string | null;
@@ -39,8 +39,8 @@ export class RunProjectionService {
     this.memoryViewService = new AgentMemoryViewService(store);
   }
 
-  getProjection(runId: string): RunProjection {
-    const view = this.memoryViewService.getAgentMemoryView(runId, {
+  getProjection(agentId: string): RunProjection {
+    const view = this.memoryViewService.getAgentMemoryView(agentId, {
       includeWorkingContext: false,
       includeEpisodic: false,
       includeSemantic: false,
@@ -53,7 +53,7 @@ export class RunProjectionService {
     const lastEntry = conversation.length > 0 ? conversation[conversation.length - 1] : null;
 
     return {
-      runId,
+      agentId,
       conversation,
       summary: compactSummary(firstUser?.content ?? null),
       lastActivityAt: toIsoString(lastEntry?.ts ?? null),

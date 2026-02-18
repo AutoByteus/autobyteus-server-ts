@@ -161,7 +161,10 @@ export class TeamCommandIngressService {
         result.errorMessage ?? "Tool approval rejected by distributed routing.",
       );
     }
-    this.toolApprovalConcurrencyPolicy.completeInvocation(input.token.invocationId);
+    this.toolApprovalConcurrencyPolicy.completeInvocation(
+      activeRun.teamRunId,
+      input.token.invocationId,
+    );
 
     return {
       teamId: activeRun.teamId,
@@ -188,6 +191,7 @@ export class TeamCommandIngressService {
       targetMemberName: normalizeRequiredString(input.targetMemberName, "targetMemberName"),
     };
     this.toolApprovalConcurrencyPolicy.registerPendingInvocation(
+      token.teamRunId,
       token.invocationId,
       token.invocationVersion,
     );
@@ -216,6 +220,7 @@ export class TeamCommandIngressService {
       targetMemberName: normalizeRequiredString(input.targetMemberName, "targetMemberName"),
     };
     this.toolApprovalConcurrencyPolicy.registerPendingInvocation(
+      token.teamRunId,
       token.invocationId,
       token.invocationVersion,
     );
@@ -264,6 +269,7 @@ export class TeamCommandIngressService {
 
     try {
       this.toolApprovalConcurrencyPolicy.validateInvocationVersion(
+        run.teamRunId,
         normalizedInvocationId,
         token.invocationVersion,
       );

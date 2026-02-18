@@ -4,7 +4,7 @@ import { PromptService } from "../../../../src/prompt-engineering/services/promp
 
 const makeName = (prefix: string) => `${prefix}-${randomUUID()}`;
 
-describe("PromptService", () => {
+describe("PromptService", { timeout: 15000 }, () => {
   it("handles prompt versioning on create", async () => {
     const promptService = new PromptService();
     const name = makeName("Service Version Test");

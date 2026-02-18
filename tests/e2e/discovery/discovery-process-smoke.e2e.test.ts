@@ -288,4 +288,59 @@ describe("Discovery process smoke e2e", () => {
     },
     90_000,
   );
+
+  it(
+    "converges when client starts before registry",
+    async () => {
+      const registryPort = await reserveFreePort();
+      const clientPort = await reserveFreePort();
+      const registryDataDir = createNodeDataDir("registry-late");
+      const clientDataDir = createNodeDataDir("client-early");
+      const registryBaseUrl = `http://127.0.0.1:${registryPort}`;
+
+      const clientNode = await startNodeProcess({
+        role: "client",
+        nodeId: "client-early-node",
+        nodeName: "Client Early Node",
+        port: clientPort,
+        dataDir: clientDataDir,
+        registryUrl: registryBaseUrl,
+        logPrefix: "client-early",
+      });
+      runningNodes.push(clientNode);
+
+      await wait(2_000);
+
+      const registryNode = await startNodeProcess({
+        role: "registry",
+        nodeId: "registry-late-node",
+        nodeName: "Registry Late Node",
+        port: registryPort,
+        dataDir: registryDataDir,
+        logPrefix: "registry-late",
+      });
+      runningNodes.push(registryNode);
+
+      await pollUntil(async () => {
+        const response = await fetch(`${registryNode.baseUrl}/rest/node-discovery/peers`);
+        if (!response.ok) {
+          return false;
+        }
+        const payload = (await response.json()) as { peers?: Array<{ nodeId?: string }> };
+        const ids = new Set((payload.peers ?? []).map((peer) => String(peer.nodeId ?? "")));
+        return ids.has("registry-late-node") && ids.has("client-early-node");
+      }, 35_000, 400);
+
+      await pollUntil(async () => {
+        const response = await fetch(`${clientNode.baseUrl}/rest/node-discovery/peers`);
+        if (!response.ok) {
+          return false;
+        }
+        const payload = (await response.json()) as { peers?: Array<{ nodeId?: string }> };
+        const ids = new Set((payload.peers ?? []).map((peer) => String(peer.nodeId ?? "")));
+        return ids.has("registry-late-node") && ids.has("client-early-node");
+      }, 35_000, 400);
+    },
+    120_000,
+  );
 });

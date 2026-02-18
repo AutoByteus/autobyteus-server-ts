@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
 
+ARG CHROME_VNC_TAG=zh
+
 FROM node:20-bookworm AS builder
 WORKDIR /app
 
@@ -18,7 +20,7 @@ RUN pnpm install --no-frozen-lockfile
 RUN pnpm -C autobyteus-server-ts exec prisma generate --schema prisma/schema.prisma
 RUN pnpm -C autobyteus-server-ts build
 
-FROM autobyteus/chrome-vnc:latest AS runtime
+FROM autobyteus/chrome-vnc:${CHROME_VNC_TAG} AS runtime
 WORKDIR /app
 
 RUN apt-get update \

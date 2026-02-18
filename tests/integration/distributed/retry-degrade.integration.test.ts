@@ -35,7 +35,7 @@ describe("Distributed retry/degrade integration", () => {
           memberName: "coordinator",
           referenceId: "agent-1",
           referenceType: NodeType.AGENT,
-          requiredNodeId: "node-worker-1",
+          homeNodeId: "node-worker-1",
         }),
       ],
     });

@@ -16,13 +16,13 @@ describe("Distributed team run lifecycle integration", () => {
           memberName: "leader",
           referenceId: "agent-1",
           referenceType: NodeType.AGENT,
-          requiredNodeId: "node-a",
+          homeNodeId: "node-a",
         }),
         new TeamMember({
           memberName: "helper",
           referenceId: "agent-2",
           referenceType: NodeType.AGENT,
-          preferredNodeId: "node-b",
+          homeNodeId: "node-b",
         }),
       ],
     });

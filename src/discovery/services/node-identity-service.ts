@@ -49,7 +49,7 @@ export class NodeIdentityService {
     const envNodeId = normalizeOptionalString(process.env.AUTOBYTEUS_NODE_ID);
     const persisted = this.readPersistedIdentity();
     const nodeId = envNodeId ?? persisted?.nodeId ?? `node-${randomUUID()}`;
-    const persistedNodeName = persisted?.nodeName ?? nodeName;
+    const persistedNodeName = envNodeName ?? persisted?.nodeName ?? nodeName;
 
     this.persistIdentity({
       nodeId,

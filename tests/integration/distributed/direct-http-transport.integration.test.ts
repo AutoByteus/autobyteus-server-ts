@@ -115,6 +115,7 @@ describe("Direct HTTP transport integration", () => {
       teamRunId: "run-1",
       runVersion: 1,
       sourceNodeId: "node-worker",
+      sourceEventId: "evt-1",
       memberName: "worker-agent",
       agentId: "agent-worker-1",
       eventType: "AGENT_REPLY",
@@ -129,6 +130,123 @@ describe("Direct HTTP transport integration", () => {
     expect(publishedEvents).toHaveLength(1);
     expect(publishedEvents[0]).toMatchObject({
       teamRunId: "run-1",
+      sourceNodeId: "node-worker",
+      eventType: "AGENT_REPLY",
+      origin: "remote",
+    });
+  });
+
+  it("supports per-call worker uplink host override for run-scoped host routing", async () => {
+    const now = 1_700_000_000_000;
+    const secret = "shared-secret";
+
+    const hostAppA = fastify();
+    openApps.push(hostAppA);
+    const hostAppB = fastify();
+    openApps.push(hostAppB);
+    const workerApp = fastify();
+    openApps.push(workerApp);
+
+    const hostAuthA = new InternalEnvelopeAuth({
+      localNodeId: "node-host-a",
+      resolveSecretByKeyId: () => secret,
+      allowedNodeIds: ["node-worker"],
+      now: () => now,
+    });
+    const hostAuthB = new InternalEnvelopeAuth({
+      localNodeId: "node-host-b",
+      resolveSecretByKeyId: () => secret,
+      allowedNodeIds: ["node-worker"],
+      now: () => now,
+    });
+    const workerAuth = new InternalEnvelopeAuth({
+      localNodeId: "node-worker",
+      resolveSecretByKeyId: () => secret,
+      allowedNodeIds: ["node-host-a", "node-host-b"],
+      now: () => now,
+    });
+
+    const eventsOnHostA: unknown[] = [];
+    const eventsOnHostB: unknown[] = [];
+    await registerHostDistributedEventRoutes(hostAppA, {
+      teamEventAggregator: new TeamEventAggregator({
+        publishSink: (event) => eventsOnHostA.push(event),
+      }),
+      internalEnvelopeAuth: hostAuthA,
+      securityMode: "strict_signed",
+    });
+    await registerHostDistributedEventRoutes(hostAppB, {
+      teamEventAggregator: new TeamEventAggregator({
+        publishSink: (event) => eventsOnHostB.push(event),
+      }),
+      internalEnvelopeAuth: hostAuthB,
+      securityMode: "strict_signed",
+    });
+    await registerWorkerDistributedCommandRoutes(workerApp, {
+      workerNodeBridgeServer: new WorkerNodeBridgeServer(async () => undefined),
+      internalEnvelopeAuth: workerAuth,
+      securityMode: "strict_signed",
+    });
+
+    await hostAppA.listen({ host: "127.0.0.1", port: 0 });
+    await hostAppB.listen({ host: "127.0.0.1", port: 0 });
+    await workerApp.listen({ host: "127.0.0.1", port: 0 });
+
+    const hostAddressA = hostAppA.server.address();
+    const hostAddressB = hostAppB.server.address();
+    if (!hostAddressA || typeof hostAddressA === "string") {
+      throw new Error("Host A server address is unavailable.");
+    }
+    if (!hostAddressB || typeof hostAddressB === "string") {
+      throw new Error("Host B server address is unavailable.");
+    }
+
+    const nodeDirectoryService = new NodeDirectoryService([
+      {
+        nodeId: "node-host-a",
+        baseUrl: `http://127.0.0.1:${hostAddressA.port}`,
+        isHealthy: true,
+        supportsAgentExecution: true,
+      },
+      {
+        nodeId: "node-host-b",
+        baseUrl: `http://127.0.0.1:${hostAddressB.port}`,
+        isHealthy: true,
+        supportsAgentExecution: true,
+      },
+      {
+        nodeId: "node-worker",
+        baseUrl: "http://127.0.0.1:65535",
+        isHealthy: true,
+        supportsAgentExecution: true,
+      },
+    ]);
+
+    const workerUplinkClient = new WorkerEventUplinkClient({
+      hostNodeId: "node-host-a",
+      nodeDirectoryService,
+      internalEnvelopeAuth: workerAuth,
+      defaultSecurityMode: "strict_signed",
+    });
+
+    await workerUplinkClient.publishRemoteEvent(
+      {
+        teamRunId: "run-2",
+        runVersion: 1,
+        sourceNodeId: "node-worker",
+        sourceEventId: "evt-override-1",
+        memberName: "worker-agent",
+        agentId: "agent-worker-2",
+        eventType: "AGENT_REPLY",
+        payload: { content: "done" },
+      },
+      "node-host-b",
+    );
+
+    expect(eventsOnHostA).toHaveLength(0);
+    expect(eventsOnHostB).toHaveLength(1);
+    expect(eventsOnHostB[0]).toMatchObject({
+      teamRunId: "run-2",
       sourceNodeId: "node-worker",
       eventType: "AGENT_REPLY",
       origin: "remote",

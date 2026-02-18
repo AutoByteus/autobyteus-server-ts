@@ -16,7 +16,7 @@ const createEmptyIndex = (): RunHistoryIndexFile => ({
 });
 
 const normalizeRow = (row: RunHistoryIndexRow): RunHistoryIndexRow => ({
-  runId: row.runId,
+  agentId: row.agentId,
   agentDefinitionId: row.agentDefinitionId,
   agentName: row.agentName,
   workspaceRootPath: row.workspaceRootPath,
@@ -31,7 +31,7 @@ const isRowLike = (value: unknown): value is RunHistoryIndexRow => {
   }
   const row = value as Record<string, unknown>;
   return (
-    typeof row.runId === "string" &&
+    typeof row.agentId === "string" &&
     typeof row.agentDefinitionId === "string" &&
     typeof row.agentName === "string" &&
     typeof row.workspaceRootPath === "string" &&
@@ -82,9 +82,9 @@ export class RunHistoryIndexStore {
     return index.rows;
   }
 
-  async getRow(runId: string): Promise<RunHistoryIndexRow | null> {
+  async getRow(agentId: string): Promise<RunHistoryIndexRow | null> {
     const rows = await this.listRows();
-    return rows.find((row) => row.runId === runId) ?? null;
+    return rows.find((row) => row.agentId === agentId) ?? null;
   }
 
   async writeIndex(index: RunHistoryIndexFile): Promise<void> {
@@ -100,7 +100,7 @@ export class RunHistoryIndexStore {
   async upsertRow(row: RunHistoryIndexRow): Promise<void> {
     await this.enqueueWrite(async () => {
       const index = await this.readIndexDirect();
-      const rows = index.rows.filter((entry) => entry.runId !== row.runId);
+      const rows = index.rows.filter((entry) => entry.agentId !== row.agentId);
       rows.push(normalizeRow(row));
       await this.writeIndexDirect({
         version: RUN_HISTORY_INDEX_VERSION,
@@ -110,22 +110,22 @@ export class RunHistoryIndexStore {
   }
 
   async updateRow(
-    runId: string,
-    patch: Partial<Omit<RunHistoryIndexRow, "runId">>,
+    agentId: string,
+    patch: Partial<Omit<RunHistoryIndexRow, "agentId">>,
   ): Promise<void> {
     await this.enqueueWrite(async () => {
       const index = await this.readIndexDirect();
-      const current = index.rows.find((row) => row.runId === runId);
+      const current = index.rows.find((row) => row.agentId === agentId);
       if (!current) {
         return;
       }
       const next: RunHistoryIndexRow = {
         ...current,
         ...patch,
-        runId,
+        agentId,
       };
       const rows = index.rows
-        .filter((row) => row.runId !== runId)
+        .filter((row) => row.agentId !== agentId)
         .concat(normalizeRow(next));
       await this.writeIndexDirect({
         version: RUN_HISTORY_INDEX_VERSION,
@@ -134,10 +134,10 @@ export class RunHistoryIndexStore {
     });
   }
 
-  async removeRow(runId: string): Promise<void> {
+  async removeRow(agentId: string): Promise<void> {
     await this.enqueueWrite(async () => {
       const index = await this.readIndexDirect();
-      const rows = index.rows.filter((row) => row.runId !== runId);
+      const rows = index.rows.filter((row) => row.agentId !== agentId);
       if (rows.length === index.rows.length) {
         return;
       }

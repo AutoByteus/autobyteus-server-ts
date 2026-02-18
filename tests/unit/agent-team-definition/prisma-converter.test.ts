@@ -5,7 +5,7 @@ import { NodeType } from "../../../src/agent-team-definition/domain/enums.js";
 import { PrismaAgentTeamDefinitionConverter } from "../../../src/agent-team-definition/converters/prisma-converter.js";
 
 describe("PrismaAgentTeamDefinitionConverter", () => {
-  it("maps required/preferred node placement hints from persisted JSON", () => {
+  it("ignores legacy placement hints from persisted JSON", () => {
     const prismaRecord = {
       id: 42,
       name: "Dist Team",
@@ -34,15 +34,11 @@ describe("PrismaAgentTeamDefinitionConverter", () => {
 
     const domain = PrismaAgentTeamDefinitionConverter.toDomain(prismaRecord);
 
-    expect(domain.nodes[0]?.requiredNodeId).toBe("embedded-local");
-    expect(domain.nodes[0]?.preferredNodeId).toBe("remote-node-1");
     expect(domain.nodes[0]?.homeNodeId).toBe("embedded-local");
-    expect(domain.nodes[1]?.requiredNodeId).toBeNull();
-    expect(domain.nodes[1]?.preferredNodeId).toBeNull();
     expect(domain.nodes[1]?.homeNodeId).toBe("embedded-local");
   });
 
-  it("serializes required/preferred placement hints to snake_case JSON payload", () => {
+  it("serializes only ownership node metadata to snake_case JSON payload", () => {
     const definition = new AgentTeamDefinition({
       name: "Dist Team",
       description: "Distributed team",
@@ -54,15 +50,12 @@ describe("PrismaAgentTeamDefinitionConverter", () => {
           referenceId: "agent-1",
           referenceType: NodeType.AGENT,
           homeNodeId: "embedded-local",
-          requiredNodeId: "embedded-local",
-          preferredNodeId: "remote-node-1",
         }),
         new TeamMember({
           memberName: "helper",
           referenceId: "agent-2",
           referenceType: NodeType.AGENT,
-          requiredNodeId: "",
-          preferredNodeId: "",
+          homeNodeId: "node-worker-1",
         }),
       ],
     });
@@ -70,11 +63,11 @@ describe("PrismaAgentTeamDefinitionConverter", () => {
     const createInput = PrismaAgentTeamDefinitionConverter.toCreateInput(definition);
     const parsedNodes = JSON.parse(createInput.nodes as string) as Array<Record<string, unknown>>;
 
-    expect(parsedNodes[0]?.required_node_id).toBe("embedded-local");
-    expect(parsedNodes[0]?.preferred_node_id).toBe("remote-node-1");
     expect(parsedNodes[0]?.home_node_id).toBe("embedded-local");
-    expect(parsedNodes[1]?.required_node_id).toBeNull();
-    expect(parsedNodes[1]?.preferred_node_id).toBeNull();
-    expect(parsedNodes[1]?.home_node_id).toBe("embedded-local");
+    expect(parsedNodes[0]).not.toHaveProperty("required_node_id");
+    expect(parsedNodes[0]).not.toHaveProperty("preferred_node_id");
+    expect(parsedNodes[1]?.home_node_id).toBe("node-worker-1");
+    expect(parsedNodes[1]).not.toHaveProperty("required_node_id");
+    expect(parsedNodes[1]).not.toHaveProperty("preferred_node_id");
   });
 });

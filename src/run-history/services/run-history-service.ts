@@ -117,7 +117,7 @@ export class RunHistoryService {
 
     const workspaceMap = new Map<string, Map<string, RunHistoryAgentGroup>>();
     for (const row of normalizedRows) {
-      const isActive = activeIds.has(row.runId);
+      const isActive = activeIds.has(row.agentId);
       const runStatus: RunKnownStatus = isActive ? "ACTIVE" : row.lastKnownStatus;
       let agentMap = workspaceMap.get(row.workspaceRootPath);
       if (!agentMap) {
@@ -134,7 +134,7 @@ export class RunHistoryService {
         agentMap.set(row.agentDefinitionId, agentGroup);
       }
       agentGroup.runs.push({
-        runId: row.runId,
+        agentId: row.agentId,
         summary: row.summary,
         lastActivityAt: row.lastActivityAt,
         lastKnownStatus: runStatus,
@@ -163,12 +163,12 @@ export class RunHistoryService {
     return workspaceGroups;
   }
 
-  async getRunResumeConfig(runId: string): Promise<RunResumeConfig> {
-    const manifest = await this.manifestStore.readManifest(runId);
+  async getRunResumeConfig(agentId: string): Promise<RunResumeConfig> {
+    const manifest = await this.manifestStore.readManifest(agentId);
     if (!manifest) {
-      throw new Error(`Run manifest not found for '${runId}'.`);
+      throw new Error(`Run manifest not found for '${agentId}'.`);
     }
-    const isActive = this.agentInstanceManager.getAgentInstance(runId) !== null;
+    const isActive = this.agentInstanceManager.getAgentInstance(agentId) !== null;
     const editableFields: RunEditableFieldFlags = {
       llmModelIdentifier: !isActive,
       llmConfig: !isActive,
@@ -177,15 +177,15 @@ export class RunHistoryService {
       workspaceRootPath: false,
     };
     return {
-      runId,
+      agentId,
       isActive,
       manifestConfig: manifest,
       editableFields,
     };
   }
 
-  async deleteRunHistory(runId: string): Promise<DeleteRunHistoryResult> {
-    const normalizedRunId = runId.trim();
+  async deleteRunHistory(agentId: string): Promise<DeleteRunHistoryResult> {
+    const normalizedRunId = agentId.trim();
     if (!normalizedRunId) {
       return {
         success: false,
@@ -227,22 +227,22 @@ export class RunHistoryService {
     }
   }
 
-  async onRunTerminated(runId: string): Promise<void> {
-    await this.indexStore.updateRow(runId, {
+  async onRunTerminated(agentId: string): Promise<void> {
+    await this.indexStore.updateRow(agentId, {
       lastKnownStatus: "IDLE",
       lastActivityAt: nowIso(),
     });
   }
 
-  async onAgentEvent(runId: string, event: StreamEvent): Promise<void> {
-    const existing = await this.indexStore.getRow(runId);
+  async onAgentEvent(agentId: string, event: StreamEvent): Promise<void> {
+    const existing = await this.indexStore.getRow(agentId);
     if (!existing) {
-      const manifest = await this.manifestStore.readManifest(runId);
+      const manifest = await this.manifestStore.readManifest(agentId);
       if (!manifest) {
         return;
       }
       await this.upsertRunHistoryRow({
-        runId,
+        agentId,
         manifest,
         summary: "",
         lastKnownStatus: "ACTIVE",
@@ -252,14 +252,14 @@ export class RunHistoryService {
     }
 
     const eventStatus = this.deriveStatusFromEvent(event);
-    await this.indexStore.updateRow(runId, {
+    await this.indexStore.updateRow(agentId, {
       lastActivityAt: nowIso(),
       lastKnownStatus: eventStatus ?? existing.lastKnownStatus,
     });
   }
 
   async upsertRunHistoryRow(options: {
-    runId: string;
+    agentId: string;
     manifest: RunManifest;
     summary: string;
     lastKnownStatus?: RunKnownStatus;
@@ -267,7 +267,7 @@ export class RunHistoryService {
   }): Promise<void> {
     const agentName = await this.resolveAgentName(options.manifest.agentDefinitionId);
     const row: RunHistoryIndexRow = {
-      runId: options.runId,
+      agentId: options.agentId,
       agentDefinitionId: options.manifest.agentDefinitionId,
       agentName,
       workspaceRootPath: canonicalizeWorkspaceRootPath(options.manifest.workspaceRootPath),
@@ -279,26 +279,26 @@ export class RunHistoryService {
   }
 
   async rebuildIndexFromDisk(): Promise<RunHistoryIndexRow[]> {
-    const runIds = this.memoryStore.listAgentDirs();
+    const agentIds = this.memoryStore.listAgentDirs();
     const rows: RunHistoryIndexRow[] = [];
-    for (const runId of runIds) {
-      const manifest = await this.manifestStore.readManifest(runId);
+    for (const agentId of agentIds) {
+      const manifest = await this.manifestStore.readManifest(agentId);
       if (!manifest) {
         continue;
       }
       const agentName = await this.resolveAgentName(manifest.agentDefinitionId);
       const summary = extractSummaryFromRawTraces(
-        this.memoryStore.readRawTracesActive(runId, 300),
-        this.memoryStore.readRawTracesArchive(runId, 300),
+        this.memoryStore.readRawTracesActive(agentId, 300),
+        this.memoryStore.readRawTracesArchive(agentId, 300),
       );
       rows.push({
-        runId,
+        agentId,
         agentDefinitionId: manifest.agentDefinitionId,
         agentName,
         workspaceRootPath: canonicalizeWorkspaceRootPath(manifest.workspaceRootPath),
         summary,
-        lastActivityAt: this.inferLastActivityAt(runId),
-        lastKnownStatus: this.agentInstanceManager.getAgentInstance(runId) ? "ACTIVE" : "IDLE",
+        lastActivityAt: this.inferLastActivityAt(agentId),
+        lastKnownStatus: this.agentInstanceManager.getAgentInstance(agentId) ? "ACTIVE" : "IDLE",
       });
     }
     await this.indexStore.writeIndex({
@@ -308,8 +308,8 @@ export class RunHistoryService {
     return rows;
   }
 
-  private inferLastActivityAt(runId: string): string {
-    const agentDir = this.memoryStore.getAgentDir(runId);
+  private inferLastActivityAt(agentId: string): string {
+    const agentDir = this.memoryStore.getAgentDir(agentId);
     const candidateFiles = [
       path.join(agentDir, "raw_traces.jsonl"),
       path.join(agentDir, "raw_traces_archive.jsonl"),
@@ -351,9 +351,9 @@ export class RunHistoryService {
     return "ACTIVE";
   }
 
-  private resolveSafeRunDirectory(runId: string): string | null {
+  private resolveSafeRunDirectory(agentId: string): string | null {
     const agentsRoot = path.resolve(this.memoryStore.getAgentDir(""));
-    const targetPath = path.resolve(this.memoryStore.getAgentDir(runId));
+    const targetPath = path.resolve(this.memoryStore.getAgentDir(agentId));
 
     if (targetPath === agentsRoot) {
       return null;

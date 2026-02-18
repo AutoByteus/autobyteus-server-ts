@@ -17,6 +17,7 @@ else
   VERSION_DEFAULT="$(node -p "require('${MONOREPO_ROOT}/autobyteus-server-ts/package.json').version")"
 fi
 VERSION="${VERSION:-${VERSION_DEFAULT}}"
+CHROME_VNC_TAG="${CHROME_VNC_TAG:-zh}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -36,13 +37,17 @@ while [[ $# -gt 0 ]]; do
       IMAGE_NAME="$2"
       shift 2
       ;;
+    --chrome-vnc-tag)
+      CHROME_VNC_TAG="$2"
+      shift 2
+      ;;
     --no-cache)
       EXTRA_ARGS+=("--no-cache")
       shift
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: ./build-multi-arch.sh [--push|--load] [--version <version>] [--image-name <name>] [--no-cache]"
+      echo "Usage: ./build-multi-arch.sh [--push|--load] [--version <version>] [--image-name <name>] [--chrome-vnc-tag <tag>] [--no-cache]"
       exit 1
       ;;
   esac
@@ -85,6 +90,7 @@ fi
 echo "Building image: ${IMAGE_NAME}"
 echo "Version tag: ${VERSION}"
 echo "Also tagging: latest"
+echo "Chrome VNC base tag: ${CHROME_VNC_TAG}"
 echo "Platforms: ${PLATFORMS}"
 echo "Mode: ${MODE}"
 
@@ -95,6 +101,7 @@ build_cmd=(
   --platform "${PLATFORMS}"
   --tag "${IMAGE_NAME}:${VERSION}"
   --tag "${IMAGE_NAME}:latest"
+  --build-arg "CHROME_VNC_TAG=${CHROME_VNC_TAG}"
   --provenance=false
   --sbom=false
 )
