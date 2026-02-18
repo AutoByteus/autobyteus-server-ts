@@ -37,4 +37,4 @@ Thumbs.db
 
 # Local MCP configs
 /docs/examples/alexa_mcp_import.local.json
-memory
+/memory/
