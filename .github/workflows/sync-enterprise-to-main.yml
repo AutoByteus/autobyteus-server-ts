@@ -75,7 +75,7 @@ jobs:
       - name: Install dependencies
         run: |
           set -euo pipefail
-          pnpm install --frozen-lockfile
+          pnpm install --no-frozen-lockfile
 
       - name: Run test suite
         run: |
