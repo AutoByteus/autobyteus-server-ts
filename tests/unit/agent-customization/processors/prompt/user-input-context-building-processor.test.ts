@@ -92,12 +92,16 @@ describe("UserInputContextBuildingProcessor", () => {
     expect(result.content).toContain("absolute content");
   });
 
-  it("resolves media files for RPA models without ingestion", async () => {
+  it("resolves media files for AUTOBYTEUS provider models without ingestion", async () => {
     const imagePath = path.join(tempDir, "image.png");
     fs.writeFileSync(imagePath, "fake image data");
 
     const workspace = new FileSystemWorkspace(new WorkspaceConfig({ rootPath: tempDir }));
-    const context = buildContext({ workspace, modelName: "claude-opus-rpa" });
+    const context = buildContext({
+      workspace,
+      modelName: "claude-opus",
+      provider: LLMProvider.AUTOBYTEUS,
+    });
     const message = new AgentInputUserMessage(
       "req",
       SenderType.USER,
@@ -111,12 +115,16 @@ describe("UserInputContextBuildingProcessor", () => {
     expect(result.content).not.toContain("fake image data");
   });
 
-  it("does not ingest media files for non-RPA models", async () => {
+  it("does not ingest media files for non-AUTOBYTEUS providers", async () => {
     const imagePath = path.join(tempDir, "image.png");
     fs.writeFileSync(imagePath, "fake image data");
 
     const workspace = new FileSystemWorkspace(new WorkspaceConfig({ rootPath: tempDir }));
-    const context = buildContext({ workspace, modelName: "claude-opus" });
+    const context = buildContext({
+      workspace,
+      modelName: "claude-opus",
+      provider: LLMProvider.OPENAI,
+    });
     const message = new AgentInputUserMessage(
       "req",
       SenderType.USER,
@@ -135,7 +143,7 @@ describe("UserInputContextBuildingProcessor", () => {
       workspace,
       modelName: "test-model",
       provider: LLMProvider.AUTOBYTEUS,
-      systemMessage: "RPA System Message.",
+      systemMessage: "AUTOBYTEUS System Message.",
       customData: { is_first_user_turn: true },
     });
     const message = new AgentInputUserMessage("My Requirement", SenderType.USER);
@@ -143,7 +151,7 @@ describe("UserInputContextBuildingProcessor", () => {
 
     const result = await processor.process(message, context, new UserMessageReceivedEvent(message));
 
-    expect(result.content.startsWith("RPA System Message.")).toBe(true);
+    expect(result.content.startsWith("AUTOBYTEUS System Message.")).toBe(true);
     expect(result.content).toContain("**[User Requirement]**\nMy Requirement");
     expect(context.customData.is_first_user_turn).toBe(false);
   });
@@ -154,7 +162,7 @@ describe("UserInputContextBuildingProcessor", () => {
       workspace,
       modelName: "test-model",
       provider: LLMProvider.AUTOBYTEUS,
-      systemMessage: "RPA System Message.",
+      systemMessage: "AUTOBYTEUS System Message.",
       customData: { is_first_user_turn: false },
     });
     const message = new AgentInputUserMessage("My Requirement", SenderType.USER);
@@ -162,7 +170,7 @@ describe("UserInputContextBuildingProcessor", () => {
 
     const result = await processor.process(message, context, new UserMessageReceivedEvent(message));
 
-    expect(result.content.startsWith("RPA System Message.")).toBe(false);
+    expect(result.content.startsWith("AUTOBYTEUS System Message.")).toBe(false);
     expect(result.content.endsWith("**[User Requirement]**\nMy Requirement")).toBe(true);
   });
 
@@ -172,7 +180,7 @@ describe("UserInputContextBuildingProcessor", () => {
       workspace,
       modelName: "test-model",
       provider: LLMProvider.OPENAI,
-      systemMessage: "RPA System Message.",
+      systemMessage: "AUTOBYTEUS System Message.",
       customData: { is_first_user_turn: true },
     });
     const message = new AgentInputUserMessage("My Requirement", SenderType.USER);
@@ -180,7 +188,7 @@ describe("UserInputContextBuildingProcessor", () => {
 
     const result = await processor.process(message, context, new UserMessageReceivedEvent(message));
 
-    expect(result.content.startsWith("RPA System Message.")).toBe(false);
+    expect(result.content.startsWith("AUTOBYTEUS System Message.")).toBe(false);
     expect(result.content.endsWith("**[User Requirement]**\nMy Requirement")).toBe(true);
     expect(context.customData.is_first_user_turn).toBe(false);
   });
