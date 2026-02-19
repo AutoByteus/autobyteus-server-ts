@@ -62,7 +62,6 @@ describe("remote envelope command handlers", () => {
       runVersion: "v1",
       kind: "USER_MESSAGE",
       payload: {
-        teamDefinitionId: "team-def-1",
         targetAgentName: "student",
         userMessage: { content: "hello" },
       },
@@ -91,7 +90,6 @@ describe("remote envelope command handlers", () => {
       runVersion: "v1",
       kind: "INTER_AGENT_MESSAGE_REQUEST",
       payload: {
-        teamDefinitionId: "team-def-1",
         senderAgentId: "agent-1",
         recipientName: "coordinator",
         content: "ping",
@@ -119,7 +117,6 @@ describe("remote envelope command handlers", () => {
       runVersion: "v1",
       kind: "TOOL_APPROVAL",
       payload: {
-        teamDefinitionId: "team-def-1",
         agentName: "student",
         toolInvocationId: "tool-1",
         isApproved: true,

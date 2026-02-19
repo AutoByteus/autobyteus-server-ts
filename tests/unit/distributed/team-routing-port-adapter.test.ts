@@ -8,7 +8,6 @@ describe("TeamRoutingPortAdapter", () => {
 
     const adapter = new TeamRoutingPortAdapter({
       teamRunId: "run-1",
-      teamDefinitionId: "def-1",
       runVersion: 7,
       localNodeId: "node-local",
       placementByMember: {
@@ -37,7 +36,6 @@ describe("TeamRoutingPortAdapter", () => {
 
     const adapter = new TeamRoutingPortAdapter({
       teamRunId: "run-1",
-      teamDefinitionId: "def-1",
       runVersion: 9,
       localNodeId: "node-local",
       placementByMember: {
@@ -66,12 +64,13 @@ describe("TeamRoutingPortAdapter", () => {
         kind: "INTER_AGENT_MESSAGE_REQUEST",
       })
     );
+    const dispatchedEnvelope = dispatchRemoteEnvelope.mock.calls[0]?.[1] as { payload: Record<string, unknown> };
+    expect(dispatchedEnvelope.payload).not.toHaveProperty("teamDefinitionId");
   });
 
   it("rejects when target member is missing from placement map", async () => {
     const adapter = new TeamRoutingPortAdapter({
       teamRunId: "run-1",
-      teamDefinitionId: "def-1",
       runVersion: 1,
       localNodeId: "node-local",
       placementByMember: {},
@@ -98,7 +97,6 @@ describe("TeamRoutingPortAdapter", () => {
 
     const adapter = new TeamRoutingPortAdapter({
       teamRunId: "run-1",
-      teamDefinitionId: "def-1",
       runVersion: 5,
       localNodeId: "node-local",
       placementByMember: {
@@ -126,7 +124,6 @@ describe("TeamRoutingPortAdapter", () => {
     const ensureRemoteNodeReady = vi.fn(async () => undefined);
     const adapter = new TeamRoutingPortAdapter({
       teamRunId: "run-1",
-      teamDefinitionId: "def-1",
       runVersion: 2,
       localNodeId: "node-local",
       placementByMember: {
@@ -160,7 +157,6 @@ describe("TeamRoutingPortAdapter", () => {
     const dispatchRemoteEnvelope = vi.fn(async () => undefined);
     const adapter = new TeamRoutingPortAdapter({
       teamRunId: "run-1",
-      teamDefinitionId: "def-1",
       runVersion: 2,
       localNodeId: "node-local",
       placementByMember: {

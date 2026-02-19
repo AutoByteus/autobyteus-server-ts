@@ -30,7 +30,6 @@ export type ResolveBoundRuntimeTeamResult = {
 
 export type ResolveBoundRuntimeTeam = (input: {
   teamRunId: string;
-  expectedTeamDefinitionId?: string | null;
 }) => ResolveBoundRuntimeTeamResult;
 
 export const normalizeRequiredString = (value: string, field: string): string => {

@@ -50,7 +50,6 @@ describe("remote envelope control command handlers", () => {
       runVersion: "v1",
       kind: "TOOL_APPROVAL",
       payload: {
-        teamDefinitionId: "team-def-1",
         agentName: "student",
         toolInvocationId: "tool-1",
         isApproved: true,
@@ -66,6 +65,7 @@ describe("remote envelope control command handlers", () => {
       true,
       "ok",
     );
+    expect(deps.resolveBoundRuntimeTeam).toHaveBeenCalledWith({ teamRunId: "run-1" });
   });
 
   it("stops runtime team and finalizes run when control stop has binding", async () => {

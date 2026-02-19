@@ -110,7 +110,6 @@ describe("Distributed run stop cleanup integration", () => {
       createRoutingAdapter: ({ teamRunId, teamDefinitionId, runVersion, hostNodeId, placementByMember }) =>
         new TeamRoutingPortAdapter({
           teamRunId,
-          teamDefinitionId,
           runVersion,
           localNodeId: hostNodeId,
           placementByMember,

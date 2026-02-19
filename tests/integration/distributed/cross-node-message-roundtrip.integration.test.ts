@@ -137,7 +137,6 @@ describe("Cross-node message roundtrip integration", () => {
     const ensureRemoteNodeReady = vi.fn(async () => undefined);
     const adapter = new TeamRoutingPortAdapter({
       teamRunId,
-      teamDefinitionId: "team-def-1",
       runVersion,
       localNodeId: "node-host",
       placementByMember: {

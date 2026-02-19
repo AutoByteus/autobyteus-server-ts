@@ -141,7 +141,6 @@ export const createDispatchRunBootstrapHandler = (
       teamManager.setTeamRoutingPort(
         new WorkerUplinkRoutingAdapter({
           teamRunId: envelope.teamRunId,
-          teamDefinitionId: hostTeamDefinitionId,
           runVersion: envelope.runVersion,
           forwardToHost: async (forwardEnvelope) => {
             await deps.hostNodeBridgeClient.sendCommand(bootstrapHostNodeId, forwardEnvelope);

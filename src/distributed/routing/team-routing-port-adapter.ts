@@ -15,7 +15,6 @@ type EnsureRemoteNodeReady = (targetNodeId: string) => Promise<void>;
 
 type TeamRoutingPortAdapterOptions = {
   teamRunId: string;
-  teamDefinitionId: string;
   runVersion: RunVersion;
   localNodeId: string;
   placementByMember: PlacementByMember;
@@ -39,7 +38,6 @@ const rejected = (
 
 export class TeamRoutingPortAdapter implements TeamRoutingPort {
   private readonly teamRunId: string;
-  private readonly teamDefinitionId: string;
   private readonly runVersion: RunVersion;
   private readonly localNodeId: string;
   private readonly placementByMember: PlacementByMember;
@@ -57,7 +55,6 @@ export class TeamRoutingPortAdapter implements TeamRoutingPort {
 
   constructor(options: TeamRoutingPortAdapterOptions) {
     this.teamRunId = options.teamRunId;
-    this.teamDefinitionId = options.teamDefinitionId;
     this.runVersion = options.runVersion;
     this.localNodeId = options.localNodeId;
     this.placementByMember = options.placementByMember;
@@ -93,7 +90,6 @@ export class TeamRoutingPortAdapter implements TeamRoutingPort {
           runVersion: this.runVersion,
           kind: "USER_MESSAGE",
           payload: {
-            teamDefinitionId: this.teamDefinitionId,
             targetAgentName: event.targetAgentName,
             userMessage: event.userMessage,
           },
@@ -130,7 +126,6 @@ export class TeamRoutingPortAdapter implements TeamRoutingPort {
           runVersion: this.runVersion,
           kind: "INTER_AGENT_MESSAGE_REQUEST",
           payload: {
-            teamDefinitionId: this.teamDefinitionId,
             senderAgentId: event.senderAgentId,
             recipientName: event.recipientName,
             content: event.content,
@@ -167,7 +162,6 @@ export class TeamRoutingPortAdapter implements TeamRoutingPort {
           runVersion: this.runVersion,
           kind: "TOOL_APPROVAL",
           payload: {
-            teamDefinitionId: this.teamDefinitionId,
             agentName: event.agentName,
             toolInvocationId: event.toolInvocationId,
             isApproved: event.isApproved,
@@ -195,10 +189,8 @@ export class TeamRoutingPortAdapter implements TeamRoutingPort {
             teamRunId: this.teamRunId,
             runVersion: this.runVersion,
             kind: "CONTROL_STOP",
-            payload: {
-              teamDefinitionId: this.teamDefinitionId,
-            },
-          })
+            payload: {},
+          }),
         );
       }
       return { accepted: true };

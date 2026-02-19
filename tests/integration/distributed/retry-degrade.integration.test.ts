@@ -46,10 +46,9 @@ describe("Distributed retry/degrade integration", () => {
         globalFailureThreshold: 100,
         globalFailureWindowMs: 60_000,
       }),
-      createRoutingAdapter: ({ teamRunId, teamDefinitionId, runVersion, hostNodeId, placementByMember }) =>
+      createRoutingAdapter: ({ teamRunId, runVersion, hostNodeId, placementByMember }) =>
         new TeamRoutingPortAdapter({
           teamRunId,
-          teamDefinitionId,
           runVersion,
           localNodeId: hostNodeId,
           placementByMember,

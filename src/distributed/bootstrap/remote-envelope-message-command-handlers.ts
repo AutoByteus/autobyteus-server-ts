@@ -31,17 +31,12 @@ export const createRemoteEnvelopeMessageCommandHandlers = (
 > => ({
   dispatchUserMessage: async (envelope: TeamEnvelope) => {
     const payload = getPayloadRecord(envelope.payload);
-    const teamDefinitionId = normalizeRequiredString(
-      String(payload.teamDefinitionId ?? ""),
-      "payload.teamDefinitionId",
-    );
     const targetAgentName = normalizeRequiredString(
       String(payload.targetAgentName ?? ""),
       "payload.targetAgentName",
     );
     const bound = deps.resolveBoundRuntimeTeam({
       teamRunId: envelope.teamRunId,
-      expectedTeamDefinitionId: teamDefinitionId,
     });
     const team = bound.team;
     const userMessage = normalizeUserMessageInput(payload.userMessage);
@@ -69,10 +64,6 @@ export const createRemoteEnvelopeMessageCommandHandlers = (
   },
   dispatchInterAgentMessage: async (envelope: TeamEnvelope) => {
     const payload = getPayloadRecord(envelope.payload);
-    const teamDefinitionId = normalizeRequiredString(
-      String(payload.teamDefinitionId ?? ""),
-      "payload.teamDefinitionId",
-    );
     const recipientName = normalizeRequiredString(
       String(payload.recipientName ?? ""),
       "payload.recipientName",
@@ -88,7 +79,6 @@ export const createRemoteEnvelopeMessageCommandHandlers = (
     );
     const bound = deps.resolveBoundRuntimeTeam({
       teamRunId: envelope.teamRunId,
-      expectedTeamDefinitionId: teamDefinitionId,
     });
     const team = bound.team;
 

@@ -40,7 +40,6 @@ describe("remote envelope message command handlers", () => {
       runVersion: "v1",
       kind: "USER_MESSAGE",
       payload: {
-        teamDefinitionId: "team-def-1",
         targetAgentName: "student",
         userMessage: { content: "hello" },
       },
@@ -50,6 +49,7 @@ describe("remote envelope message command handlers", () => {
 
     expect(postMessage).toHaveBeenCalledTimes(1);
     expect(postMessage.mock.calls[0]?.[1]).toBe("student");
+    expect(deps.resolveBoundRuntimeTeam).toHaveBeenCalledWith({ teamRunId: "run-1" });
   });
 
   it("dispatches inter-agent messages via team manager when available", async () => {
@@ -69,7 +69,6 @@ describe("remote envelope message command handlers", () => {
       runVersion: "v1",
       kind: "INTER_AGENT_MESSAGE_REQUEST",
       payload: {
-        teamDefinitionId: "team-def-1",
         senderAgentId: "agent-1",
         recipientName: "coordinator",
         content: "ping",
@@ -80,5 +79,6 @@ describe("remote envelope message command handlers", () => {
     await handlers.dispatchInterAgentMessage?.(envelope);
 
     expect(dispatchInterAgentMessage).toHaveBeenCalledTimes(1);
+    expect(deps.resolveBoundRuntimeTeam).toHaveBeenCalledWith({ teamRunId: "run-1" });
   });
 });

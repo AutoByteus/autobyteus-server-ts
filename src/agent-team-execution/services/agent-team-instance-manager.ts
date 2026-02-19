@@ -137,6 +137,7 @@ export class AgentTeamInstanceManager {
   private readonly teamDefinitionIdByTeamId = new Map<string, string>();
   private readonly teamIdByTeamDefinitionId = new Map<string, string>();
   private readonly memberConfigsByTeamDefinitionId = new Map<string, TeamMemberConfigInput[]>();
+  private readonly memberConfigsByTeamId = new Map<string, TeamMemberConfigInput[]>();
   private readonly memberNamesByTeamId = new Map<string, string[]>();
   private teamFactory: TeamFactoryLike;
   private teamDefinitionService: AgentTeamDefinitionService;
@@ -243,6 +244,7 @@ export class AgentTeamInstanceManager {
       this.teamDefinitionIdByTeamId.set(team.teamId, input.teamDefinitionId);
       this.teamIdByTeamDefinitionId.set(input.teamDefinitionId, team.teamId);
       this.memberConfigsByTeamDefinitionId.set(input.teamDefinitionId, memberConfigSnapshots);
+      this.memberConfigsByTeamId.set(team.teamId, memberConfigSnapshots);
       this.memberNamesByTeamId.set(team.teamId, teamMemberNames);
       team.start?.();
       await this.waitForIdle(team, 120.0);
@@ -574,6 +576,7 @@ export class AgentTeamInstanceManager {
       if (removed) {
         const definitionId = this.teamDefinitionIdByTeamId.get(teamId) ?? null;
         this.teamDefinitionIdByTeamId.delete(teamId);
+        this.memberConfigsByTeamId.delete(teamId);
         this.memberNamesByTeamId.delete(teamId);
         if (definitionId && this.teamIdByTeamDefinitionId.get(definitionId) === teamId) {
           this.teamIdByTeamDefinitionId.delete(definitionId);
@@ -600,6 +603,14 @@ export class AgentTeamInstanceManager {
 
   getTeamMemberConfigsByDefinitionId(teamDefinitionId: string): TeamMemberConfigInput[] {
     const configs = this.memberConfigsByTeamDefinitionId.get(teamDefinitionId);
+    if (!Array.isArray(configs)) {
+      return [];
+    }
+    return configs.map((config) => cloneMemberConfigInput(config));
+  }
+
+  getTeamMemberConfigs(teamId: string): TeamMemberConfigInput[] {
+    const configs = this.memberConfigsByTeamId.get(teamId);
     if (!Array.isArray(configs)) {
       return [];
     }

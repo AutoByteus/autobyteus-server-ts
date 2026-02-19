@@ -331,11 +331,10 @@ describe("default distributed runtime composition worker-local ingress helpers",
     expect(handled).toBe(false);
   });
 
-  it("falls back to host run record when run-scoped binding is missing", () => {
+  it("falls back to host run-scoped resolver when run-scoped binding is missing", () => {
     const hostTeam = { teamId: "team-host-runtime" } as any;
     const resolved = resolveBoundRuntimeTeamFromRegistries({
       teamRunId: "run-1",
-      expectedTeamDefinitionId: "def-1",
       runScopedTeamBindingRegistry: {
         resolveRun: () => {
           throw new TeamRunNotBoundError("run-1");
@@ -352,8 +351,8 @@ describe("default distributed runtime composition worker-local ingress helpers",
       resolveTeamById: () => {
         throw new Error("resolveTeamById should not be called in host fallback path.");
       },
-      resolveTeamByDefinitionId: (teamDefinitionId: string) => {
-        expect(teamDefinitionId).toBe("def-1");
+      resolveTeamByRunId: (teamRunId: string) => {
+        expect(teamRunId).toBe("run-1");
         return hostTeam;
       },
     });
@@ -366,7 +365,6 @@ describe("default distributed runtime composition worker-local ingress helpers",
     const workerTeam = { teamId: "team-worker-runtime" } as any;
     const resolved = resolveBoundRuntimeTeamFromRegistries({
       teamRunId: "run-2",
-      expectedTeamDefinitionId: "def-2",
       runScopedTeamBindingRegistry: {
         resolveRun: () =>
           ({
@@ -382,8 +380,8 @@ describe("default distributed runtime composition worker-local ingress helpers",
         expect(teamId).toBe("runtime-worker-2");
         return workerTeam;
       },
-      resolveTeamByDefinitionId: () => {
-        throw new Error("resolveTeamByDefinitionId should not be called when binding exists.");
+      resolveTeamByRunId: () => {
+        throw new Error("resolveTeamByRunId should not be called when binding exists.");
       },
     });
 
@@ -404,7 +402,7 @@ describe("default distributed runtime composition worker-local ingress helpers",
           getRunRecord: () => null,
         },
         resolveTeamById: () => ({}) as any,
-        resolveTeamByDefinitionId: () => ({}) as any,
+        resolveTeamByRunId: () => ({}) as any,
       }),
     ).toThrowError(TeamCommandIngressError);
 
@@ -420,7 +418,7 @@ describe("default distributed runtime composition worker-local ingress helpers",
           getRunRecord: () => null,
         },
         resolveTeamById: () => ({}) as any,
-        resolveTeamByDefinitionId: () => ({}) as any,
+        resolveTeamByRunId: () => ({}) as any,
       });
     } catch (error) {
       const typed = error as TeamCommandIngressError;

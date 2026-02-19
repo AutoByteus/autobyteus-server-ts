@@ -630,6 +630,7 @@ describe("AgentTeamInstanceManager integration", () => {
 
     await manager.createTeamInstance("main1", memberConfigs);
     const snapshot = manager.getTeamMemberConfigsByDefinitionId("main1");
+    const teamScopedSnapshot = manager.getTeamMemberConfigs("test_team_123");
 
     expect(snapshot).toEqual([
       {
@@ -640,6 +641,9 @@ describe("AgentTeamInstanceManager integration", () => {
     ]);
     expect(snapshot).not.toBe(memberConfigs);
     expect(snapshot[0]).not.toBe(memberConfigs[0]);
+    expect(teamScopedSnapshot).toEqual(snapshot);
+    expect(teamScopedSnapshot).not.toBe(snapshot);
+    expect(teamScopedSnapshot[0]).not.toBe(snapshot[0]);
   });
 
   it("clears member config snapshot when mapped team instance is terminated", async () => {
@@ -678,8 +682,10 @@ describe("AgentTeamInstanceManager integration", () => {
       },
     ]);
     expect(manager.getTeamMemberConfigsByDefinitionId("main1")).toHaveLength(1);
+    expect(manager.getTeamMemberConfigs("test_team_123")).toHaveLength(1);
 
     await manager.terminateTeamInstance("test_team_123");
     expect(manager.getTeamMemberConfigsByDefinitionId("main1")).toEqual([]);
+    expect(manager.getTeamMemberConfigs("test_team_123")).toEqual([]);
   });
 });

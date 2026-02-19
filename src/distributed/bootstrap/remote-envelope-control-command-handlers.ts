@@ -37,10 +37,6 @@ export const createRemoteEnvelopeControlCommandHandlers = (
 > => ({
   dispatchToolApproval: async (envelope: TeamEnvelope) => {
     const payload = getPayloadRecord(envelope.payload);
-    const teamDefinitionId = normalizeRequiredString(
-      String(payload.teamDefinitionId ?? ""),
-      "payload.teamDefinitionId",
-    );
     const agentName = normalizeRequiredString(String(payload.agentName ?? ""), "payload.agentName");
     const toolInvocationId = normalizeRequiredString(
       String(payload.toolInvocationId ?? ""),
@@ -50,7 +46,6 @@ export const createRemoteEnvelopeControlCommandHandlers = (
     const reason = typeof payload.reason === "string" ? payload.reason : null;
     const bound = deps.resolveBoundRuntimeTeam({
       teamRunId: envelope.teamRunId,
-      expectedTeamDefinitionId: teamDefinitionId,
     });
     const team = bound.team;
 

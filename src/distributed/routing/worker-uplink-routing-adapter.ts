@@ -10,7 +10,6 @@ type ForwardToHost = (envelope: TeamEnvelope) => Promise<void>;
 
 export type WorkerUplinkRoutingAdapterOptions = {
   teamRunId: string;
-  teamDefinitionId: string;
   runVersion: RunVersion;
   forwardToHost: ForwardToHost;
   envelopeBuilder?: EnvelopeBuilder;
@@ -18,14 +17,12 @@ export type WorkerUplinkRoutingAdapterOptions = {
 
 export class WorkerUplinkRoutingAdapter implements TeamRoutingPort {
   private readonly teamRunId: string;
-  private readonly teamDefinitionId: string;
   private readonly runVersion: RunVersion;
   private readonly forwardToHost: ForwardToHost;
   private readonly envelopeBuilder: EnvelopeBuilder;
 
   constructor(options: WorkerUplinkRoutingAdapterOptions) {
     this.teamRunId = options.teamRunId;
-    this.teamDefinitionId = options.teamDefinitionId;
     this.runVersion = options.runVersion;
     this.forwardToHost = options.forwardToHost;
     this.envelopeBuilder = options.envelopeBuilder ?? new EnvelopeBuilder();
@@ -69,7 +66,6 @@ export class WorkerUplinkRoutingAdapter implements TeamRoutingPort {
         runVersion: this.runVersion,
         kind,
         payload: {
-          teamDefinitionId: this.teamDefinitionId,
           ...(typeof payload === "object" && payload !== null
             ? (payload as Record<string, unknown>)
             : { payload }),

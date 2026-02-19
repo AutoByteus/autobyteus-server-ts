@@ -44,7 +44,6 @@ describe("Distributed remote bootstrap integration", () => {
           runVersion: 1,
           kind: "RUN_BOOTSTRAP",
           payload: {
-            teamDefinitionId: "def-1",
             memberBindings: [
               {
                 memberName: "helper",
@@ -60,7 +59,6 @@ describe("Distributed remote bootstrap integration", () => {
 
     const adapter = new TeamRoutingPortAdapter({
       teamRunId: "run-1",
-      teamDefinitionId: "def-1",
       runVersion: 1,
       localNodeId: "node-host",
       placementByMember: {

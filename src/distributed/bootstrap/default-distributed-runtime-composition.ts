@@ -143,24 +143,6 @@ export const dispatchWithWorkerLocalRoutingPort = dispatchWithWorkerLocalRouting
 export const dispatchInterAgentMessageViaTeamManager = dispatchInterAgentMessageViaTeamManagerFromRouting;
 const dispatchWithTeamLocalRoutingPort = dispatchWithTeamLocalRoutingPortFromRouting;
 
-const resolveTeamByDefinitionId = (
-  teamDefinitionId: string,
-  teamInstanceManager: AgentTeamInstanceManager,
-): TeamLike => {
-  const teamId = teamInstanceManager.getTeamIdByDefinitionId(teamDefinitionId);
-  if (!teamId) {
-    throw new TeamCommandIngressError(
-      "TEAM_NOT_FOUND",
-      `No active team instance found for definition '${teamDefinitionId}'.`,
-    );
-  }
-  const team = teamInstanceManager.getTeamInstance(teamId) as TeamLike | null;
-  if (!team) {
-    throw new TeamCommandIngressError("TEAM_NOT_FOUND", `Team '${teamId}' not found.`);
-  }
-  return team;
-};
-
 const resolveTeamById = (
   teamId: string,
   teamInstanceManager: AgentTeamInstanceManager,
@@ -174,11 +156,10 @@ const resolveTeamById = (
 
 export const resolveBoundRuntimeTeamFromRegistries = (input: {
   teamRunId: string;
-  expectedTeamDefinitionId?: string | null;
   runScopedTeamBindingRegistry: Pick<RunScopedTeamBindingRegistry, "resolveRun">;
   teamRunOrchestrator: Pick<TeamRunOrchestrator, "getRunRecord">;
   resolveTeamById: (teamId: string) => TeamLike;
-  resolveTeamByDefinitionId: (teamDefinitionId: string) => TeamLike;
+  resolveTeamByRunId: (teamRunId: string) => TeamLike;
 }): {
   team: TeamLike;
   teamDefinitionId: string;
@@ -187,16 +168,6 @@ export const resolveBoundRuntimeTeamFromRegistries = (input: {
 
   try {
     const binding = input.runScopedTeamBindingRegistry.resolveRun(normalizedTeamRunId);
-    if (
-      input.expectedTeamDefinitionId &&
-      input.expectedTeamDefinitionId !== binding.teamDefinitionId
-    ) {
-      throw new TeamCommandIngressError(
-        "TEAM_BINDING_MISMATCH",
-        `Run '${normalizedTeamRunId}' is bound to definition '${binding.teamDefinitionId}', but envelope targeted '${input.expectedTeamDefinitionId}'.`,
-      );
-    }
-
     return {
       team: input.resolveTeamById(binding.runtimeTeamId),
       teamDefinitionId: binding.teamDefinitionId,
@@ -214,18 +185,9 @@ export const resolveBoundRuntimeTeamFromRegistries = (input: {
       `Run '${normalizedTeamRunId}' is not bound on this worker.`,
     );
   }
-  if (
-    input.expectedTeamDefinitionId &&
-    input.expectedTeamDefinitionId !== hostRunRecord.teamDefinitionId
-  ) {
-    throw new TeamCommandIngressError(
-      "TEAM_BINDING_MISMATCH",
-      `Run '${normalizedTeamRunId}' is bound to definition '${hostRunRecord.teamDefinitionId}', but envelope targeted '${input.expectedTeamDefinitionId}'.`,
-    );
-  }
 
   return {
-    team: input.resolveTeamByDefinitionId(hostRunRecord.teamDefinitionId),
+    team: input.resolveTeamByRunId(normalizedTeamRunId),
     teamDefinitionId: hostRunRecord.teamDefinitionId,
   };
 };
@@ -281,6 +243,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
   const runScopedTeamBindingRegistry = new RunScopedTeamBindingRegistry();
   const teamEventAggregator = new TeamEventAggregator();
   const workerTeamDefinitionIdByHostTeamDefinitionId = new Map<string, string>();
+  let teamRunLocator: TeamRunLocator | null = null;
 
   const ensureHostNodeDirectoryEntryForWorkerRun = (targetHostNodeId: string): void => {
     const outcome = resolveRemoteTargetForEventUplink({
@@ -296,29 +259,59 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     });
   };
 
+  const resolveHostRuntimeTeamByRunId = (teamRunId: string): TeamLike => {
+    if (!teamRunLocator) {
+      throw new TeamCommandIngressError(
+        "TEAM_RUN_NOT_BOUND",
+        `Run '${teamRunId}' is not bound on this host.`,
+      );
+    }
+    const locatorRecord = teamRunLocator.resolveByTeamRunId(teamRunId);
+    if (!locatorRecord) {
+      throw new TeamCommandIngressError(
+        "TEAM_RUN_NOT_BOUND",
+        `Run '${teamRunId}' is not bound on this host.`,
+      );
+    }
+    return resolveTeamById(locatorRecord.teamId, teamInstanceManager);
+  };
+
   const resolveBoundRuntimeTeam = (input: {
     teamRunId: string;
-    expectedTeamDefinitionId?: string | null;
   }): {
     team: TeamLike;
     teamDefinitionId: string;
   } =>
     resolveBoundRuntimeTeamFromRegistries({
       teamRunId: input.teamRunId,
-      expectedTeamDefinitionId: input.expectedTeamDefinitionId,
       runScopedTeamBindingRegistry,
       teamRunOrchestrator,
       resolveTeamById: (teamId) => resolveTeamById(teamId, teamInstanceManager),
-      resolveTeamByDefinitionId: (teamDefinitionId) =>
-        resolveTeamByDefinitionId(teamDefinitionId, teamInstanceManager),
+      resolveTeamByRunId: (teamRunId) => resolveHostRuntimeTeamByRunId(teamRunId),
     });
 
-  const resolveBootstrapBindingSnapshot = (teamDefinitionId: string): TeamMemberConfigInput[] => {
-    const memberBindings = teamInstanceManager.getTeamMemberConfigsByDefinitionId(teamDefinitionId);
+  const resolveBootstrapBindingSnapshot = (
+    teamRunId: string,
+    teamDefinitionId: string,
+  ): TeamMemberConfigInput[] => {
+    if (!teamRunLocator) {
+      throw new TeamCommandIngressError(
+        "TEAM_BOOTSTRAP_CONFIG_UNAVAILABLE",
+        `No run locator is available for bootstrap run '${teamRunId}'.`,
+      );
+    }
+    const locatorRecord = teamRunLocator.resolveByTeamRunId(teamRunId);
+    if (!locatorRecord) {
+      throw new TeamCommandIngressError(
+        "TEAM_BOOTSTRAP_CONFIG_UNAVAILABLE",
+        `No active run locator record exists for bootstrap run '${teamRunId}'.`,
+      );
+    }
+    const memberBindings = teamInstanceManager.getTeamMemberConfigs(locatorRecord.teamId);
     if (memberBindings.length === 0) {
       throw new TeamCommandIngressError(
         "TEAM_BOOTSTRAP_CONFIG_UNAVAILABLE",
-        `No member config snapshot is available for team definition '${teamDefinitionId}'.`,
+        `No member config snapshot is available for team '${locatorRecord.teamId}' (definition '${teamDefinitionId}').`,
       );
     }
     return memberBindings;
@@ -415,7 +408,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     teamDefinitionId: string;
     hostNodeId: string;
   }): Promise<void> => {
-    const memberBindings = resolveBootstrapBindingSnapshot(input.teamDefinitionId);
+    const memberBindings = resolveBootstrapBindingSnapshot(input.teamRunId, input.teamDefinitionId);
     const teamDefinitionSnapshot = await resolveBootstrapTeamDefinitionSnapshot(input.teamDefinitionId);
     await hostNodeBridgeClient.sendCommand(
       input.targetNodeId,
@@ -496,7 +489,6 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     }) =>
       new TeamRoutingPortAdapter({
         teamRunId,
-        teamDefinitionId,
         runVersion,
         localNodeId: runHostNodeId,
         placementByMember,
@@ -513,32 +505,32 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
           });
         },
         dispatchLocalUserMessage: async (event) => {
-          const team = resolveTeamByDefinitionId(teamDefinitionId, teamInstanceManager);
+          const team = resolveHostRuntimeTeamByRunId(teamRunId);
           await dispatchWithTeamLocalRoutingPort({
             team,
-            contextLabel: `Team definition '${teamDefinitionId}'`,
+            contextLabel: `Run '${teamRunId}'`,
             dispatch: async (localRoutingPort) => localRoutingPort.dispatchUserMessage(event),
           });
         },
         dispatchLocalInterAgentMessage: async (event) => {
-          const team = resolveTeamByDefinitionId(teamDefinitionId, teamInstanceManager);
+          const team = resolveHostRuntimeTeamByRunId(teamRunId);
           await dispatchWithTeamLocalRoutingPort({
             team,
-            contextLabel: `Team definition '${teamDefinitionId}'`,
+            contextLabel: `Run '${teamRunId}'`,
             dispatch: async (localRoutingPort) =>
               localRoutingPort.dispatchInterAgentMessageRequest(event),
           });
         },
         dispatchLocalToolApproval: async (event) => {
-          const team = resolveTeamByDefinitionId(teamDefinitionId, teamInstanceManager);
+          const team = resolveHostRuntimeTeamByRunId(teamRunId);
           await dispatchWithTeamLocalRoutingPort({
             team,
-            contextLabel: `Team definition '${teamDefinitionId}'`,
+            contextLabel: `Run '${teamRunId}'`,
             dispatch: async (localRoutingPort) => localRoutingPort.dispatchToolApproval(event),
           });
         },
         dispatchLocalControlStop: async () => {
-          const team = resolveTeamByDefinitionId(teamDefinitionId, teamInstanceManager);
+          const team = resolveHostRuntimeTeamByRunId(teamRunId);
           if (typeof team.stop === "function") {
             await team.stop();
           }
@@ -559,7 +551,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
 
     let team: TeamLike;
     try {
-      team = resolveTeamByDefinitionId(runRecord.teamDefinitionId, teamInstanceManager);
+      team = resolveHostRuntimeTeamByRunId(teamRunId);
     } catch {
       return;
     }
@@ -570,7 +562,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     }
   };
 
-  const teamRunLocator = new TeamRunLocator({
+  const defaultTeamRunLocator = new TeamRunLocator({
     teamRunOrchestrator,
     teamDefinitionService,
     teamInstanceManager,
@@ -581,9 +573,10 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
       bindHostRuntimeRoutingPortForRun(record.teamRunId);
     },
   });
+  teamRunLocator = defaultTeamRunLocator;
 
   const teamCommandIngressService = new TeamCommandIngressService({
-    teamRunLocator,
+    teamRunLocator: defaultTeamRunLocator,
     teamRunOrchestrator,
     toolApprovalConcurrencyPolicy: new ToolApprovalConcurrencyPolicy(),
   });
@@ -603,7 +596,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     hostNodeBridgeClient,
     workerNodeBridgeServer,
     teamRunOrchestrator,
-    teamRunLocator,
+    teamRunLocator: defaultTeamRunLocator,
     teamCommandIngressService,
     teamEventAggregator,
     remoteEventIdempotencyPolicy,

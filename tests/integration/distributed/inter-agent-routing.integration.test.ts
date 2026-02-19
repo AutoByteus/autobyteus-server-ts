@@ -25,7 +25,6 @@ describe("Distributed inter-agent routing integration", () => {
     const localInterAgentDispatch = vi.fn(async () => undefined);
     const adapter = new TeamRoutingPortAdapter({
       teamRunId: "run-1",
-      teamDefinitionId: "def-1",
       runVersion: 1,
       localNodeId: "node-host",
       placementByMember: {

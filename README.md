@@ -115,6 +115,64 @@ AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL=http://localhost:8000 \
 node dist/app.js --host 0.0.0.0 --port 8001
 ```
 
+### Canonical Hybrid Two-Node Restart (Host `8000` + Docker `8001`)
+
+Use this exact sequence when you need one non-Docker registry node and one Docker client node.
+
+1. Stop existing sessions:
+
+```bash
+# stop local host node (if running)
+HOST_PIDS="$(lsof -tiTCP:8000 -sTCP:LISTEN)"
+if [ -n "$HOST_PIDS" ]; then
+  kill $HOST_PIDS
+fi
+
+# stop docker node
+cd autobyteus-server-ts/docker
+docker compose down
+```
+
+2. Rebuild server artifacts and Docker image:
+
+```bash
+# from monorepo root
+pnpm -C autobyteus-server-ts build
+
+# rebuild docker image used by compose
+cd autobyteus-server-ts/docker
+./build.sh
+```
+
+3. Start Docker client node on `8001`:
+
+```bash
+cd autobyteus-server-ts/docker
+./start.sh
+```
+
+4. Start host registry node on `8000` (same command every time):
+
+```bash
+cd autobyteus-server-ts
+AUTOBYTEUS_SERVER_HOST=http://localhost:8000 \
+AUTOBYTEUS_NODE_DISCOVERY_ENABLED=true \
+AUTOBYTEUS_NODE_DISCOVERY_ROLE=registry \
+node dist/app.js --host 0.0.0.0 --port 8000
+```
+
+5. Verify both nodes:
+
+```bash
+curl -fsS http://127.0.0.1:8000/rest/health
+curl -fsS http://127.0.0.1:8001/rest/health
+```
+
+Notes:
+- Docker `8001` client discovery target is configured in `autobyteus-server-ts/docker/.env`:
+  `AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL=http://host.docker.internal:8000`.
+- Keep the host `8000` terminal open while testing, or run it under your preferred process supervisor.
+
 Inline env vars are supported and recommended for quick local runs. They override `.env` for that process invocation.
 
 Equivalent `.env` values for registry mode:
