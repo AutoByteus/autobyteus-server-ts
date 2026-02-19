@@ -223,6 +223,25 @@ describe("AgentStreamHandler", () => {
     }
   });
 
+  it("maps error stream events to websocket ERROR payloads with code", () => {
+    const handler = new AgentStreamHandler(new AgentSessionManager(), {
+      getAgentInstance: vi.fn(),
+      getAgentEventStream: vi.fn(),
+    } as any);
+
+    const message = handler.convertStreamEvent({
+      event_type: StreamEventType.ERROR_EVENT,
+      data: { code: "OUTPUT_GENERATION_FAILED", message: "Model rejected prompt." },
+    } as StreamEvent);
+
+    if (!message) {
+      throw new Error("Expected error stream event to produce a message");
+    }
+    expect(message.type).toBe(ServerMessageType.ERROR);
+    expect(message.payload.code).toBe("OUTPUT_GENERATION_FAILED");
+    expect(message.payload.message).toBe("Model rejected prompt.");
+  });
+
   it("drops deprecated assistant chunk stream events", () => {
     const handler = new AgentStreamHandler(new AgentSessionManager(), {
       getAgentInstance: vi.fn(),

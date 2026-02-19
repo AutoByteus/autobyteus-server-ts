@@ -427,10 +427,6 @@ export class AgentTeamInstanceManager {
       agent_definition_id: agentDefinitionId,
       is_first_user_turn: true,
     };
-    const normalizedMemberHomeNodeId = normalizeOptionalString(memberHomeNodeId);
-    if (normalizedMemberHomeNodeId) {
-      initialCustomData.teamMemberHomeNodeId = normalizedMemberHomeNodeId;
-    }
 
     const normalizedRouteKey = normalizeMemberRouteKey(
       memberConfig.memberRouteKey ?? memberRouteKey,

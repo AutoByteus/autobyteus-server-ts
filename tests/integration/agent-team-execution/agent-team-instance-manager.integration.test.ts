@@ -214,6 +214,7 @@ describe("AgentTeamInstanceManager integration", () => {
         memoryDir: "/tmp/team-memory",
       },
     });
+    expect((coordConfig as AgentConfig).initialCustomData).not.toHaveProperty("teamMemberHomeNodeId");
     expect(workerConfig).toBeInstanceOf(AgentConfig);
     expect((workerConfig as AgentConfig).name).toBe("TheWorker");
     expect((workerConfig as AgentConfig).autoExecuteTools).toBe(true);
@@ -221,6 +222,7 @@ describe("AgentTeamInstanceManager integration", () => {
       memberRouteKey: "TheWorker",
       memberAgentId: "member_worker_001",
     });
+    expect((workerConfig as AgentConfig).initialCustomData).not.toHaveProperty("teamMemberHomeNodeId");
   });
 
   it("creates a team instance with a preferred team id", async () => {
@@ -527,7 +529,13 @@ describe("AgentTeamInstanceManager integration", () => {
     const originalNodeId = process.env.AUTOBYTEUS_NODE_ID;
     process.env.AUTOBYTEUS_NODE_ID = "node-docker-8001";
     try {
-      const { manager, teamDefinitionService, agentDefinitionService, workspaceManager } = createManager();
+      const {
+        manager,
+        teamDefinitionService,
+        agentDefinitionService,
+        workspaceManager,
+        teamFactory,
+      } = createManager();
 
       agentDefinitionService.getAgentDefinitionById.mockResolvedValue(
         new AgentDefinition({
@@ -569,6 +577,11 @@ describe("AgentTeamInstanceManager integration", () => {
       expect(workspaceManager.ensureWorkspaceByRootPath).toHaveBeenCalledWith(
         "/tmp/remote-student-ws",
       );
+
+      const finalConfig = teamFactory.createTeam.mock.calls[0][0] as AgentTeamConfig;
+      const remoteNode = finalConfig.nodes.find((node) => node.name === "remoteStudent");
+      const remoteConfig = remoteNode?.nodeDefinition as AgentConfig;
+      expect(remoteConfig.initialCustomData).not.toHaveProperty("teamMemberHomeNodeId");
     } finally {
       if (originalNodeId === undefined) {
         delete process.env.AUTOBYTEUS_NODE_ID;

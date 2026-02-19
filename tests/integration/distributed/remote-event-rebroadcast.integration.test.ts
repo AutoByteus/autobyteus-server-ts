@@ -114,12 +114,11 @@ describe("Remote event rebroadcast integration", () => {
       runVersion: 3,
       sourceNodeId: "node-worker",
       sourceEventId: "evt-1",
-      eventType: "ASSISTANT_CHUNK",
+      eventType: "assistant_complete_response",
       memberName: "helper",
       agentId: "agent-remote-1",
       payload: {
         content: "remote hello",
-        is_complete: false,
       },
     };
 
@@ -134,7 +133,7 @@ describe("Remote event rebroadcast integration", () => {
     expect(sentMessages).toHaveLength(2);
 
     const distributedMessage = JSON.parse(sentMessages[1] ?? "{}");
-    expect(distributedMessage.type).toBe("ASSISTANT_CHUNK");
+    expect(distributedMessage.type).toBe("ASSISTANT_COMPLETE");
     expect(distributedMessage.payload.agent_name).toBe("helper");
     expect(distributedMessage.payload.agent_id).toBe("agent-remote-1");
     expect(distributedMessage.payload.team_stream_event_envelope).toMatchObject({
@@ -142,7 +141,7 @@ describe("Remote event rebroadcast integration", () => {
       run_version: 3,
       source_node_id: "node-worker",
       origin: "remote",
-      event_type: "ASSISTANT_CHUNK",
+      event_type: "assistant_complete_response",
     });
 
     await handler.disconnect(sessionId!);
@@ -219,12 +218,11 @@ describe("Remote event rebroadcast integration", () => {
       runVersion: 3,
       sourceNodeId: "node-worker",
       sourceEventId: "evt-nested-1",
-      eventType: "assistant_chunk",
+      eventType: "assistant_complete_response",
       memberName: "sub-team/worker-b",
       agentId: "agent-remote-b",
       payload: {
         content: "nested hello",
-        is_complete: false,
         agent_name: "worker-b",
         member_route_key: "sub-team/worker-b",
         event_scope: "member_scoped",
@@ -242,7 +240,7 @@ describe("Remote event rebroadcast integration", () => {
     expect(sentMessages).toHaveLength(2);
 
     const distributedMessage = JSON.parse(sentMessages[1] ?? "{}");
-    expect(distributedMessage.type).toBe("ASSISTANT_CHUNK");
+    expect(distributedMessage.type).toBe("ASSISTANT_COMPLETE");
     expect(distributedMessage.payload.agent_name).toBe("worker-b");
     expect(distributedMessage.payload.member_route_key).toBe("sub-team/worker-b");
     expect(distributedMessage.payload.agent_id).toBe("agent-remote-b");

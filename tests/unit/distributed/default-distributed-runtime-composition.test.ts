@@ -30,9 +30,9 @@ describe("default distributed runtime composition event projection", () => {
           agent_name: "worker-a",
           agent_event: new StreamEvent({
             event_id: "evt-1",
-            event_type: StreamEventType.ASSISTANT_CHUNK,
+            event_type: StreamEventType.ASSISTANT_COMPLETE_RESPONSE,
             agent_id: "agent-1",
-            data: { content: "hello", is_complete: false },
+            data: { content: "hello" },
           }),
         }),
       }),
@@ -42,16 +42,54 @@ describe("default distributed runtime composition event projection", () => {
     expect(projected[0]).toMatchObject({
       memberName: "worker-a",
       agentId: "agent-1",
-      eventType: "assistant_chunk",
+      eventType: "assistant_complete_response",
     });
-    expect(projected[0]?.sourceEventId).toContain(":worker-a:assistant_chunk");
+    expect(projected[0]?.sourceEventId).toContain(":worker-a:assistant_complete_response");
     expect(projected[0]?.payload).toMatchObject({
       content: "hello",
-      is_complete: false,
       agent_name: "worker-a",
       member_route_key: "worker-a",
       event_scope: "member_scoped",
     });
+  });
+
+  it("normalizes internal segment payload fields into canonical distributed payload contract", () => {
+    const projected = projectRemoteExecutionEventsFromTeamEvent({
+      teamEvent: new AgentTeamStreamEvent({
+        team_id: "team-1",
+        event_source_type: "AGENT",
+        data: new AgentEventRebroadcastPayload({
+          agent_name: "worker-a",
+          agent_event: new StreamEvent({
+            event_id: "evt-seg-1",
+            event_type: StreamEventType.SEGMENT_EVENT,
+            agent_id: "agent-1",
+            data: {
+              event_type: "SEGMENT_CONTENT",
+              segment_id: "seg-1",
+              payload: { delta: "hello" },
+            },
+          }),
+        }),
+      }),
+    });
+
+    expect(projected).toHaveLength(1);
+    expect(projected[0]).toMatchObject({
+      memberName: "worker-a",
+      agentId: "agent-1",
+      eventType: "segment_event",
+    });
+    expect(projected[0]?.payload).toMatchObject({
+      event_type: "SEGMENT_CONTENT",
+      id: "seg-1",
+      delta: "hello",
+      agent_name: "worker-a",
+      member_route_key: "worker-a",
+      event_scope: "member_scoped",
+    });
+    expect(projected[0]?.payload).not.toHaveProperty("segment_id");
+    expect(projected[0]?.payload).not.toHaveProperty("payload");
   });
 
   it("projects nested sub-team agent events with hierarchical route key", () => {

@@ -109,8 +109,8 @@ describe("Distributed event stream integration", () => {
         data: new AgentEventRebroadcastPayload({
           agent_name: "leader",
           agent_event: new StreamEvent({
-            event_type: StreamEventType.ASSISTANT_CHUNK,
-            data: { content: "one", is_complete: false },
+            event_type: StreamEventType.ASSISTANT_COMPLETE_RESPONSE,
+            data: { content: "one" },
             agent_id: "agent-1",
           }),
         }),
@@ -123,8 +123,8 @@ describe("Distributed event stream integration", () => {
         data: new AgentEventRebroadcastPayload({
           agent_name: "helper",
           agent_event: new StreamEvent({
-            event_type: StreamEventType.ASSISTANT_CHUNK,
-            data: { content: "two", is_complete: false },
+            event_type: StreamEventType.ASSISTANT_COMPLETE_RESPONSE,
+            data: { content: "two" },
             agent_id: "agent-2",
           }),
         }),

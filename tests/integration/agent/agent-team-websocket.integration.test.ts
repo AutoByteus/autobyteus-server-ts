@@ -245,8 +245,8 @@ describe("Agent team websocket integration", () => {
 
     const agentMessagePromise = waitForMessage(socket);
     const agentEvent = new StreamEvent({
-      event_type: StreamEventType.ASSISTANT_CHUNK,
-      data: { content: "hi", is_complete: false },
+      event_type: StreamEventType.ASSISTANT_COMPLETE_RESPONSE,
+      data: { content: "hi" },
       agent_id: "agent-42",
     });
     const teamEvent = new AgentTeamStreamEvent({
@@ -261,7 +261,7 @@ describe("Agent team websocket integration", () => {
       payload: { content?: string; agent_name?: string; agent_id?: string };
     };
 
-    expect(agentMessage.type).toBe("ASSISTANT_CHUNK");
+    expect(agentMessage.type).toBe("ASSISTANT_COMPLETE");
     expect(agentMessage.payload.content).toBe("hi");
     expect(agentMessage.payload.agent_name).toBe("alpha");
     expect(agentMessage.payload.agent_id).toBe("agent-42");

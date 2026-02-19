@@ -2,6 +2,14 @@
 
 Fastify-based server with GraphQL, REST, and WebSocket endpoints. This is the Node.js/TypeScript port of the original FastAPI server.
 
+## Agent Team Communication Architecture
+
+This infographic shows the current local + distributed team communication flow, including run-scoped control-plane ingress, routing, worker uplink, and host rebroadcast.
+
+![AutoByteus Agent Team Communication Architecture](docs/design/agent-team-communication-architecture-infographic.jpg)
+
+Detailed design notes: `docs/design/agent_team_communication_local_and_distributed.md`
+
 ## Prerequisites
 
 - Node.js 18+ (20+ recommended)

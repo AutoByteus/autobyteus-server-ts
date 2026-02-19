@@ -375,7 +375,7 @@ describe("AgentTeamStreamHandler", () => {
     await handler.disconnect(sessionId!);
   });
 
-  it("normalizes distributed segment_event payload segment_id into id", async () => {
+  it("rejects distributed segment_event payloads missing canonical id", async () => {
     const sent: string[] = [];
     const handler = new AgentTeamStreamHandler(
       undefined,
@@ -429,14 +429,14 @@ describe("AgentTeamStreamHandler", () => {
     });
 
     const payload = JSON.parse(sent[1] ?? "{}");
-    expect(payload.type).toBe("SEGMENT_START");
-    expect(payload.payload.segment_id).toBe("seg-legacy");
-    expect(payload.payload.id).toBe("seg-legacy");
+    expect(payload.type).toBe("ERROR");
+    expect(payload.payload.code).toBe("INVALID_DISTRIBUTED_SEGMENT_PAYLOAD");
+    expect(payload.payload.distributed_event_type).toBe("segment_event");
 
     await handler.disconnect(sessionId!);
   });
 
-  it("flattens nested distributed segment_event payload fields for start/content events", async () => {
+  it("accepts canonical distributed segment_event payload fields for start/content events", async () => {
     const sent: string[] = [];
     const handler = new AgentTeamStreamHandler(
       undefined,
@@ -481,12 +481,10 @@ describe("AgentTeamStreamHandler", () => {
         eventType: "segment_event",
         payload: {
           event_type: "SEGMENT_START",
-          segment_id: "seg-nested",
-          payload: {
-            segment_type: "tool_call",
-            metadata: {
-              tool_name: "send_message_to",
-            },
+          id: "seg-nested",
+          segment_type: "tool_call",
+          metadata: {
+            tool_name: "send_message_to",
           },
         },
         receivedAtIso: "2026-02-18T00:00:00.000Z",
@@ -505,10 +503,8 @@ describe("AgentTeamStreamHandler", () => {
         origin: "remote",
         eventType: "segment_event",
         payload: {
-          segment_id: "seg-nested",
-          payload: {
-            delta: "hello",
-          },
+          id: "seg-nested",
+          delta: "hello",
         },
         receivedAtIso: "2026-02-18T00:00:01.000Z",
       },
@@ -528,7 +524,7 @@ describe("AgentTeamStreamHandler", () => {
     await handler.disconnect(sessionId!);
   });
 
-  it("maps legacy agent_data_assistant_complete_response into ASSISTANT_COMPLETE", async () => {
+  it("treats internal notifier event names as unknown distributed event types", async () => {
     const sent: string[] = [];
     const handler = new AgentTeamStreamHandler(
       undefined,
@@ -580,12 +576,69 @@ describe("AgentTeamStreamHandler", () => {
     });
 
     const payload = JSON.parse(sent[1] ?? "{}");
-    expect(payload.type).toBe("ASSISTANT_COMPLETE");
-    expect(payload.payload.member_route_key).toBe("student");
-    expect(payload.payload).toMatchObject({
-      content: "I have one tool available.",
-      agent_name: "student",
+    expect(payload.type).toBe("ERROR");
+    expect(payload.payload.code).toBe("UNKNOWN_DISTRIBUTED_EVENT_TYPE");
+    expect(payload.payload.distributed_event_type).toBe("agent_data_assistant_complete_response");
+
+    await handler.disconnect(sessionId!);
+  });
+
+  it("maps distributed error_event payloads to websocket ERROR messages", async () => {
+    const sent: string[] = [];
+    const handler = new AgentTeamStreamHandler(
+      undefined,
+      {
+        getTeamInstance: (teamId: string) => (teamId === "team-1" ? { teamId } : null),
+        getTeamEventStream: (teamId: string) =>
+          teamId === "team-1"
+            ? {
+                async *allEvents() {
+                  return;
+                },
+                close: async () => undefined,
+              }
+            : null,
+      } as any,
+      {
+        issueToolApprovalTokenFromActiveRun: () => null,
+        resolveActiveRun: () => null,
+      } as any,
+      new TeamEventAggregator(),
+    );
+
+    const sessionId = await handler.connect(
+      {
+        send: (data) => sent.push(data),
+        close: () => undefined,
+      },
+      "team-1",
+    );
+    expect(sessionId).toBeTruthy();
+
+    handler.publishDistributedEnvelopeToTeamStream({
+      teamId: "team-1",
+      projection: {
+        teamRunId: "run-5",
+        runVersion: 1,
+        sequence: 14,
+        sourceNodeId: "node-remote",
+        memberName: "student",
+        agentId: "agent-student",
+        origin: "remote",
+        eventType: "error_event",
+        payload: {
+          code: "OUTPUT_GENERATION_FAILED",
+          message: "Model rejected prompt.",
+        },
+        receivedAtIso: "2026-02-18T00:00:00.000Z",
+      },
     });
+
+    const payload = JSON.parse(sent[1] ?? "{}");
+    expect(payload.type).toBe("ERROR");
+    expect(payload.payload.code).toBe("OUTPUT_GENERATION_FAILED");
+    expect(payload.payload.message).toBe("Model rejected prompt.");
+    expect(payload.payload.member_route_key).toBe("student");
 
     await handler.disconnect(sessionId!);
   });

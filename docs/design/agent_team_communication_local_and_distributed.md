@@ -195,17 +195,15 @@ Distributed payloads can arrive nested (`payload.payload`) or flat. Server norma
 
 This keeps frontend segment parser compatible with strict `id` checks.
 
-## Event Compatibility and Legacy Aliases
+## Distributed Runtime Event Contract
 
-`AgentTeamStreamHandler` maintains compatibility mapping:
+`team-runtime-event-protocol.ts` accepts canonical distributed runtime event names only:
 
-- `LEGACY_RUNTIME_EVENT_ALIASES` maps legacy `agent_data_*` names to canonical runtime event names
-- `RUNTIME_TO_SERVER_MESSAGE_TYPE` maps canonical runtime names to `ServerMessageType`
+- canonical stream runtime events (`segment_event`, `assistant_complete_response`, `tool_*`, `error_event`, etc.)
+- explicit `AGENT:<ServerMessageType>` wrappers used by aggregated local envelopes
+- `task_plan:*` namespace mapped to `TASK_PLAN_EVENT`
 
-Examples:
-
-- `agent_data_assistant_complete_response -> assistant_complete_response -> ASSISTANT_COMPLETE`
-- `agent_data_segment_event -> segment_event -> SEGMENT_*`
+Internal notifier event names (`agent_data_*`) are not accepted at distributed rebroadcast boundary.
 
 Deprecated in distributed WS projection:
 

@@ -20,6 +20,12 @@ import {
   ServerMessage,
   ServerMessageType,
 } from "./models.js";
+import {
+  isSegmentServerMessageType,
+  isDeprecatedDistributedTeamRuntimeEventType,
+  normalizeDistributedSegmentPayload,
+  resolveDistributedMessageType,
+} from "./team-runtime-event-protocol.js";
 import { serializePayload } from "./payload-serialization.js";
 import {
   getDefaultTeamCommandIngressService,
@@ -86,176 +92,15 @@ const summarizeOutgoingTeamWsMessage = (message: ServerMessage): Record<string, 
     agent_id: payload.agent_id,
     member_route_key: payload.member_route_key,
     id: payload.id,
-    segment_id: payload.segment_id,
     invocation_id: payload.invocation_id,
     delta_len: deltaLen,
   };
-};
-
-const KNOWN_SERVER_MESSAGE_TYPES = new Set<string>(Object.values(ServerMessageType));
-
-const RUNTIME_TO_SERVER_MESSAGE_TYPE: Record<string, ServerMessageType> = {
-  assistant_complete_response: ServerMessageType.ASSISTANT_COMPLETE,
-  tool_approval_requested: ServerMessageType.TOOL_APPROVAL_REQUESTED,
-  tool_approved: ServerMessageType.TOOL_APPROVED,
-  tool_denied: ServerMessageType.TOOL_DENIED,
-  tool_execution_started: ServerMessageType.TOOL_EXECUTION_STARTED,
-  tool_execution_succeeded: ServerMessageType.TOOL_EXECUTION_SUCCEEDED,
-  tool_execution_failed: ServerMessageType.TOOL_EXECUTION_FAILED,
-  tool_interaction_log_entry: ServerMessageType.TOOL_LOG,
-  agent_status_updated: ServerMessageType.AGENT_STATUS,
-  inter_agent_message: ServerMessageType.INTER_AGENT_MESSAGE,
-  system_task_notification: ServerMessageType.SYSTEM_TASK_NOTIFICATION,
-  agent_todo_list_updated: ServerMessageType.TODO_LIST_UPDATE,
-  artifact_persisted: ServerMessageType.ARTIFACT_PERSISTED,
-  artifact_updated: ServerMessageType.ARTIFACT_UPDATED,
-  team_status: ServerMessageType.TEAM_STATUS,
-  task_plan_event: ServerMessageType.TASK_PLAN_EVENT,
-};
-
-const LEGACY_RUNTIME_EVENT_ALIASES: Record<string, string> = {
-  agent_data_assistant_complete_response: "assistant_complete_response",
-  agent_data_segment_event: "segment_event",
-  agent_data_tool_log: "tool_interaction_log_entry",
-  agent_data_system_task_notification_received: "system_task_notification",
-  agent_data_inter_agent_message_received: "inter_agent_message",
-  agent_data_todo_list_updated: "agent_todo_list_updated",
-  agent_tool_approval_requested: "tool_approval_requested",
-  agent_tool_approved: "tool_approved",
-  agent_tool_denied: "tool_denied",
-  agent_tool_execution_started: "tool_execution_started",
-  agent_tool_execution_succeeded: "tool_execution_succeeded",
-  agent_tool_execution_failed: "tool_execution_failed",
-};
-
-const canonicalizeRuntimeEventType = (runtimeEventType: string): string =>
-  LEGACY_RUNTIME_EVENT_ALIASES[runtimeEventType] ?? runtimeEventType;
-
-const DEPRECATED_DISTRIBUTED_RUNTIME_EVENT_TYPES = new Set<string>([
-  "assistant_chunk",
-]);
-
-const isDeprecatedDistributedRuntimeEventType = (runtimeEventType: string): boolean => {
-  const normalized = canonicalizeRuntimeEventType(runtimeEventType.trim().toLowerCase());
-  if (DEPRECATED_DISTRIBUTED_RUNTIME_EVENT_TYPES.has(normalized)) {
-    return true;
-  }
-  if (normalized.startsWith("agent:")) {
-    const stripped = normalized.slice("agent:".length).trim();
-    return DEPRECATED_DISTRIBUTED_RUNTIME_EVENT_TYPES.has(
-      canonicalizeRuntimeEventType(stripped),
-    );
-  }
-  return false;
 };
 
 const isTeamScopedMessageType = (messageType: ServerMessageType): boolean =>
   messageType === ServerMessageType.TEAM_STATUS ||
   messageType === ServerMessageType.TASK_PLAN_EVENT ||
   messageType === ServerMessageType.CONNECTED;
-
-const getNestedSegmentPayload = (
-  payload: Record<string, unknown>,
-): Record<string, unknown> | null => {
-  const nested = payload.payload;
-  if (!nested || typeof nested !== "object" || Array.isArray(nested)) {
-    return null;
-  }
-  return nested as Record<string, unknown>;
-};
-
-const normalizeSegmentEventType = (
-  value: unknown,
-): "SEGMENT_START" | "SEGMENT_CONTENT" | "SEGMENT_END" | null => {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const normalized = value.trim().toUpperCase();
-  if (
-    normalized === "SEGMENT_START" ||
-    normalized === "SEGMENT_CONTENT" ||
-    normalized === "SEGMENT_END"
-  ) {
-    return normalized;
-  }
-  return null;
-};
-
-const resolveSegmentMessageTypeFromPayload = (payload: Record<string, unknown>): ServerMessageType => {
-  const nestedPayload = getNestedSegmentPayload(payload);
-
-  const explicitEventType =
-    normalizeSegmentEventType(payload.event_type) ??
-    normalizeSegmentEventType(nestedPayload?.event_type);
-  if (explicitEventType === "SEGMENT_START") {
-    return ServerMessageType.SEGMENT_START;
-  }
-  if (explicitEventType === "SEGMENT_CONTENT") {
-    return ServerMessageType.SEGMENT_CONTENT;
-  }
-  if (explicitEventType === "SEGMENT_END") {
-    return ServerMessageType.SEGMENT_END;
-  }
-
-  if (typeof payload.segment_type === "string") {
-    return ServerMessageType.SEGMENT_START;
-  }
-  if (typeof nestedPayload?.segment_type === "string") {
-    return ServerMessageType.SEGMENT_START;
-  }
-  if (typeof payload.delta === "string") {
-    return ServerMessageType.SEGMENT_CONTENT;
-  }
-  if (typeof nestedPayload?.delta === "string") {
-    return ServerMessageType.SEGMENT_CONTENT;
-  }
-  return ServerMessageType.SEGMENT_END;
-};
-
-const normalizeDistributedSegmentPayload = (
-  messageType: ServerMessageType,
-  payload: Record<string, unknown>,
-): void => {
-  if (
-    messageType !== ServerMessageType.SEGMENT_START &&
-    messageType !== ServerMessageType.SEGMENT_CONTENT &&
-    messageType !== ServerMessageType.SEGMENT_END
-  ) {
-    return;
-  }
-
-  const nestedPayload = getNestedSegmentPayload(payload);
-  if (nestedPayload) {
-    if (payload.segment_type === undefined && nestedPayload.segment_type !== undefined) {
-      payload.segment_type = nestedPayload.segment_type;
-    }
-    if (payload.delta === undefined && nestedPayload.delta !== undefined) {
-      payload.delta = nestedPayload.delta;
-    }
-    if (payload.metadata === undefined && nestedPayload.metadata !== undefined) {
-      payload.metadata = nestedPayload.metadata;
-    }
-    if (payload.id === undefined && nestedPayload.id !== undefined) {
-      payload.id = nestedPayload.id;
-    }
-    if (payload.segment_id === undefined && nestedPayload.segment_id !== undefined) {
-      payload.segment_id = nestedPayload.segment_id;
-    }
-    if (payload.event_type === undefined && nestedPayload.event_type !== undefined) {
-      payload.event_type = nestedPayload.event_type;
-    }
-  }
-
-  const id = payload.id;
-  if (typeof id === "string" && id.trim().length > 0) {
-    return;
-  }
-
-  const segmentId = payload.segment_id;
-  if (typeof segmentId === "string" && segmentId.trim().length > 0) {
-    payload.id = segmentId;
-  }
-};
 
 class AgentTeamSession extends AgentSession {
   get teamId(): string {
@@ -674,7 +519,7 @@ export class AgentTeamStreamHandler {
     teamId: string,
     projection: DistributedTeamStreamProjection,
   ): ServerMessage | null {
-    if (isDeprecatedDistributedRuntimeEventType(projection.eventType)) {
+    if (isDeprecatedDistributedTeamRuntimeEventType(projection.eventType)) {
       logger.debug(
         `Dropping deprecated distributed event type '${projection.eventType}' from node '${projection.sourceNodeId}'.`,
       );
@@ -695,11 +540,20 @@ export class AgentTeamStreamHandler {
       typeof basePayloadMemberRouteKey === "string" && basePayloadMemberRouteKey.trim().length > 0
         ? basePayloadMemberRouteKey
         : projection.memberName;
-    const resolvedMessageType = AgentTeamStreamHandler.resolveDistributedMessageType(
+    const resolvedMessageType = resolveDistributedMessageType(
       projection.eventType,
       basePayload,
     );
     const messageType = resolvedMessageType ?? ServerMessageType.ERROR;
+    const envelopePayload = {
+      team_run_id: projection.teamRunId,
+      run_version: projection.runVersion,
+      sequence: projection.sequence,
+      source_node_id: projection.sourceNodeId,
+      origin: projection.origin,
+      event_type: projection.eventType,
+      received_at: projection.receivedAtIso,
+    };
     const payload: Record<string, unknown> = {
       ...(resolvedMessageType
         ? basePayload
@@ -714,18 +568,29 @@ export class AgentTeamStreamHandler {
       ...(projection.agentId ? { agent_id: projection.agentId } : {}),
       ...(payloadMemberRouteKey ? { member_route_key: payloadMemberRouteKey } : {}),
       event_scope: isTeamScopedMessageType(messageType) ? "team_scoped" : "member_scoped",
-      team_stream_event_envelope: {
-        team_run_id: projection.teamRunId,
-        run_version: projection.runVersion,
-        sequence: projection.sequence,
-        source_node_id: projection.sourceNodeId,
-        origin: projection.origin,
-        event_type: projection.eventType,
-        received_at: projection.receivedAtIso,
-      },
+      team_stream_event_envelope: envelopePayload,
     };
 
     normalizeDistributedSegmentPayload(messageType, payload);
+    if (isSegmentServerMessageType(messageType)) {
+      const segmentId = payload.id;
+      if (typeof segmentId !== "string" || segmentId.trim().length === 0) {
+        const errorMessage = new ServerMessage(ServerMessageType.ERROR, {
+          code: "INVALID_DISTRIBUTED_SEGMENT_PAYLOAD",
+          message: `Distributed segment event '${projection.eventType}' received from node '${projection.sourceNodeId}' is missing required payload.id.`,
+          details: `event_type=${projection.eventType}`,
+          distributed_event_type: projection.eventType,
+          distributed_event_payload: basePayload,
+          ...(payloadAgentName ? { agent_name: payloadAgentName } : {}),
+          ...(projection.agentId ? { agent_id: projection.agentId } : {}),
+          ...(payloadMemberRouteKey ? { member_route_key: payloadMemberRouteKey } : {}),
+          event_scope: "member_scoped",
+          team_stream_event_envelope: envelopePayload,
+        });
+        this.publishTeamHistoryActivity(teamId, errorMessage.type, errorMessage.payload);
+        return errorMessage;
+      }
+    }
 
     if (messageType === ServerMessageType.SYSTEM_TASK_NOTIFICATION && typeof payload.event_type !== "string") {
       payload.event_type = projection.eventType;
@@ -746,46 +611,6 @@ export class AgentTeamStreamHandler {
     } catch (error) {
       logger.warn(`Failed to publish team history activity for '${teamId}': ${String(error)}`);
     }
-  }
-
-  private static resolveDistributedMessageType(
-    eventType: string,
-    payload: Record<string, unknown>,
-  ): ServerMessageType | null {
-    const normalized = eventType.trim();
-    if (KNOWN_SERVER_MESSAGE_TYPES.has(normalized)) {
-      return normalized as ServerMessageType;
-    }
-
-    const normalizedLower = canonicalizeRuntimeEventType(normalized.toLowerCase());
-    if (normalizedLower === "segment_event") {
-      return resolveSegmentMessageTypeFromPayload(payload);
-    }
-    const directRuntimeType = RUNTIME_TO_SERVER_MESSAGE_TYPE[normalizedLower];
-    if (directRuntimeType) {
-      return directRuntimeType;
-    }
-
-    if (normalizedLower.startsWith("agent:")) {
-      const stripped = normalized.slice("AGENT:".length).trim();
-      const strippedLower = canonicalizeRuntimeEventType(stripped.toLowerCase());
-      if (KNOWN_SERVER_MESSAGE_TYPES.has(stripped)) {
-        return stripped as ServerMessageType;
-      }
-      if (strippedLower === "segment_event") {
-        return resolveSegmentMessageTypeFromPayload(payload);
-      }
-      const mapped = RUNTIME_TO_SERVER_MESSAGE_TYPE[strippedLower];
-      if (mapped) {
-        return mapped;
-      }
-    }
-
-    if (normalizedLower.startsWith("task_plan:")) {
-      return ServerMessageType.TASK_PLAN_EVENT;
-    }
-
-    return null;
   }
 
   static parseMessage(raw: string): ClientMessage {
