@@ -12,6 +12,7 @@ The goal is to keep architecture and module docs close to the actual Node.js/Typ
 - `FILE_RENDERING_AND_MEDIA_PIPELINE.md`: media and file-serving pipeline.
 - `modules/`: per-module design docs.
 - `design/`: focused ADR-style design notes.
+  - Includes `design/agent_team_communication_local_and_distributed.md` for full local/distributed team communication flow.
 - `features/`: feature-level documents.
 
 ## Important Runtime Constraint

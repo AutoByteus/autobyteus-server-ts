@@ -4,6 +4,7 @@ This directory contains focused architecture/design decisions for `autobyteus-se
 
 ## Documents
 
+- `agent_team_communication_local_and_distributed.md`
 - `startup_initialization_and_lazy_services.md`
 - `agent_websocket_streaming_protocol.md`
 - `mandatory-processor-defaults.md`
