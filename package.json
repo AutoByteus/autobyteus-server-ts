@@ -6,14 +6,14 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "prebuild": "pnpm -C .. -r --filter autobyteus-ts --filter repository_prisma build",
+    "prebuild": "pnpm -C .. -r --filter autobyteus-ts build",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest"
   },
   "dependencies": {
     "autobyteus-ts": "workspace:*",
-    "repository_prisma": "workspace:*",
+    "repository_prisma": "^1.0.6",
     "@prisma/client": "^5.22.0",
     "dotenv": "^17.2.3",
     "fastify": "^4.29.1",
