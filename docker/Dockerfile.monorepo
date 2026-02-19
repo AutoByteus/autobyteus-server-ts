@@ -45,6 +45,12 @@ COPY autobyteus-server-ts/docker/supervisor-autobyteus-server.conf /etc/supervis
 ENV NODE_ENV=production \
     AUTOBYTEUS_BIND_HOST=0.0.0.0 \
     AUTOBYTEUS_SERVER_PORT=8000 \
-    AUTOBYTEUS_DATA_DIR=/home/autobyteus/data
+    AUTOBYTEUS_DATA_DIR=/home/autobyteus/data \
+    AUTOBYTEUS_NODE_DISCOVERY_ENABLED=true \
+    AUTOBYTEUS_NODE_DISCOVERY_ROLE=client \
+    AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL=http://registry-node:8000 \
+    LOG_LEVEL=INFO \
+    AUTOBYTEUS_HTTP_ACCESS_LOG_MODE=errors \
+    AUTOBYTEUS_HTTP_ACCESS_LOG_INCLUDE_NOISY=false
 
 EXPOSE 8000 5900 6080 9223

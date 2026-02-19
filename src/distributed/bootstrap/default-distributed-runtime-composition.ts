@@ -8,6 +8,7 @@ import {
 import {
   type InterAgentMessageRequestEvent,
 } from "autobyteus-ts/agent-team/events/agent-team-events.js";
+import { createLocalTeamRoutingPortAdapter } from "autobyteus-ts/agent-team/routing/local-team-routing-port-adapter.js";
 import { NodeType } from "../../agent-team-definition/domain/enums.js";
 import { AgentTeamDefinitionService } from "../../agent-team-definition/services/agent-team-definition-service.js";
 import {
@@ -47,6 +48,12 @@ import { HostDistributedCommandClient } from "../transport/internal-http/host-di
 import { WorkerEventUplinkClient } from "../transport/internal-http/worker-event-uplink-client.js";
 import { RemoteMemberExecutionGateway } from "../worker-execution/remote-member-execution-gateway.js";
 import { serializePayload } from "../../services/agent-streaming/payload-serialization.js";
+import {
+  normalizeDistributedBaseUrl as normalizeDistributedBaseUrlFromPolicy,
+  resolveRemoteTargetForCommandDispatch,
+  resolveRemoteTargetForEventUplink,
+  type AddressResolutionOutcome,
+} from "../addressing/transport-address-policy.js";
 
 type TeamLike = {
   postMessage?: (
@@ -65,6 +72,7 @@ type TeamLike = {
       teamManager?: {
         dispatchInterAgentMessage?: (event: InterAgentMessageRequestEvent) => Promise<void>;
         setTeamRoutingPort?: (port: unknown) => void;
+        ensureNodeIsReady?: (nameOrAgentId: string) => Promise<any>;
       };
     };
   };
@@ -86,6 +94,24 @@ export type DefaultDistributedRuntimeComposition = {
   remoteEventIdempotencyPolicy: RemoteEventIdempotencyPolicy;
   runVersionFencingPolicy: RunVersionFencingPolicy;
   runScopedTeamBindingRegistry: RunScopedTeamBindingRegistry;
+};
+
+const emitAddressResolutionLog = (input: {
+  operation: "command_dispatch" | "event_uplink";
+  outcome: AddressResolutionOutcome;
+}): void => {
+  if (input.outcome.source === "directory") {
+    return;
+  }
+  const payload = {
+    operation: input.operation,
+    targetNodeId: input.outcome.targetNodeId,
+    source: input.outcome.source,
+    rewritten: input.outcome.rewritten,
+    reason: input.outcome.reason,
+    baseUrl: input.outcome.baseUrl,
+  };
+  console.info(`[DistributedAddressResolution] ${JSON.stringify(payload)}`);
 };
 
 const normalizeOptionalString = (value: string | null | undefined): string | null => {
@@ -136,6 +162,89 @@ const resolveLocalBaseUrl = (): string => {
     return fromServerHost;
   }
   return "http://localhost:8000";
+};
+
+export const normalizeDistributedBaseUrl = normalizeDistributedBaseUrlFromPolicy;
+
+export const ensureNodeDirectoryEntryForHostUplink = (input: {
+  localNodeId: string;
+  targetHostNodeId: string;
+  nodeDirectoryService: NodeDirectoryService;
+  distributedUplinkBaseUrl?: string | null;
+  discoveryRegistryUrl?: string | null;
+}): boolean => {
+  const outcome = resolveRemoteTargetForEventUplink({
+    localNodeId: input.localNodeId,
+    targetNodeId: input.targetHostNodeId,
+    nodeDirectoryService: input.nodeDirectoryService,
+    distributedUplinkBaseUrl: input.distributedUplinkBaseUrl,
+    discoveryRegistryUrl: input.discoveryRegistryUrl,
+  });
+  return outcome.resolved;
+};
+
+export const dispatchWithWorkerLocalRoutingPort = async (input: {
+  teamRunId: string;
+  workerManagedRunIds: ReadonlySet<string>;
+  team: TeamLike;
+  dispatch: (localRoutingPort: ReturnType<typeof createLocalTeamRoutingPortAdapter>) => Promise<{
+    accepted: boolean;
+    errorCode?: string;
+    errorMessage?: string;
+  }>;
+}): Promise<boolean> => {
+  if (!input.workerManagedRunIds.has(input.teamRunId)) {
+    return false;
+  }
+
+  await dispatchWithTeamLocalRoutingPort({
+    team: input.team,
+    contextLabel: `Run '${input.teamRunId}'`,
+    dispatch: input.dispatch,
+  });
+  return true;
+};
+
+export const dispatchInterAgentMessageViaTeamManager = async (input: {
+  team: TeamLike;
+  event: InterAgentMessageRequestEvent;
+}): Promise<boolean> => {
+  const teamManager = input.team.runtime?.context?.teamManager;
+  if (!teamManager || typeof teamManager.dispatchInterAgentMessage !== "function") {
+    return false;
+  }
+  await teamManager.dispatchInterAgentMessage(input.event);
+  return true;
+};
+
+const dispatchWithTeamLocalRoutingPort = async (input: {
+  team: TeamLike;
+  contextLabel: string;
+  dispatch: (localRoutingPort: ReturnType<typeof createLocalTeamRoutingPortAdapter>) => Promise<{
+    accepted: boolean;
+    errorCode?: string;
+    errorMessage?: string;
+  }>;
+}): Promise<void> => {
+  const teamManager = input.team.runtime?.context?.teamManager;
+  const ensureNodeIsReady = teamManager?.ensureNodeIsReady;
+  if (typeof ensureNodeIsReady !== "function") {
+    throw new TeamCommandIngressError(
+      "TEAM_DISPATCH_UNAVAILABLE",
+      `${input.contextLabel} cannot dispatch locally because TeamManager.ensureNodeIsReady is unavailable.`,
+    );
+  }
+
+  const localRoutingPort = createLocalTeamRoutingPortAdapter({
+    ensureNodeIsReady: ensureNodeIsReady.bind(teamManager),
+  });
+  const result = await input.dispatch(localRoutingPort);
+  if (!result.accepted) {
+    throw new TeamCommandIngressError(
+      "TEAM_DISPATCH_UNAVAILABLE",
+      result.errorMessage ?? result.errorCode ?? "Worker-local dispatch was rejected.",
+    );
+  }
 };
 
 const buildHostOnlyNodeDirectoryEntries = (hostNodeId: string) => [
@@ -536,6 +645,64 @@ const resolveTeamById = (
   return team;
 };
 
+export const resolveBoundRuntimeTeamFromRegistries = (input: {
+  teamRunId: string;
+  expectedTeamDefinitionId?: string | null;
+  runScopedTeamBindingRegistry: Pick<RunScopedTeamBindingRegistry, "resolveRun">;
+  teamRunOrchestrator: Pick<TeamRunOrchestrator, "getRunRecord">;
+  resolveTeamById: (teamId: string) => TeamLike;
+  resolveTeamByDefinitionId: (teamDefinitionId: string) => TeamLike;
+}): {
+  team: TeamLike;
+  teamDefinitionId: string;
+} => {
+  const normalizedTeamRunId = normalizeRequiredString(input.teamRunId, "teamRunId");
+
+  try {
+    const binding = input.runScopedTeamBindingRegistry.resolveRun(normalizedTeamRunId);
+    if (
+      input.expectedTeamDefinitionId &&
+      input.expectedTeamDefinitionId !== binding.teamDefinitionId
+    ) {
+      throw new TeamCommandIngressError(
+        "TEAM_BINDING_MISMATCH",
+        `Run '${normalizedTeamRunId}' is bound to definition '${binding.teamDefinitionId}', but envelope targeted '${input.expectedTeamDefinitionId}'.`,
+      );
+    }
+
+    return {
+      team: input.resolveTeamById(binding.runtimeTeamId),
+      teamDefinitionId: binding.teamDefinitionId,
+    };
+  } catch (error) {
+    if (!(error instanceof TeamRunNotBoundError)) {
+      throw error;
+    }
+  }
+
+  const hostRunRecord = input.teamRunOrchestrator.getRunRecord(normalizedTeamRunId);
+  if (!hostRunRecord || hostRunRecord.status === "stopped") {
+    throw new TeamCommandIngressError(
+      "TEAM_RUN_NOT_BOUND",
+      `Run '${normalizedTeamRunId}' is not bound on this worker.`,
+    );
+  }
+  if (
+    input.expectedTeamDefinitionId &&
+    input.expectedTeamDefinitionId !== hostRunRecord.teamDefinitionId
+  ) {
+    throw new TeamCommandIngressError(
+      "TEAM_BINDING_MISMATCH",
+      `Run '${normalizedTeamRunId}' is bound to definition '${hostRunRecord.teamDefinitionId}', but envelope targeted '${input.expectedTeamDefinitionId}'.`,
+    );
+  }
+
+  return {
+    team: input.resolveTeamByDefinitionId(hostRunRecord.teamDefinitionId),
+    teamDefinitionId: hostRunRecord.teamDefinitionId,
+  };
+};
+
 const normalizeRouteSegment = (value: unknown): string | null => {
   if (typeof value !== "string") {
     return null;
@@ -667,23 +834,49 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
 
   const hostNodeBridgeClient = new HostNodeBridgeClient({
     sendEnvelopeToWorker: async (targetNodeId, envelope) => {
+      const outcome = resolveRemoteTargetForCommandDispatch({
+        targetNodeId,
+        nodeDirectoryService,
+      });
+      emitAddressResolutionLog({
+        operation: "command_dispatch",
+        outcome,
+      });
       await hostDistributedCommandClient.sendCommand(targetNodeId, envelope);
     },
   });
   const runScopedTeamBindingRegistry = new RunScopedTeamBindingRegistry();
   const hostNodeIdByRunId = new Map<string, string>();
+  const workerManagedRunIds = new Set<string>();
   const workerTeamDefinitionIdByHostTeamDefinitionId = new Map<string, string>();
   const eventForwarderByRunId = new Map<string, TeamEventForwarder>();
 
   const stopEventForwarder = async (teamRunId: string): Promise<void> => {
     const forwarder = eventForwarderByRunId.get(teamRunId);
     if (!forwarder) {
-      hostNodeIdByRunId.delete(teamRunId);
       return;
     }
     eventForwarderByRunId.delete(teamRunId);
-    hostNodeIdByRunId.delete(teamRunId);
     await forwarder.close();
+  };
+
+  const clearRunTracking = (teamRunId: string): void => {
+    hostNodeIdByRunId.delete(teamRunId);
+    workerManagedRunIds.delete(teamRunId);
+  };
+
+  const ensureHostNodeDirectoryEntryForWorkerRun = (targetHostNodeId: string): void => {
+    const outcome = resolveRemoteTargetForEventUplink({
+      localNodeId: hostNodeId,
+      targetNodeId: targetHostNodeId,
+      nodeDirectoryService,
+      distributedUplinkBaseUrl: process.env.AUTOBYTEUS_DISTRIBUTED_UPLINK_BASE_URL ?? "",
+      discoveryRegistryUrl: process.env.AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL ?? "",
+    });
+    emitAddressResolutionLog({
+      operation: "event_uplink",
+      outcome,
+    });
   };
 
   const startEventForwarder = (input: {
@@ -744,35 +937,16 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
   }): {
     team: TeamLike;
     teamDefinitionId: string;
-  } => {
-    let binding;
-    try {
-      binding = runScopedTeamBindingRegistry.resolveRun(input.teamRunId);
-    } catch (error) {
-      if (error instanceof TeamRunNotBoundError) {
-        throw new TeamCommandIngressError(
-          "TEAM_RUN_NOT_BOUND",
-          `Run '${input.teamRunId}' is not bound on this worker.`,
-        );
-      }
-      throw error;
-    }
-
-    if (
-      input.expectedTeamDefinitionId &&
-      input.expectedTeamDefinitionId !== binding.teamDefinitionId
-    ) {
-      throw new TeamCommandIngressError(
-        "TEAM_BINDING_MISMATCH",
-        `Run '${input.teamRunId}' is bound to definition '${binding.teamDefinitionId}', but envelope targeted '${input.expectedTeamDefinitionId}'.`,
-      );
-    }
-
-    return {
-      team: resolveTeamById(binding.runtimeTeamId, teamInstanceManager),
-      teamDefinitionId: binding.teamDefinitionId,
-    };
-  };
+  } =>
+    resolveBoundRuntimeTeamFromRegistries({
+      teamRunId: input.teamRunId,
+      expectedTeamDefinitionId: input.expectedTeamDefinitionId,
+      runScopedTeamBindingRegistry,
+      teamRunOrchestrator,
+      resolveTeamById: (teamId) => resolveTeamById(teamId, teamInstanceManager),
+      resolveTeamByDefinitionId: (teamDefinitionId) =>
+        resolveTeamByDefinitionId(teamDefinitionId, teamInstanceManager),
+    });
 
   const resolveBootstrapBindingSnapshot = (teamDefinitionId: string): TeamMemberConfigInput[] => {
     const memberBindings = teamInstanceManager.getTeamMemberConfigsByDefinitionId(teamDefinitionId);
@@ -911,14 +1085,17 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
       const memberBindings = normalizeBootstrapMemberBindingSnapshotList(payload);
       const bootstrapHostNodeId =
         normalizeRouteSegment(payload.hostNodeId) ?? hostNodeId;
+      ensureHostNodeDirectoryEntryForWorkerRun(bootstrapHostNodeId);
       const existingBinding = runScopedTeamBindingRegistry.tryResolveRun(envelope.teamRunId);
       if (existingBinding) {
         const boundTeam = teamInstanceManager.getTeamInstance(existingBinding.runtimeTeamId);
         if (boundTeam) {
           hostNodeIdByRunId.set(envelope.teamRunId, bootstrapHostNodeId);
+          workerManagedRunIds.add(envelope.teamRunId);
           return;
         }
         await stopEventForwarder(envelope.teamRunId);
+        clearRunTracking(envelope.teamRunId);
         runScopedTeamBindingRegistry.unbindRun(envelope.teamRunId);
         teamEventAggregator.finalizeRun(envelope.teamRunId);
       }
@@ -952,6 +1129,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         memberBindings,
       });
       hostNodeIdByRunId.set(envelope.teamRunId, bootstrapHostNodeId);
+      workerManagedRunIds.add(envelope.teamRunId);
 
       const runtimeTeam = teamInstanceManager.getTeamInstance(runtimeTeamId) as TeamLike | null;
       const teamManager = runtimeTeam?.runtime?.context?.teamManager;
@@ -998,13 +1176,27 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         expectedTeamDefinitionId: teamDefinitionId,
       });
       const team = bound.team;
+      const userMessage = normalizeUserMessageInput(payload.userMessage);
+      const handledByWorkerLocalIngress = await dispatchWithWorkerLocalRoutingPort({
+        teamRunId: envelope.teamRunId,
+        workerManagedRunIds,
+        team,
+        dispatch: async (localRoutingPort) =>
+          localRoutingPort.dispatchUserMessage({
+            targetAgentName,
+            userMessage,
+          }),
+      });
+      if (handledByWorkerLocalIngress) {
+        return;
+      }
       if (!team.postMessage) {
         throw new TeamCommandIngressError(
           "TEAM_DISPATCH_UNAVAILABLE",
           `Team definition '${bound.teamDefinitionId}' does not support postMessage dispatch.`,
         );
       }
-      await team.postMessage(normalizeUserMessageInput(payload.userMessage), targetAgentName);
+      await team.postMessage(userMessage, targetAgentName);
     },
     dispatchInterAgentMessage: async (envelope) => {
       const payload = getPayloadRecord(envelope.payload);
@@ -1030,14 +1222,31 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         expectedTeamDefinitionId: teamDefinitionId,
       });
       const team = bound.team;
-      const managerDispatch = team.runtime?.context?.teamManager?.dispatchInterAgentMessage;
-      if (typeof managerDispatch === "function") {
-        await managerDispatch({
+      const handledByWorkerLocalIngress = await dispatchWithWorkerLocalRoutingPort({
+        teamRunId: envelope.teamRunId,
+        workerManagedRunIds,
+        team,
+        dispatch: async (localRoutingPort) =>
+          localRoutingPort.dispatchInterAgentMessageRequest({
+            senderAgentId,
+            recipientName,
+            content,
+            messageType,
+          }),
+      });
+      if (handledByWorkerLocalIngress) {
+        return;
+      }
+      const handledByTeamManager = await dispatchInterAgentMessageViaTeamManager({
+        team,
+        event: {
           senderAgentId,
           recipientName,
           content,
           messageType,
-        } as InterAgentMessageRequestEvent);
+        } as InterAgentMessageRequestEvent,
+      });
+      if (handledByTeamManager) {
         return;
       }
       if (!team.postMessage) {
@@ -1069,6 +1278,21 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         expectedTeamDefinitionId: teamDefinitionId,
       });
       const team = bound.team;
+      const handledByWorkerLocalIngress = await dispatchWithWorkerLocalRoutingPort({
+        teamRunId: envelope.teamRunId,
+        workerManagedRunIds,
+        team,
+        dispatch: async (localRoutingPort) =>
+          localRoutingPort.dispatchToolApproval({
+            agentName,
+            toolInvocationId,
+            isApproved,
+            reason: reason ?? undefined,
+          }),
+      });
+      if (handledByWorkerLocalIngress) {
+        return;
+      }
       if (!team.postToolExecutionApproval) {
         throw new TeamCommandIngressError(
           "TEAM_DISPATCH_UNAVAILABLE",
@@ -1081,6 +1305,7 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
       const binding = runScopedTeamBindingRegistry.tryResolveRun(envelope.teamRunId);
       if (!binding) {
         await stopEventForwarder(envelope.teamRunId);
+        clearRunTracking(envelope.teamRunId);
         return;
       }
       const team = teamInstanceManager.getTeamInstance(binding.runtimeTeamId) as TeamLike | null;
@@ -1088,11 +1313,24 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         await team.stop();
       }
       await stopEventForwarder(envelope.teamRunId);
+      clearRunTracking(envelope.teamRunId);
       runScopedTeamBindingRegistry.unbindRun(envelope.teamRunId);
       teamEventAggregator.finalizeRun(envelope.teamRunId);
     },
     publishEventToHost: async (event) => {
       const targetHostNodeId = hostNodeIdByRunId.get(event.teamRunId) ?? hostNodeId;
+      const ensured = ensureNodeDirectoryEntryForHostUplink({
+        localNodeId: hostNodeId,
+        targetHostNodeId,
+        nodeDirectoryService,
+        distributedUplinkBaseUrl: process.env.AUTOBYTEUS_DISTRIBUTED_UPLINK_BASE_URL ?? "",
+        discoveryRegistryUrl: process.env.AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL ?? "",
+      });
+      if (!ensured) {
+        throw new Error(
+          `Address resolution failed for worker event uplink target '${targetHostNodeId}'.`,
+        );
+      }
       await workerEventUplinkClient.publishRemoteEvent(event, targetHostNodeId);
     },
   });
@@ -1132,46 +1370,28 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
         },
         dispatchLocalUserMessage: async (event) => {
           const team = resolveTeamByDefinitionId(teamDefinitionId, teamInstanceManager);
-          if (!team.postMessage) {
-            throw new TeamCommandIngressError(
-              "TEAM_DISPATCH_UNAVAILABLE",
-              `Team definition '${teamDefinitionId}' does not support postMessage dispatch.`,
-            );
-          }
-          await team.postMessage(event.userMessage, event.targetAgentName);
+          await dispatchWithTeamLocalRoutingPort({
+            team,
+            contextLabel: `Team definition '${teamDefinitionId}'`,
+            dispatch: async (localRoutingPort) => localRoutingPort.dispatchUserMessage(event),
+          });
         },
         dispatchLocalInterAgentMessage: async (event) => {
           const team = resolveTeamByDefinitionId(teamDefinitionId, teamInstanceManager);
-          const managerDispatch = team.runtime?.context?.teamManager?.dispatchInterAgentMessage;
-          if (typeof managerDispatch === "function") {
-            await managerDispatch(event);
-            return;
-          }
-          if (!team.postMessage) {
-            throw new TeamCommandIngressError(
-              "TEAM_DISPATCH_UNAVAILABLE",
-              `Team definition '${teamDefinitionId}' cannot route inter-agent messages.`,
-            );
-          }
-          await team.postMessage(
-            AgentInputUserMessage.fromDict({ content: event.content, context_files: null }),
-            event.recipientName,
-          );
+          await dispatchWithTeamLocalRoutingPort({
+            team,
+            contextLabel: `Team definition '${teamDefinitionId}'`,
+            dispatch: async (localRoutingPort) =>
+              localRoutingPort.dispatchInterAgentMessageRequest(event),
+          });
         },
         dispatchLocalToolApproval: async (event) => {
           const team = resolveTeamByDefinitionId(teamDefinitionId, teamInstanceManager);
-          if (!team.postToolExecutionApproval) {
-            throw new TeamCommandIngressError(
-              "TEAM_DISPATCH_UNAVAILABLE",
-              `Team definition '${teamDefinitionId}' does not support tool approvals.`,
-            );
-          }
-          await team.postToolExecutionApproval(
-            event.agentName,
-            event.toolInvocationId,
-            event.isApproved,
-            event.reason ?? null,
-          );
+          await dispatchWithTeamLocalRoutingPort({
+            team,
+            contextLabel: `Team definition '${teamDefinitionId}'`,
+            dispatch: async (localRoutingPort) => localRoutingPort.dispatchToolApproval(event),
+          });
         },
         dispatchLocalControlStop: async () => {
           const team = resolveTeamByDefinitionId(teamDefinitionId, teamInstanceManager);
@@ -1182,6 +1402,30 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
       }),
   });
 
+  const bindHostRuntimeRoutingPortForRun = (teamRunId: string): void => {
+    const runRecord = teamRunOrchestrator.getRunRecord(teamRunId);
+    if (!runRecord || runRecord.status === "stopped") {
+      return;
+    }
+
+    const routingPort = teamRunOrchestrator.resolveRoutingPort(teamRunId);
+    if (!routingPort) {
+      return;
+    }
+
+    let team: TeamLike;
+    try {
+      team = resolveTeamByDefinitionId(runRecord.teamDefinitionId, teamInstanceManager);
+    } catch {
+      return;
+    }
+
+    const teamManager = team.runtime?.context?.teamManager;
+    if (teamManager && typeof teamManager.setTeamRoutingPort === "function") {
+      teamManager.setTeamRoutingPort(routingPort);
+    }
+  };
+
   const teamRunLocator = new TeamRunLocator({
     teamRunOrchestrator,
     teamDefinitionService,
@@ -1189,6 +1433,9 @@ export const createDefaultDistributedRuntimeComposition = (): DefaultDistributed
     hostNodeId,
     defaultNodeId: hostNodeId,
     nodeSnapshotProvider: () => nodeDirectoryService.listPlacementCandidates(),
+    onRunResolved: (record) => {
+      bindHostRuntimeRoutingPortForRun(record.teamRunId);
+    },
   });
 
   const teamCommandIngressService = new TeamCommandIngressService({

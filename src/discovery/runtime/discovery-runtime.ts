@@ -80,6 +80,7 @@ export const initializeDiscoveryRuntime = (): DiscoveryRuntimeContext => {
     ttlMs,
     degradedAfterMs,
     unreachableAfterMs,
+    protectedNodeIds: [selfIdentity.nodeId],
   });
 
   registryService.announce({

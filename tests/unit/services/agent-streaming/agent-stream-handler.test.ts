@@ -215,8 +215,25 @@ describe("AgentStreamHandler", () => {
         event_type: streamType,
         data: { invocation_id: "inv-1", tool_name: "read_file" },
       } as StreamEvent);
+      if (!message) {
+        throw new Error(`Expected stream event ${streamType} to produce a message`);
+      }
       expect(message.type).toBe(messageType);
       expect(message.payload.invocation_id).toBe("inv-1");
     }
+  });
+
+  it("drops deprecated assistant chunk stream events", () => {
+    const handler = new AgentStreamHandler(new AgentSessionManager(), {
+      getAgentInstance: vi.fn(),
+      getAgentEventStream: vi.fn(),
+    } as any);
+
+    const message = handler.convertStreamEvent({
+      event_type: StreamEventType.ASSISTANT_CHUNK,
+      data: { content: "legacy chunk", is_complete: false },
+    } as StreamEvent);
+
+    expect(message).toBeNull();
   });
 });

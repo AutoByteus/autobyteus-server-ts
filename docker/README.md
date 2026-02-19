@@ -43,6 +43,19 @@ cp .env.example .env
 docker compose logs -f autobyteus-server
 ```
 
+Enterprise profile (explicit env file):
+
+```bash
+docker compose --env-file .env.enterprise up -d --force-recreate
+docker compose --env-file .env.enterprise ps
+```
+
+Notes:
+- `.env.enterprise` pins `AUTOBYTEUS_IMAGE_TAG=enterprise`.
+- `.env.enterprise` sets `AUTOBYTEUS_ENV_FILE=.env.enterprise`, so Compose loads enterprise runtime env from that same file.
+- It also enables discovery client mode by default.
+- Update `AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL` in `.env.enterprise` to your real registry URL.
+
 ## Rebuild After Base Image Update
 
 If the selected `autobyteus/chrome-vnc:<tag>` base layer was updated, run:
@@ -187,6 +200,56 @@ AUTOBYTEUS_SERVER_TS_REPO_URL=
 AUTOBYTEUS_TS_REPO_URL=
 AUTOBYTEUS_REPOSITORY_PRISMA_REPO_URL=
 ```
+
+If you deploy from the enterprise line, set:
+
+```env
+AUTOBYTEUS_REF=enterprise
+AUTOBYTEUS_SERVER_REF=enterprise
+AUTOBYTEUS_TS_REF=enterprise
+```
+
+Note:
+- `docker/Dockerfile.monorepo` builds from the local monorepo checkout, so these ref variables are mainly for bootstrap/clone flows.
+
+## Node Discovery Env
+
+The server discovery runtime uses:
+
+- `AUTOBYTEUS_NODE_DISCOVERY_ENABLED`
+- `AUTOBYTEUS_NODE_DISCOVERY_ROLE` (`registry` or `client`)
+- `AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL` (required for `client` role when discovery is enabled)
+
+Default Docker behavior:
+- discovery is enabled
+- role is `client`
+- default registry URL is `http://registry-node:8000` (override for your environment)
+
+Registry node example:
+
+```env
+AUTOBYTEUS_NODE_DISCOVERY_ENABLED=true
+AUTOBYTEUS_NODE_DISCOVERY_ROLE=registry
+AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL=
+```
+
+Client node example:
+
+```env
+AUTOBYTEUS_NODE_DISCOVERY_ENABLED=true
+AUTOBYTEUS_NODE_DISCOVERY_ROLE=client
+AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL=http://registry-node:8000
+```
+
+## HTTP Access Log Policy
+
+To avoid high-volume discovery and health-check request noise, access logging is configurable:
+
+- `AUTOBYTEUS_HTTP_ACCESS_LOG_MODE=off|errors|all` (default: `errors`)
+- `AUTOBYTEUS_HTTP_ACCESS_LOG_INCLUDE_NOISY=true|false` (default: `false`)
+
+With default settings, only 4xx/5xx request logs are emitted.
+Set mode `all` and include noisy `true` only when doing deep transport debugging.
 
 ## Data and Persistence
 

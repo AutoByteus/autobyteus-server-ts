@@ -32,6 +32,14 @@ export class TeamRoutingPortAdapterRegistry {
     return registration.adapter;
   }
 
+  tryResolve(teamRunId: string): TeamRoutingPort | null {
+    const registration = this.byTeamRunId.get(teamRunId);
+    if (!registration) {
+      return null;
+    }
+    return registration.adapter;
+  }
+
   resolveRunVersion(teamRunId: string): RunVersion {
     const registration = this.byTeamRunId.get(teamRunId);
     if (!registration) {

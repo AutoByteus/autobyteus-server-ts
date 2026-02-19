@@ -17,6 +17,8 @@ import { getDefaultDistributedRuntimeComposition } from "./distributed/bootstrap
 import { RemoteEventRebroadcastService } from "./distributed/event-aggregation/remote-event-rebroadcast-service.js";
 import { registerWorkerDistributedCommandRoutes } from "./distributed/transport/internal-http/register-worker-distributed-command-routes.js";
 import { registerHostDistributedEventRoutes } from "./distributed/transport/internal-http/register-host-distributed-event-routes.js";
+import { getLoggingConfigFromEnv } from "./config/logging-config.js";
+import { registerHttpAccessLogPolicy } from "./logging/http-access-log-policy.js";
 import {
   attachDiscoveryNodeDirectoryBridge,
   initializeDiscoveryRuntime,
@@ -86,7 +88,18 @@ function initializeConfig(options: ServerOptions) {
 
 export async function buildApp(): Promise<FastifyInstance> {
   initializeDiscoveryRuntime();
-  const app = fastify({ logger: true });
+  const loggingConfig = getLoggingConfigFromEnv(process.env);
+  const app = fastify({
+    logger: {
+      level: loggingConfig.pinoLogLevel,
+    },
+    // Access logging is managed by registerHttpAccessLogPolicy().
+    disableRequestLogging: true,
+  });
+  registerHttpAccessLogPolicy(app, {
+    mode: loggingConfig.httpAccessLogMode,
+    includeNoisyRoutes: loggingConfig.includeNoisyHttpAccessRoutes,
+  });
   const maxUploadFileSizeBytes = 25 * 1024 * 1024; // 25MB
   const distributedRuntime = getDefaultDistributedRuntimeComposition();
   attachDiscoveryNodeDirectoryBridge(distributedRuntime.nodeDirectoryService);

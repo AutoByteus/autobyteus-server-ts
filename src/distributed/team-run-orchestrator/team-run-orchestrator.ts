@@ -173,6 +173,10 @@ export class TeamRunOrchestrator {
     return this.teamRunRepository.getRunById(teamRunId);
   }
 
+  resolveRoutingPort(teamRunId: string): TeamRoutingPort | null {
+    return this.routingRegistry.tryResolve(teamRunId);
+  }
+
   getActiveRunByDefinitionId(teamDefinitionId: string): TeamRunRecord | null {
     return this.teamRunRepository.getActiveRunByDefinitionId(teamDefinitionId);
   }

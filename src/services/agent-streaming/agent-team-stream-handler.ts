@@ -67,12 +67,34 @@ const logger = {
   info: (...args: unknown[]) => console.info(...args),
   warn: (...args: unknown[]) => console.warn(...args),
   error: (...args: unknown[]) => console.error(...args),
+  debug: (...args: unknown[]) => console.debug(...args),
+};
+
+const shouldDebugTeamWs = (): boolean =>
+  process.env.AUTOBYTEUS_DEBUG_TEAM_WS === "1" || process.env.AUTOBYTEUS_DEBUG_TEAM_WS === "true";
+
+const summarizeOutgoingTeamWsMessage = (message: ServerMessage): Record<string, unknown> => {
+  const payload =
+    message.payload && typeof message.payload === "object" ? (message.payload as Record<string, unknown>) : {};
+  const rawDelta = payload.delta;
+  const deltaLen = typeof rawDelta === "string" ? rawDelta.length : undefined;
+  return {
+    type: message.type,
+    event_type: payload.event_type,
+    event_scope: payload.event_scope,
+    agent_name: payload.agent_name,
+    agent_id: payload.agent_id,
+    member_route_key: payload.member_route_key,
+    id: payload.id,
+    segment_id: payload.segment_id,
+    invocation_id: payload.invocation_id,
+    delta_len: deltaLen,
+  };
 };
 
 const KNOWN_SERVER_MESSAGE_TYPES = new Set<string>(Object.values(ServerMessageType));
 
 const RUNTIME_TO_SERVER_MESSAGE_TYPE: Record<string, ServerMessageType> = {
-  assistant_chunk: ServerMessageType.ASSISTANT_CHUNK,
   assistant_complete_response: ServerMessageType.ASSISTANT_COMPLETE,
   tool_approval_requested: ServerMessageType.TOOL_APPROVAL_REQUESTED,
   tool_approved: ServerMessageType.TOOL_APPROVED,
@@ -91,19 +113,148 @@ const RUNTIME_TO_SERVER_MESSAGE_TYPE: Record<string, ServerMessageType> = {
   task_plan_event: ServerMessageType.TASK_PLAN_EVENT,
 };
 
+const LEGACY_RUNTIME_EVENT_ALIASES: Record<string, string> = {
+  agent_data_assistant_complete_response: "assistant_complete_response",
+  agent_data_segment_event: "segment_event",
+  agent_data_tool_log: "tool_interaction_log_entry",
+  agent_data_system_task_notification_received: "system_task_notification",
+  agent_data_inter_agent_message_received: "inter_agent_message",
+  agent_data_todo_list_updated: "agent_todo_list_updated",
+  agent_tool_approval_requested: "tool_approval_requested",
+  agent_tool_approved: "tool_approved",
+  agent_tool_denied: "tool_denied",
+  agent_tool_execution_started: "tool_execution_started",
+  agent_tool_execution_succeeded: "tool_execution_succeeded",
+  agent_tool_execution_failed: "tool_execution_failed",
+};
+
+const canonicalizeRuntimeEventType = (runtimeEventType: string): string =>
+  LEGACY_RUNTIME_EVENT_ALIASES[runtimeEventType] ?? runtimeEventType;
+
+const DEPRECATED_DISTRIBUTED_RUNTIME_EVENT_TYPES = new Set<string>([
+  "assistant_chunk",
+]);
+
+const isDeprecatedDistributedRuntimeEventType = (runtimeEventType: string): boolean => {
+  const normalized = canonicalizeRuntimeEventType(runtimeEventType.trim().toLowerCase());
+  if (DEPRECATED_DISTRIBUTED_RUNTIME_EVENT_TYPES.has(normalized)) {
+    return true;
+  }
+  if (normalized.startsWith("agent:")) {
+    const stripped = normalized.slice("agent:".length).trim();
+    return DEPRECATED_DISTRIBUTED_RUNTIME_EVENT_TYPES.has(
+      canonicalizeRuntimeEventType(stripped),
+    );
+  }
+  return false;
+};
+
 const isTeamScopedMessageType = (messageType: ServerMessageType): boolean =>
   messageType === ServerMessageType.TEAM_STATUS ||
   messageType === ServerMessageType.TASK_PLAN_EVENT ||
   messageType === ServerMessageType.CONNECTED;
 
+const getNestedSegmentPayload = (
+  payload: Record<string, unknown>,
+): Record<string, unknown> | null => {
+  const nested = payload.payload;
+  if (!nested || typeof nested !== "object" || Array.isArray(nested)) {
+    return null;
+  }
+  return nested as Record<string, unknown>;
+};
+
+const normalizeSegmentEventType = (
+  value: unknown,
+): "SEGMENT_START" | "SEGMENT_CONTENT" | "SEGMENT_END" | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toUpperCase();
+  if (
+    normalized === "SEGMENT_START" ||
+    normalized === "SEGMENT_CONTENT" ||
+    normalized === "SEGMENT_END"
+  ) {
+    return normalized;
+  }
+  return null;
+};
+
 const resolveSegmentMessageTypeFromPayload = (payload: Record<string, unknown>): ServerMessageType => {
+  const nestedPayload = getNestedSegmentPayload(payload);
+
+  const explicitEventType =
+    normalizeSegmentEventType(payload.event_type) ??
+    normalizeSegmentEventType(nestedPayload?.event_type);
+  if (explicitEventType === "SEGMENT_START") {
+    return ServerMessageType.SEGMENT_START;
+  }
+  if (explicitEventType === "SEGMENT_CONTENT") {
+    return ServerMessageType.SEGMENT_CONTENT;
+  }
+  if (explicitEventType === "SEGMENT_END") {
+    return ServerMessageType.SEGMENT_END;
+  }
+
   if (typeof payload.segment_type === "string") {
+    return ServerMessageType.SEGMENT_START;
+  }
+  if (typeof nestedPayload?.segment_type === "string") {
     return ServerMessageType.SEGMENT_START;
   }
   if (typeof payload.delta === "string") {
     return ServerMessageType.SEGMENT_CONTENT;
   }
+  if (typeof nestedPayload?.delta === "string") {
+    return ServerMessageType.SEGMENT_CONTENT;
+  }
   return ServerMessageType.SEGMENT_END;
+};
+
+const normalizeDistributedSegmentPayload = (
+  messageType: ServerMessageType,
+  payload: Record<string, unknown>,
+): void => {
+  if (
+    messageType !== ServerMessageType.SEGMENT_START &&
+    messageType !== ServerMessageType.SEGMENT_CONTENT &&
+    messageType !== ServerMessageType.SEGMENT_END
+  ) {
+    return;
+  }
+
+  const nestedPayload = getNestedSegmentPayload(payload);
+  if (nestedPayload) {
+    if (payload.segment_type === undefined && nestedPayload.segment_type !== undefined) {
+      payload.segment_type = nestedPayload.segment_type;
+    }
+    if (payload.delta === undefined && nestedPayload.delta !== undefined) {
+      payload.delta = nestedPayload.delta;
+    }
+    if (payload.metadata === undefined && nestedPayload.metadata !== undefined) {
+      payload.metadata = nestedPayload.metadata;
+    }
+    if (payload.id === undefined && nestedPayload.id !== undefined) {
+      payload.id = nestedPayload.id;
+    }
+    if (payload.segment_id === undefined && nestedPayload.segment_id !== undefined) {
+      payload.segment_id = nestedPayload.segment_id;
+    }
+    if (payload.event_type === undefined && nestedPayload.event_type !== undefined) {
+      payload.event_type = nestedPayload.event_type;
+    }
+  }
+
+  const id = payload.id;
+  if (typeof id === "string" && id.trim().length > 0) {
+    return;
+  }
+
+  const segmentId = payload.segment_id;
+  if (typeof segmentId === "string" && segmentId.trim().length > 0) {
+    payload.id = segmentId;
+  }
 };
 
 class AgentTeamSession extends AgentSession {
@@ -237,6 +388,9 @@ export class AgentTeamStreamHandler {
     projection: DistributedTeamStreamProjection;
   }): number {
     const message = this.createDistributedMessage(input.teamId, input.projection);
+    if (!message) {
+      return 0;
+    }
     const sessions = this.sessionManager.getSessionsForAgent(input.teamId);
 
     let publishedCount = 0;
@@ -246,6 +400,13 @@ export class AgentTeamStreamHandler {
         continue;
       }
       try {
+        if (shouldDebugTeamWs()) {
+          logger.info(
+            `[TeamWS][outgoing][distributed] ${JSON.stringify(
+              summarizeOutgoingTeamWsMessage(message),
+            )}`,
+          );
+        }
         connection.send(message.toJson());
         publishedCount += 1;
       } catch (error) {
@@ -267,6 +428,16 @@ export class AgentTeamStreamHandler {
       for await (const event of eventStream.allEvents()) {
         try {
           const wsMessage = this.convertTeamEvent(event);
+          if (!wsMessage) {
+            continue;
+          }
+          if (shouldDebugTeamWs()) {
+            logger.info(
+              `[TeamWS][outgoing][local] ${JSON.stringify(
+                summarizeOutgoingTeamWsMessage(wsMessage),
+              )}`,
+            );
+          }
           connection.send(wsMessage.toJson());
         } catch (error) {
           logger.error(`Error sending team event to WebSocket: ${String(error)}`);
@@ -364,12 +535,15 @@ export class AgentTeamStreamHandler {
     });
   }
 
-  convertTeamEvent(event: AgentTeamStreamEvent, routePrefix: string | null = null): ServerMessage {
+  convertTeamEvent(event: AgentTeamStreamEvent, routePrefix: string | null = null): ServerMessage | null {
     const sourceType = event.event_source_type;
 
     if (sourceType === "AGENT" && event.data instanceof AgentEventRebroadcastPayload) {
       const agentEvent = event.data.agent_event;
       const message = getAgentStreamHandler().convertStreamEvent(agentEvent);
+      if (!message) {
+        return null;
+      }
       const memberRouteKey = routePrefix
         ? `${routePrefix}/${event.data.agent_name}`
         : event.data.agent_name;
@@ -441,6 +615,9 @@ export class AgentTeamStreamHandler {
           ? (nodeName.length > 0 ? `${routePrefix}/${nodeName}` : routePrefix)
           : (nodeName.length > 0 ? nodeName : null);
         const message = this.convertTeamEvent(subTeamEvent, nextRoutePrefix);
+        if (!message) {
+          return null;
+        }
         const basePayload =
           message.payload && typeof message.payload === "object" ? message.payload : {};
         return this.attachTeamStreamEnvelope(
@@ -496,7 +673,14 @@ export class AgentTeamStreamHandler {
   private createDistributedMessage(
     teamId: string,
     projection: DistributedTeamStreamProjection,
-  ): ServerMessage {
+  ): ServerMessage | null {
+    if (isDeprecatedDistributedRuntimeEventType(projection.eventType)) {
+      logger.debug(
+        `Dropping deprecated distributed event type '${projection.eventType}' from node '${projection.sourceNodeId}'.`,
+      );
+      return null;
+    }
+
     const basePayload: Record<string, unknown> =
       projection.payload && typeof projection.payload === "object" && !Array.isArray(projection.payload)
         ? { ...(projection.payload as Record<string, unknown>) }
@@ -511,12 +695,21 @@ export class AgentTeamStreamHandler {
       typeof basePayloadMemberRouteKey === "string" && basePayloadMemberRouteKey.trim().length > 0
         ? basePayloadMemberRouteKey
         : projection.memberName;
-    const messageType = AgentTeamStreamHandler.resolveDistributedMessageType(
+    const resolvedMessageType = AgentTeamStreamHandler.resolveDistributedMessageType(
       projection.eventType,
       basePayload,
     );
+    const messageType = resolvedMessageType ?? ServerMessageType.ERROR;
     const payload: Record<string, unknown> = {
-      ...basePayload,
+      ...(resolvedMessageType
+        ? basePayload
+        : {
+            code: "UNKNOWN_DISTRIBUTED_EVENT_TYPE",
+            message: `Unknown distributed event type '${projection.eventType}' received from node '${projection.sourceNodeId}'.`,
+            details: `event_type=${projection.eventType}`,
+            distributed_event_type: projection.eventType,
+            distributed_event_payload: basePayload,
+          }),
       ...(payloadAgentName ? { agent_name: payloadAgentName } : {}),
       ...(projection.agentId ? { agent_id: projection.agentId } : {}),
       ...(payloadMemberRouteKey ? { member_route_key: payloadMemberRouteKey } : {}),
@@ -532,10 +725,9 @@ export class AgentTeamStreamHandler {
       },
     };
 
-    if (
-      messageType === ServerMessageType.SYSTEM_TASK_NOTIFICATION &&
-      typeof payload.event_type !== "string"
-    ) {
+    normalizeDistributedSegmentPayload(messageType, payload);
+
+    if (messageType === ServerMessageType.SYSTEM_TASK_NOTIFICATION && typeof payload.event_type !== "string") {
       payload.event_type = projection.eventType;
     }
 
@@ -559,13 +751,16 @@ export class AgentTeamStreamHandler {
   private static resolveDistributedMessageType(
     eventType: string,
     payload: Record<string, unknown>,
-  ): ServerMessageType {
+  ): ServerMessageType | null {
     const normalized = eventType.trim();
     if (KNOWN_SERVER_MESSAGE_TYPES.has(normalized)) {
       return normalized as ServerMessageType;
     }
 
-    const normalizedLower = normalized.toLowerCase();
+    const normalizedLower = canonicalizeRuntimeEventType(normalized.toLowerCase());
+    if (normalizedLower === "segment_event") {
+      return resolveSegmentMessageTypeFromPayload(payload);
+    }
     const directRuntimeType = RUNTIME_TO_SERVER_MESSAGE_TYPE[normalizedLower];
     if (directRuntimeType) {
       return directRuntimeType;
@@ -573,7 +768,7 @@ export class AgentTeamStreamHandler {
 
     if (normalizedLower.startsWith("agent:")) {
       const stripped = normalized.slice("AGENT:".length).trim();
-      const strippedLower = stripped.toLowerCase();
+      const strippedLower = canonicalizeRuntimeEventType(stripped.toLowerCase());
       if (KNOWN_SERVER_MESSAGE_TYPES.has(stripped)) {
         return stripped as ServerMessageType;
       }
@@ -590,7 +785,7 @@ export class AgentTeamStreamHandler {
       return ServerMessageType.TASK_PLAN_EVENT;
     }
 
-    return ServerMessageType.SYSTEM_TASK_NOTIFICATION;
+    return null;
   }
 
   static parseMessage(raw: string): ClientMessage {

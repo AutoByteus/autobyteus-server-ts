@@ -40,6 +40,7 @@ type RegistryOptions = {
   ttlMs?: number;
   degradedAfterMs?: number;
   unreachableAfterMs?: number;
+  protectedNodeIds?: string[];
 };
 
 const normalizeRequiredString = (value: string, field: string): string => {
@@ -117,12 +118,18 @@ export class NodeDiscoveryRegistryService {
   private readonly ttlMs: number;
   private readonly degradedAfterMs: number;
   private readonly unreachableAfterMs: number;
+  private readonly protectedNodeIds = new Set<string>();
   private maintenanceTimer: NodeJS.Timeout | null = null;
 
   constructor(options?: RegistryOptions) {
     this.ttlMs = parsePositiveInt(options?.ttlMs, 120_000);
     this.degradedAfterMs = parsePositiveInt(options?.degradedAfterMs, 20_000);
     this.unreachableAfterMs = parsePositiveInt(options?.unreachableAfterMs, 45_000);
+    if (Array.isArray(options?.protectedNodeIds)) {
+      for (const nodeId of options.protectedNodeIds) {
+        this.protectedNodeIds.add(normalizeRequiredString(nodeId, "protectedNodeIds[]"));
+      }
+    }
   }
 
   onChange(listener: (event: DiscoveryRegistryChangeEvent) => void): () => void {
@@ -198,8 +205,15 @@ export class NodeDiscoveryRegistryService {
     const nextByNodeId = new Map<string, DiscoveryPeerRecord>();
 
     for (const peer of peers) {
+      const normalizedNodeId = normalizeRequiredString(peer.nodeId, "peer.nodeId");
+      const existingProtectedRecord = this.byNodeId.get(normalizedNodeId);
+      if (this.protectedNodeIds.has(normalizedNodeId) && existingProtectedRecord) {
+        nextByNodeId.set(normalizedNodeId, existingProtectedRecord);
+        continue;
+      }
+
       const normalizedPeer: DiscoveryPeerRecord = {
-        nodeId: normalizeRequiredString(peer.nodeId, "peer.nodeId"),
+        nodeId: normalizedNodeId,
         nodeName: normalizeRequiredString(peer.nodeName, "peer.nodeName"),
         baseUrl: normalizeBaseUrl(peer.baseUrl),
         advertisedBaseUrl: normalizeOptionalString(peer.advertisedBaseUrl),
@@ -209,6 +223,16 @@ export class NodeDiscoveryRegistryService {
         trustMode: normalizeOptionalString(peer.trustMode),
       };
       nextByNodeId.set(normalizedPeer.nodeId, normalizedPeer);
+    }
+
+    // Keep protected nodes even if an upstream snapshot temporarily omits them.
+    for (const [existingNodeId, existingRecord] of this.byNodeId.entries()) {
+      if (!this.protectedNodeIds.has(existingNodeId)) {
+        continue;
+      }
+      if (!nextByNodeId.has(existingNodeId)) {
+        nextByNodeId.set(existingNodeId, existingRecord);
+      }
     }
 
     const prunedNodeIds: string[] = [];
@@ -250,6 +274,9 @@ export class NodeDiscoveryRegistryService {
     let changed = false;
 
     for (const [nodeId, record] of this.byNodeId.entries()) {
+      if (this.protectedNodeIds.has(nodeId)) {
+        continue;
+      }
       const elapsedMs = nowEpochMs - toEpochMs(record.lastSeenAtIso);
       if (elapsedMs >= this.ttlMs) {
         this.byNodeId.delete(nodeId);

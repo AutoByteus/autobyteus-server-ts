@@ -27,6 +27,8 @@ AUTOBYTEUS_SERVER_HOST=http://localhost:8000
 PERSISTENCE_PROVIDER=sqlite
 DB_TYPE=sqlite
 LOG_LEVEL=INFO
+AUTOBYTEUS_HTTP_ACCESS_LOG_MODE=errors
+AUTOBYTEUS_HTTP_ACCESS_LOG_INCLUDE_NOISY=false
 ```
 
 Notes:
@@ -34,6 +36,15 @@ Notes:
 - SQLite DB defaults to `db/production.db` (or `db/test.db` when `APP_ENV=test`).
 - `DATABASE_URL` is optional for SQLite; it will be derived from `DB_NAME` when missing.
 - The app will create `db/`, `logs/`, `download/`, `media/`, `skills/`, `temp_workspace/` as needed under the app data dir.
+- HTTP access logging is policy-driven:
+  - `AUTOBYTEUS_HTTP_ACCESS_LOG_MODE=off|errors|all` (default: `errors`)
+  - `AUTOBYTEUS_HTTP_ACCESS_LOG_INCLUDE_NOISY=true|false` (default: `false`)
+  - Noisy routes include discovery heartbeat/peers, health checks, and GraphQL preflight traffic.
+
+Node discovery environment variables:
+- `AUTOBYTEUS_NODE_DISCOVERY_ENABLED` (`true|false`)
+- `AUTOBYTEUS_NODE_DISCOVERY_ROLE` (`registry|client`)
+- `AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL` (required when enabled and role is `client`)
 
 ## Build and run
 
@@ -53,6 +64,58 @@ node autobyteus-server-ts/dist/app.js --host 0.0.0.0 --port 8000
 
 Notes:
 - `pnpm -C autobyteus-server-ts build` also builds `autobyteus-ts` and `repository_prisma` workspace packages.
+
+### Run with Node Discovery Locally
+
+Run this node as a discovery registry:
+
+```bash
+AUTOBYTEUS_SERVER_HOST=http://localhost:8000 \
+AUTOBYTEUS_NODE_DISCOVERY_ENABLED=true \
+AUTOBYTEUS_NODE_DISCOVERY_ROLE=registry \
+node dist/app.js --host 0.0.0.0 --port 8000
+```
+
+Run another node as a discovery client (example uses local registry at `http://localhost:8000`):
+
+```bash
+AUTOBYTEUS_SERVER_HOST=http://localhost:8001 \
+AUTOBYTEUS_NODE_DISCOVERY_ENABLED=true \
+AUTOBYTEUS_NODE_DISCOVERY_ROLE=client \
+AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL=http://localhost:8000 \
+node dist/app.js --host 0.0.0.0 --port 8001
+```
+
+Example: run two local servers (registry on `8000`, client on `8001`)
+
+Terminal 1 (registry):
+
+```bash
+AUTOBYTEUS_SERVER_HOST=http://localhost:8000 \
+AUTOBYTEUS_NODE_DISCOVERY_ENABLED=true \
+AUTOBYTEUS_NODE_DISCOVERY_ROLE=registry \
+node dist/app.js --host 0.0.0.0 --port 8000
+```
+
+Terminal 2 (client):
+
+```bash
+AUTOBYTEUS_SERVER_HOST=http://localhost:8001 \
+AUTOBYTEUS_NODE_DISCOVERY_ENABLED=true \
+AUTOBYTEUS_NODE_DISCOVERY_ROLE=client \
+AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL=http://localhost:8000 \
+node dist/app.js --host 0.0.0.0 --port 8001
+```
+
+Inline env vars are supported and recommended for quick local runs. They override `.env` for that process invocation.
+
+Equivalent `.env` values for registry mode:
+
+```env
+AUTOBYTEUS_NODE_DISCOVERY_ENABLED=true
+AUTOBYTEUS_NODE_DISCOVERY_ROLE=registry
+AUTOBYTEUS_NODE_DISCOVERY_REGISTRY_URL=
+```
 
 Optional custom data directory:
 

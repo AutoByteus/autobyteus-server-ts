@@ -44,6 +44,7 @@ export type TeamRunLocatorDependencies = {
   hostNodeId: string;
   nodeSnapshotProvider: () => PlacementCandidateNode[];
   defaultNodeId?: string | null;
+  onRunResolved?: (record: TeamRunLocatorRecord) => Promise<void> | void;
 };
 
 export class TeamRunLocator {
@@ -56,6 +57,7 @@ export class TeamRunLocator {
   private readonly hostNodeId: string;
   private readonly nodeSnapshotProvider: () => PlacementCandidateNode[];
   private readonly defaultNodeId: string | null;
+  private readonly onRunResolved: ((record: TeamRunLocatorRecord) => Promise<void> | void) | null;
   private readonly recordByTeamId = new Map<string, TeamRunLocatorRecord>();
   private readonly recordByRunId = new Map<string, TeamRunLocatorRecord>();
 
@@ -66,6 +68,7 @@ export class TeamRunLocator {
     this.hostNodeId = normalizeRequiredString(deps.hostNodeId, "hostNodeId");
     this.nodeSnapshotProvider = deps.nodeSnapshotProvider;
     this.defaultNodeId = deps.defaultNodeId ?? null;
+    this.onRunResolved = deps.onRunResolved ?? null;
   }
 
   async resolveOrCreateRun(teamId: string): Promise<TeamRunLocatorRecord> {
@@ -74,6 +77,9 @@ export class TeamRunLocator {
 
     const existing = this.resolveActiveRun(normalizedTeamId);
     if (existing) {
+      if (this.onRunResolved) {
+        await this.onRunResolved(existing);
+      }
       return existing;
     }
 
@@ -98,6 +104,9 @@ export class TeamRunLocator {
     };
     this.recordByTeamId.set(normalizedTeamId, locatorRecord);
     this.recordByRunId.set(locatorRecord.teamRunId, locatorRecord);
+    if (this.onRunResolved) {
+      await this.onRunResolved(locatorRecord);
+    }
     return locatorRecord;
   }
 

@@ -118,4 +118,53 @@ describe("TeamRunLocator", () => {
     expect(locator.resolveActiveRun("team-1")).not.toBeNull();
     expect(locator.resolveActiveRun("team-1")).toBeNull();
   });
+
+  it("invokes onRunResolved for both newly created and cached active runs", async () => {
+    const startRunIfMissing = vi.fn(() => ({
+      teamRunId: "run-1",
+      teamDefinitionId: "def-1",
+      runVersion: 1,
+      hostNodeId: "node-host",
+      placementByMember: {},
+      status: "running",
+      createdAtIso: "2026-02-12T00:00:00.000Z",
+      updatedAtIso: "2026-02-12T00:00:00.000Z",
+    }));
+    const getRunRecord = vi.fn(() => ({
+      teamRunId: "run-1",
+      teamDefinitionId: "def-1",
+      runVersion: 1,
+      hostNodeId: "node-host",
+      placementByMember: {},
+      status: "running",
+      createdAtIso: "2026-02-12T00:00:00.000Z",
+      updatedAtIso: "2026-02-12T00:00:00.000Z",
+    }));
+    const onRunResolved = vi.fn(async () => undefined);
+    const locator = new TeamRunLocator({
+      hostNodeId: "node-host",
+      defaultNodeId: "node-host",
+      nodeSnapshotProvider: () => [{ nodeId: "node-host", isHealthy: true }],
+      teamRunOrchestrator: {
+        startRunIfMissing,
+        getRunRecord,
+      } as any,
+      teamDefinitionService: {
+        getDefinitionById: vi.fn(async () => buildDefinition()),
+      } as any,
+      teamInstanceManager: {
+        getTeamInstance: vi.fn(() => ({ teamId: "team-1" })),
+        getTeamDefinitionId: vi.fn(() => "def-1"),
+        getTeamMemberNames: vi.fn(() => ["coordinator", "helper"]),
+      } as any,
+      onRunResolved,
+    });
+
+    await locator.resolveOrCreateRun("team-1");
+    await locator.resolveOrCreateRun("team-1");
+
+    expect(onRunResolved).toHaveBeenCalledTimes(2);
+    expect(onRunResolved.mock.calls[0][0].teamRunId).toBe("run-1");
+    expect(onRunResolved.mock.calls[1][0].teamRunId).toBe("run-1");
+  });
 });

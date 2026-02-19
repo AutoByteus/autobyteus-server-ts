@@ -53,6 +53,9 @@ export class AgentStreamHandler {
   private activeTasks = new Map<string, Promise<void>>();
   private activeStreams = new Map<string, AgentEventStream>();
   private runHistoryService = getRunHistoryService();
+  private static readonly DEPRECATED_STREAM_EVENT_TYPES = new Set<StreamEventType>([
+    StreamEventType.ASSISTANT_CHUNK,
+  ]);
 
   constructor(
     sessionManager: AgentSessionManager = new AgentSessionManager(),
@@ -166,6 +169,9 @@ export class AgentStreamHandler {
         try {
           await this.runHistoryService.onAgentEvent(agentId, event);
           const message = this.convertStreamEvent(event);
+          if (!message) {
+            continue;
+          }
           connection.send(message.toJson());
         } catch (error) {
           logger.error(`Error sending event to WebSocket: ${String(error)}`);
@@ -239,7 +245,12 @@ export class AgentStreamHandler {
     await agent.postToolExecutionApproval(invocationId, approved, reason);
   }
 
-  convertStreamEvent(event: StreamEvent): ServerMessage {
+  convertStreamEvent(event: StreamEvent): ServerMessage | null {
+    if (AgentStreamHandler.DEPRECATED_STREAM_EVENT_TYPES.has(event.event_type as StreamEventType)) {
+      logger.debug(`Dropping deprecated stream event type: ${String(event.event_type)}`);
+      return null;
+    }
+
     switch (event.event_type) {
       case StreamEventType.SEGMENT_EVENT:
         return this.convertSegmentEvent(event);
@@ -259,8 +270,6 @@ export class AgentStreamHandler {
         return new ServerMessage(ServerMessageType.TOOL_EXECUTION_FAILED, serializePayload(event.data));
       case StreamEventType.TOOL_INTERACTION_LOG_ENTRY:
         return new ServerMessage(ServerMessageType.TOOL_LOG, serializePayload(event.data));
-      case StreamEventType.ASSISTANT_CHUNK:
-        return new ServerMessage(ServerMessageType.ASSISTANT_CHUNK, serializePayload(event.data));
       case StreamEventType.ASSISTANT_COMPLETE_RESPONSE:
         return new ServerMessage(ServerMessageType.ASSISTANT_COMPLETE, serializePayload(event.data));
       case StreamEventType.SYSTEM_TASK_NOTIFICATION:
