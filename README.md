@@ -71,7 +71,8 @@ node autobyteus-server-ts/dist/app.js --host 0.0.0.0 --port 8000
 ```
 
 Notes:
-- `pnpm -C autobyteus-server-ts build` also builds `autobyteus-ts` and `repository_prisma` workspace packages.
+- `pnpm -C autobyteus-server-ts build` also builds the `autobyteus-ts` workspace package.
+- `repository_prisma` is consumed as a normal npm dependency (no local sibling clone required).
 
 ### Run with Node Discovery Locally
 
