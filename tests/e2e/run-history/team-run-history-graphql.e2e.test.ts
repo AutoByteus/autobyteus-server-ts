@@ -6,7 +6,6 @@ import { createRequire } from "node:module";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { graphql as graphqlFn, GraphQLSchema } from "graphql";
 import { buildGraphqlSchema } from "../../../src/api/graphql/schema.js";
-import { appConfigProvider } from "../../../src/config/app-config-provider.js";
 
 type TeamRunIndexRow = {
   teamId: string;
@@ -45,19 +44,17 @@ describe("Team run history GraphQL e2e", () => {
   let schema: GraphQLSchema;
   let graphql: typeof graphqlFn;
   let tempRoot: string;
-  let usingTemp = false;
   let memoryDir: string;
   let indexFilePath: string;
+  let originalMemoryDirEnv: string | undefined;
   const createdTeamIds = new Set<string>();
-  const config = appConfigProvider.config;
 
   beforeAll(async () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "autobyteus-team-run-history-e2e-"));
-    if (!config.isInitialized()) {
-      config.setCustomAppDataDir(tempRoot);
-      usingTemp = true;
-    }
-    memoryDir = config.getMemoryDir();
+    originalMemoryDirEnv = process.env.AUTOBYTEUS_MEMORY_DIR;
+    memoryDir = path.join(tempRoot, "memory");
+    process.env.AUTOBYTEUS_MEMORY_DIR = memoryDir;
+    fs.mkdirSync(memoryDir, { recursive: true });
     indexFilePath = path.join(memoryDir, "team_run_history_index.json");
 
     schema = await buildGraphqlSchema();
@@ -80,9 +77,12 @@ describe("Team run history GraphQL e2e", () => {
   });
 
   afterAll(() => {
-    if (usingTemp) {
-      fs.rmSync(tempRoot, { recursive: true, force: true });
+    if (typeof originalMemoryDirEnv === "string") {
+      process.env.AUTOBYTEUS_MEMORY_DIR = originalMemoryDirEnv;
+    } else {
+      delete process.env.AUTOBYTEUS_MEMORY_DIR;
     }
+    fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
   const execGraphql = async <T>(

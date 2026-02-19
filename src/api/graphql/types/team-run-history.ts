@@ -1,6 +1,7 @@
 import { Arg, Field, Mutation, ObjectType, Query, Resolver } from "type-graphql";
 import { GraphQLJSON } from "graphql-scalars";
 import { getTeamRunHistoryService } from "../../../run-history/services/team-run-history-service.js";
+import { getTeamMemberRunProjectionService } from "../../../run-history/services/team-member-run-projection-service.js";
 
 @ObjectType()
 class TeamRunMemberHistoryObject {
@@ -63,6 +64,21 @@ class TeamRunResumeConfigPayload {
 }
 
 @ObjectType()
+class TeamMemberRunProjectionPayload {
+  @Field(() => String)
+  agentId!: string;
+
+  @Field(() => [GraphQLJSON])
+  conversation!: Array<Record<string, unknown>>;
+
+  @Field(() => String, { nullable: true })
+  summary?: string | null;
+
+  @Field(() => String, { nullable: true })
+  lastActivityAt?: string | null;
+}
+
+@ObjectType()
 class DeleteTeamRunHistoryMutationResult {
   @Field(() => Boolean)
   success!: boolean;
@@ -74,6 +90,7 @@ class DeleteTeamRunHistoryMutationResult {
 @Resolver()
 export class TeamRunHistoryResolver {
   private teamRunHistoryService = getTeamRunHistoryService();
+  private teamMemberRunProjectionService = getTeamMemberRunProjectionService();
 
   @Query(() => [TeamRunHistoryItemObject])
   async listTeamRunHistory(): Promise<TeamRunHistoryItemObject[]> {
@@ -85,6 +102,14 @@ export class TeamRunHistoryResolver {
     @Arg("teamId", () => String) teamId: string,
   ): Promise<TeamRunResumeConfigPayload> {
     return this.teamRunHistoryService.getTeamRunResumeConfig(teamId);
+  }
+
+  @Query(() => TeamMemberRunProjectionPayload)
+  async getTeamMemberRunProjection(
+    @Arg("teamId", () => String) teamId: string,
+    @Arg("memberRouteKey", () => String) memberRouteKey: string,
+  ): Promise<TeamMemberRunProjectionPayload> {
+    return this.teamMemberRunProjectionService.getProjection(teamId, memberRouteKey);
   }
 
   @Mutation(() => DeleteTeamRunHistoryMutationResult)

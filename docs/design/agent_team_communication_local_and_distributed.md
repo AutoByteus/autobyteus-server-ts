@@ -160,6 +160,21 @@ Key message groups:
 - Tool lifecycle: `TOOL_APPROVAL_REQUESTED`, `TOOL_EXECUTION_*`, `TOOL_LOG`
 - Team scope: `TEAM_STATUS`, `TASK_PLAN_EVENT`, `CONNECTED`
 
+## Team History Projection Contract
+
+Historical team member hydration should use team-scoped identity (`teamId + member_route_key`) instead of
+host-local `agentId` lookups alone.
+
+Current server contract:
+
+- `getTeamRunResumeConfig(teamId)` returns member bindings and run metadata.
+- `getTeamMemberRunProjection(teamId, memberRouteKey)` resolves projection with:
+  - local-first lookup on host memory projection;
+  - remote-node fallback when the member is placed remotely and local projection is empty;
+  - safe fallback to local result when remote lookup is unavailable.
+
+This keeps local and distributed team history behavior consistent at the UI restore boundary.
+
 ## Member identity contract (critical)
 
 For member-scoped delivery, payload should include:

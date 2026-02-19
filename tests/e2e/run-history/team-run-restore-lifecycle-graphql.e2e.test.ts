@@ -6,7 +6,6 @@ import { createRequire } from "node:module";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { graphql as graphqlFn, GraphQLSchema } from "graphql";
 import { buildGraphqlSchema } from "../../../src/api/graphql/schema.js";
-import { appConfigProvider } from "../../../src/config/app-config-provider.js";
 import { AgentTeamInstanceManager } from "../../../src/agent-team-execution/services/agent-team-instance-manager.js";
 import { getDefaultTeamCommandIngressService } from "../../../src/distributed/bootstrap/default-distributed-runtime-composition.js";
 import { buildTeamMemberAgentId } from "../../../src/run-history/utils/team-member-agent-id.js";
@@ -48,12 +47,11 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
   let schema: GraphQLSchema;
   let graphql: typeof graphqlFn;
   let tempRoot: string;
-  let usingTemp = false;
   let memoryDir: string;
   let indexFilePath: string;
+  let originalMemoryDirEnv: string | undefined;
   const createdTeamIds = new Set<string>();
 
-  const config = appConfigProvider.config;
   const activeTeams = new Set<string>();
   let createTeamInstanceWithIdSpy: ReturnType<typeof vi.spyOn> | null = null;
   let terminateTeamInstanceSpy: ReturnType<typeof vi.spyOn> | null = null;
@@ -62,11 +60,10 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
 
   beforeAll(async () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "autobyteus-team-run-restore-e2e-"));
-    if (!config.isInitialized()) {
-      config.setCustomAppDataDir(tempRoot);
-      usingTemp = true;
-    }
-    memoryDir = config.getMemoryDir();
+    originalMemoryDirEnv = process.env.AUTOBYTEUS_MEMORY_DIR;
+    memoryDir = path.join(tempRoot, "memory");
+    process.env.AUTOBYTEUS_MEMORY_DIR = memoryDir;
+    fs.mkdirSync(memoryDir, { recursive: true });
     indexFilePath = path.join(memoryDir, "team_run_history_index.json");
 
     const teamManager = AgentTeamInstanceManager.getInstance();
@@ -121,9 +118,12 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
     terminateTeamInstanceSpy?.mockRestore();
     createTeamInstanceWithIdSpy?.mockRestore();
     vi.restoreAllMocks();
-    if (usingTemp) {
-      fs.rmSync(tempRoot, { recursive: true, force: true });
+    if (typeof originalMemoryDirEnv === "string") {
+      process.env.AUTOBYTEUS_MEMORY_DIR = originalMemoryDirEnv;
+    } else {
+      delete process.env.AUTOBYTEUS_MEMORY_DIR;
     }
+    fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
   const execGraphql = async <T>(
