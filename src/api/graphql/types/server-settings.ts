@@ -90,6 +90,12 @@ export class ServerSettingsResolver {
   }
 
   @Mutation(() => String)
+  deleteServerSetting(@Arg("key", () => String) key: string): string {
+    const [, message] = this.serverSettingsService.deleteSetting(key);
+    return message;
+  }
+
+  @Mutation(() => String)
   setSearchConfig(
     @Arg("provider", () => String) provider: string,
     @Arg("serperApiKey", () => String, { nullable: true }) serperApiKey?: string | null,
