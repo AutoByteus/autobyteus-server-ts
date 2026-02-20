@@ -122,11 +122,13 @@ describe("TeamRunContinuationService integration", () => {
           memberName: "coordinator",
           memberAgentId: "member_coordinator_1",
           workspaceId: "ws-coordinator",
+          memoryDir,
         }),
         expect.objectContaining({
           memberName: "writer",
           memberAgentId: "member_writer_1",
           workspaceId: "ws-writer",
+          memoryDir,
         }),
       ]),
     );

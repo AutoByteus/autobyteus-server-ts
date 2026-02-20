@@ -129,6 +129,7 @@ describe("TeamRunContinuationService", () => {
           llmConfig: { temperature: 0.2 },
           memberRouteKey: "coordinator",
           memberAgentId: "member-1",
+          memoryDir: "/tmp/memory",
         },
       ],
     );

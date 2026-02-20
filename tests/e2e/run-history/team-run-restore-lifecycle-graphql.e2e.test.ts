@@ -5,9 +5,21 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { graphql as graphqlFn, GraphQLSchema } from "graphql";
+import { LLMFactory } from "autobyteus-ts";
+import { BaseLLM } from "autobyteus-ts/llm/base.js";
+import { LLMModel } from "autobyteus-ts/llm/models.js";
+import { LLMProvider } from "autobyteus-ts/llm/providers.js";
+import { LLMConfig } from "autobyteus-ts/llm/utils/llm-config.js";
+import { ChunkResponse, CompleteResponse } from "autobyteus-ts/llm/utils/response-types.js";
+import { AgentDefinitionService } from "../../../src/agent-definition/services/agent-definition-service.js";
+import { AgentTeamDefinitionService } from "../../../src/agent-team-definition/services/agent-team-definition-service.js";
 import { buildGraphqlSchema } from "../../../src/api/graphql/schema.js";
 import { AgentTeamInstanceManager } from "../../../src/agent-team-execution/services/agent-team-instance-manager.js";
-import { getDefaultTeamCommandIngressService } from "../../../src/distributed/bootstrap/default-distributed-runtime-composition.js";
+import {
+  getDefaultTeamCommandIngressService,
+  resetDefaultDistributedRuntimeCompositionForTests,
+} from "../../../src/distributed/bootstrap/default-distributed-runtime-composition.js";
+import { PromptService } from "../../../src/prompt-engineering/services/prompt-service.js";
 import { buildTeamMemberAgentId } from "../../../src/run-history/utils/team-member-agent-id.js";
 
 type TeamRunIndexRow = {
@@ -43,6 +55,32 @@ const writeTeamIndex = (indexFilePath: string, index: TeamRunIndexFile): void =>
   fs.writeFileSync(indexFilePath, JSON.stringify(index, null, 2), "utf-8");
 };
 
+class DummyLLM extends BaseLLM {
+  protected async _sendMessagesToLLM(
+    _messages: any[],
+    _kwargs: Record<string, unknown> = {},
+  ): Promise<CompleteResponse> {
+    return new CompleteResponse({ content: "ok" });
+  }
+
+  protected async *_streamMessagesToLLM(
+    _messages: any[],
+    _kwargs: Record<string, unknown> = {},
+  ): AsyncGenerator<ChunkResponse, void, unknown> {
+    yield new ChunkResponse({ content: "ok", is_complete: true });
+  }
+}
+
+const createDummyLlm = (): DummyLLM => {
+  const model = new LLMModel({
+    name: "dummy",
+    value: "dummy",
+    canonicalName: "dummy",
+    provider: LLMProvider.OPENAI,
+  });
+  return new DummyLLM(model, new LLMConfig());
+};
+
 describe("Team run restore lifecycle GraphQL e2e", () => {
   let schema: GraphQLSchema;
   let graphql: typeof graphqlFn;
@@ -51,12 +89,12 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
   let indexFilePath: string;
   let originalMemoryDirEnv: string | undefined;
   const createdTeamIds = new Set<string>();
+  const createdTeamDefinitionIds = new Set<string>();
+  const createdAgentDefinitionIds = new Set<string>();
+  const createdPromptIds = new Set<string>();
 
-  const activeTeams = new Set<string>();
-  let createTeamInstanceWithIdSpy: ReturnType<typeof vi.spyOn> | null = null;
-  let terminateTeamInstanceSpy: ReturnType<typeof vi.spyOn> | null = null;
-  let getTeamInstanceSpy: ReturnType<typeof vi.spyOn> | null = null;
   let ingressDispatchSpy: ReturnType<typeof vi.spyOn> | null = null;
+  let llmCreateSpy: ReturnType<typeof vi.spyOn> | null = null;
 
   beforeAll(async () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "autobyteus-team-run-restore-e2e-"));
@@ -66,23 +104,8 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
     fs.mkdirSync(memoryDir, { recursive: true });
     indexFilePath = path.join(memoryDir, "team_run_history_index.json");
 
-    const teamManager = AgentTeamInstanceManager.getInstance();
-    createTeamInstanceWithIdSpy = vi
-      .spyOn(teamManager, "createTeamInstanceWithId")
-      .mockImplementation(async (teamId: string) => {
-        createdTeamIds.add(teamId);
-        activeTeams.add(teamId);
-        return teamId;
-      });
-    terminateTeamInstanceSpy = vi
-      .spyOn(teamManager, "terminateTeamInstance")
-      .mockImplementation(async (teamId: string) => {
-        activeTeams.delete(teamId);
-        return true;
-      });
-    getTeamInstanceSpy = vi
-      .spyOn(teamManager, "getTeamInstance")
-      .mockImplementation((teamId: string) => (activeTeams.has(teamId) ? ({ teamId } as any) : null));
+    resetDefaultDistributedRuntimeCompositionForTests();
+    llmCreateSpy = vi.spyOn(LLMFactory, "createLLM").mockImplementation(async () => createDummyLlm());
 
     ingressDispatchSpy = vi
       .spyOn(getDefaultTeamCommandIngressService(), "dispatchUserMessage")
@@ -100,23 +123,44 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
     graphql = graphqlModule.graphql as typeof graphqlFn;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    const teamManager = AgentTeamInstanceManager.getInstance();
+    for (const teamId of createdTeamIds) {
+      await teamManager.terminateTeamInstance(teamId).catch(() => false);
+    }
+
     const index = readTeamIndex(indexFilePath);
     index.rows = index.rows.filter((row) => !createdTeamIds.has(row.teamId));
     writeTeamIndex(indexFilePath, index);
 
     for (const teamId of createdTeamIds) {
-      activeTeams.delete(teamId);
       fs.rmSync(path.join(memoryDir, "agent_teams", teamId), { recursive: true, force: true });
     }
     createdTeamIds.clear();
+
+    const teamDefinitionService = AgentTeamDefinitionService.getInstance();
+    for (const teamDefinitionId of createdTeamDefinitionIds) {
+      await teamDefinitionService.deleteDefinition(teamDefinitionId).catch(() => false);
+    }
+    createdTeamDefinitionIds.clear();
+
+    const agentDefinitionService = AgentDefinitionService.getInstance();
+    for (const agentDefinitionId of createdAgentDefinitionIds) {
+      await agentDefinitionService.deleteAgentDefinition(agentDefinitionId).catch(() => false);
+    }
+    createdAgentDefinitionIds.clear();
+
+    const promptService = PromptService.getInstance();
+    for (const promptId of createdPromptIds) {
+      await promptService.deletePrompt(promptId).catch(() => false);
+    }
+    createdPromptIds.clear();
   });
 
   afterAll(() => {
+    llmCreateSpy?.mockRestore();
     ingressDispatchSpy?.mockRestore();
-    getTeamInstanceSpy?.mockRestore();
-    terminateTeamInstanceSpy?.mockRestore();
-    createTeamInstanceWithIdSpy?.mockRestore();
+    resetDefaultDistributedRuntimeCompositionForTests();
     vi.restoreAllMocks();
     if (typeof originalMemoryDirEnv === "string") {
       process.env.AUTOBYTEUS_MEMORY_DIR = originalMemoryDirEnv;
@@ -141,7 +185,98 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
     return result.data as T;
   };
 
+  const createSingleMemberTeamFixture = async (unique: string): Promise<{
+    teamDefinitionId: string;
+    memberName: string;
+    agentDefinitionId: string;
+  }> => {
+    const promptName = `Prompt_${unique}`;
+    const promptCategory = `Category_${unique}`;
+
+    const createdPrompt = await execGraphql<{
+      createPrompt: { id: string };
+    }>(
+      `
+        mutation CreatePrompt($input: CreatePromptInput!) {
+          createPrompt(input: $input) {
+            id
+          }
+        }
+      `,
+      {
+        input: {
+          name: promptName,
+          category: promptCategory,
+          promptContent: "You are a concise assistant.",
+          description: "Prompt for team restore lifecycle e2e",
+        },
+      },
+    );
+    createdPromptIds.add(createdPrompt.createPrompt.id);
+
+    const createdAgent = await execGraphql<{
+      createAgentDefinition: { id: string };
+    }>(
+      `
+        mutation CreateAgentDefinition($input: CreateAgentDefinitionInput!) {
+          createAgentDefinition(input: $input) {
+            id
+          }
+        }
+      `,
+      {
+        input: {
+          name: `agent_${unique}`,
+          role: "assistant",
+          description: "Team coordinator agent",
+          systemPromptCategory: promptCategory,
+          systemPromptName: promptName,
+          toolNames: [],
+          skillNames: [],
+        },
+      },
+    );
+    createdAgentDefinitionIds.add(createdAgent.createAgentDefinition.id);
+
+    const memberName = "coordinator";
+    const createdTeam = await execGraphql<{
+      createAgentTeamDefinition: { id: string };
+    }>(
+      `
+        mutation CreateTeam($input: CreateAgentTeamDefinitionInput!) {
+          createAgentTeamDefinition(input: $input) {
+            id
+          }
+        }
+      `,
+      {
+        input: {
+          name: `team_${unique}`,
+          description: "Single member restore lifecycle team",
+          coordinatorMemberName: memberName,
+          nodes: [
+            {
+              memberName,
+              referenceId: createdAgent.createAgentDefinition.id,
+              referenceType: "AGENT",
+              homeNodeId: "embedded-local",
+            },
+          ],
+        },
+      },
+    );
+    createdTeamDefinitionIds.add(createdTeam.createAgentTeamDefinition.id);
+
+    return {
+      teamDefinitionId: createdTeam.createAgentTeamDefinition.id,
+      memberName,
+      agentDefinitionId: createdAgent.createAgentDefinition.id,
+    };
+  };
+
   it("supports single-node team create, terminate, restore, and rerun via GraphQL", async () => {
+    const unique = `team_restore_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const fixture = await createSingleMemberTeamFixture(unique);
     const sendMutation = `
       mutation SendMessageToTeam($input: SendMessageToTeamInput!) {
         sendMessageToTeam(input: $input) {
@@ -160,13 +295,13 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
           content: "start team",
           contextFiles: null,
         },
-        teamDefinitionId: "team-def-e2e",
-        targetMemberName: "coordinator",
+        teamDefinitionId: fixture.teamDefinitionId,
+        targetMemberName: fixture.memberName,
         memberConfigs: [
           {
-            memberName: "coordinator",
-            agentDefinitionId: "agent-def-1",
-            llmModelIdentifier: "gpt-4o-mini",
+            memberName: fixture.memberName,
+            agentDefinitionId: fixture.agentDefinitionId,
+            llmModelIdentifier: "dummy",
             autoExecuteTools: true,
           },
         ],
@@ -175,15 +310,16 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
 
     expect(firstSend.sendMessageToTeam.success).toBe(true);
     const teamId = firstSend.sendMessageToTeam.teamId;
+    createdTeamIds.add(teamId);
     expect(teamId).toBeTruthy();
-    expect(createTeamInstanceWithIdSpy).toHaveBeenCalledTimes(1);
     expect(ingressDispatchSpy).toHaveBeenCalledTimes(1);
-    const firstCreateCall = createTeamInstanceWithIdSpy?.mock.calls[0];
-    const firstCreateMemberConfigs = (firstCreateCall?.[2] ?? []) as Array<Record<string, unknown>>;
-    expect(firstCreateMemberConfigs).toEqual([
+
+    const teamManager = AgentTeamInstanceManager.getInstance();
+    expect(teamManager.getTeamInstance(teamId)).toBeTruthy();
+    expect(teamManager.getTeamMemberConfigs(teamId)).toEqual([
       expect.objectContaining({
-        memberRouteKey: "coordinator",
-        memberAgentId: buildTeamMemberAgentId(teamId, "coordinator"),
+        memberRouteKey: fixture.memberName,
+        memberAgentId: buildTeamMemberAgentId(teamId, fixture.memberName),
       }),
     ]);
 
@@ -224,10 +360,10 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
     expect(resumeBeforeTerminate.getTeamRunResumeConfig.isActive).toBe(true);
     expect(
       resumeBeforeTerminate.getTeamRunResumeConfig.manifest.memberBindings[0]?.memberRouteKey,
-    ).toBe("coordinator");
+    ).toBe(fixture.memberName);
     expect(
       resumeBeforeTerminate.getTeamRunResumeConfig.manifest.memberBindings[0]?.memberAgentId,
-    ).toBe(buildTeamMemberAgentId(teamId, "coordinator"));
+    ).toBe(buildTeamMemberAgentId(teamId, fixture.memberName));
 
     const terminateMutation = `
       mutation TerminateTeam($id: String!) {
@@ -241,6 +377,7 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
       terminateAgentTeamInstance: { success: boolean };
     }>(terminateMutation, { id: teamId });
     expect(terminated.terminateAgentTeamInstance.success).toBe(true);
+    expect(teamManager.getTeamInstance(teamId)).toBeNull();
 
     const listedAfterTerminate = await execGraphql<{
       listTeamRunHistory: Array<{ teamId: string; lastKnownStatus: string; summary: string }>;
@@ -258,13 +395,19 @@ describe("Team run restore lifecycle GraphQL e2e", () => {
           contextFiles: null,
         },
         teamId,
-        targetMemberName: "coordinator",
+        targetMemberName: fixture.memberName,
       },
     });
     expect(secondSend.sendMessageToTeam.success).toBe(true);
     expect(secondSend.sendMessageToTeam.teamId).toBe(teamId);
-    expect(createTeamInstanceWithIdSpy).toHaveBeenCalledTimes(2);
     expect(ingressDispatchSpy).toHaveBeenCalledTimes(2);
+    expect(teamManager.getTeamMemberConfigs(teamId)).toEqual([
+      expect.objectContaining({
+        memberRouteKey: fixture.memberName,
+        memberAgentId: buildTeamMemberAgentId(teamId, fixture.memberName),
+        memoryDir,
+      }),
+    ]);
 
     const listed = await execGraphql<{
       listTeamRunHistory: Array<{ teamId: string; lastKnownStatus: string; summary: string }>;

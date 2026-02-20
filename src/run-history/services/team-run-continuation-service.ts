@@ -2,6 +2,7 @@ import type { AgentInputUserMessage } from "autobyteus-ts";
 import { AgentTeamInstanceManager } from "../../agent-team-execution/services/agent-team-instance-manager.js";
 import { UserInputConverter } from "../../api/graphql/converters/user-input-converter.js";
 import type { AgentUserInput } from "../../api/graphql/types/agent-user-input.js";
+import { appConfigProvider } from "../../config/app-config-provider.js";
 import { getDefaultTeamCommandIngressService } from "../../distributed/bootstrap/default-distributed-runtime-composition.js";
 import type { TeamCommandIngressService } from "../../distributed/ingress/team-command-ingress-service.js";
 import { getWorkspaceManager, type WorkspaceManager } from "../../workspaces/workspace-manager.js";
@@ -53,6 +54,7 @@ export class TeamRunContinuationService {
   private readonly teamCommandIngressService: TeamCommandIngressLike;
   private readonly teamRunHistoryService: TeamRunHistoryService;
   private readonly workspaceManager: WorkspaceManager;
+  private readonly restoreMemoryDir: string | null;
 
   constructor(options: {
     teamInstanceManager?: TeamInstanceManagerLike;
@@ -66,6 +68,9 @@ export class TeamRunContinuationService {
       options.teamCommandIngressService ?? getDefaultTeamCommandIngressService();
     this.teamRunHistoryService = options.teamRunHistoryService ?? getTeamRunHistoryService();
     this.workspaceManager = options.workspaceManager ?? getWorkspaceManager();
+    this.restoreMemoryDir =
+      normalizeOptionalString(options.memoryDir) ??
+      normalizeOptionalString(appConfigProvider.config.getMemoryDir());
   }
 
   async continueTeamRun(input: ContinueTeamRunInput): Promise<ContinueTeamRunResult> {
@@ -118,6 +123,7 @@ export class TeamRunContinuationService {
           llmConfig: binding.llmConfig ?? null,
           memberRouteKey: binding.memberRouteKey,
           memberAgentId: binding.memberAgentId,
+          memoryDir: this.restoreMemoryDir,
         };
       }),
     );
