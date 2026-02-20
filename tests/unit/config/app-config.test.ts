@@ -9,7 +9,6 @@ const ENV_KEYS = [
   "AUTOBYTEUS_SERVER_HOST",
   "APP_ENV",
   "DB_TYPE",
-  "DB_NAME",
   "DATABASE_URL",
   "AUTOBYTEUS_MEMORY_DIR",
   "AUTOBYTEUS_SKILLS_PATHS",
@@ -63,7 +62,6 @@ describe("AppConfig", () => {
 
     expect(config.getBaseUrl()).toBe("http://localhost:8000");
     const expectedDbPath = path.resolve(configDir, "db", "test.db");
-    expect(config.get("DB_NAME")).toBe(expectedDbPath);
     expect(config.get("DATABASE_URL")).toBe(`file:${expectedDbPath}`);
     expect(process.env.DATABASE_URL).toBe(`file:${expectedDbPath}`);
     expect(fs.existsSync(path.join(configDir, "logs"))).toBe(true);

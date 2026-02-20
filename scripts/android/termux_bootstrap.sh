@@ -122,7 +122,6 @@ if [[ ! -f "${SERVER_DIR}/.env" ]]; then
 AUTOBYTEUS_SERVER_HOST=http://127.0.0.1:8000
 PERSISTENCE_PROVIDER=sqlite
 DB_TYPE=sqlite
-DB_NAME=/root/autobyteus_org/autobyteus-server-ts/db/production.db
 DATABASE_URL=file:/root/autobyteus_org/autobyteus-server-ts/db/production.db
 AUTOBYTEUS_MEMORY_DIR=/root/autobyteus_org/autobyteus-server-ts/memory
 ENV_EOF

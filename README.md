@@ -42,7 +42,7 @@ AUTOBYTEUS_HTTP_ACCESS_LOG_INCLUDE_NOISY=false
 Notes:
 - `AUTOBYTEUS_SERVER_HOST` is required (used for URL generation).
 - SQLite DB defaults to `db/production.db` (or `db/test.db` when `APP_ENV=test`).
-- `DATABASE_URL` is optional for SQLite; it will be derived from `DB_NAME` when missing.
+- `DATABASE_URL` is optional for SQLite; when missing, it is derived from the runtime SQLite DB path.
 - The app will create `db/`, `logs/`, `download/`, `media/`, `skills/`, `temp_workspace/` as needed under the app data dir.
 - HTTP access logging is policy-driven:
   - `AUTOBYTEUS_HTTP_ACCESS_LOG_MODE=off|errors|all` (default: `errors`)
