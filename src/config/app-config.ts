@@ -413,6 +413,22 @@ export class AppConfig {
     }
   }
 
+  delete(key: string): void {
+    delete this.configData[key];
+    delete process.env[key];
+
+    if (this.configFile) {
+      try {
+        this.removeKeyFromEnvFile(this.configFile, key);
+      } catch (error) {
+        console.info(
+          `Could not update config file ${this.configFile}: ${String(error)}. ` +
+            "Changes will only be valid for the current session.",
+        );
+      }
+    }
+  }
+
   setLlmApiKey(provider: string, apiKey: string): void {
     this.set(`${provider.toUpperCase()}_API_KEY`, apiKey);
   }
@@ -447,5 +463,19 @@ export class AppConfig {
     }
 
     fs.writeFileSync(configFile, updatedLines.filter((line) => line !== undefined).join("\n"));
+  }
+
+  private removeKeyFromEnvFile(configFile: string, key: string): void {
+    const content = fs.readFileSync(configFile, "utf-8");
+    const lines = content.split(/\r?\n/);
+    const filteredLines = lines.filter((line) => {
+      if (!line || line.trim().startsWith("#")) {
+        return true;
+      }
+      const [currentKey] = line.split("=");
+      return currentKey !== key;
+    });
+
+    fs.writeFileSync(configFile, filteredLines.join("\n"));
   }
 }

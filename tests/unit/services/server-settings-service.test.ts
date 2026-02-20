@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockConfig = vi.hoisted(() => ({
   getConfigData: vi.fn(),
   set: vi.fn(),
+  delete: vi.fn(),
 }));
 
 vi.mock("../../../src/config/app-config-provider.js", () => ({
@@ -19,6 +20,7 @@ describe("ServerSettingsService", () => {
   beforeEach(() => {
     mockConfig.getConfigData.mockReset();
     mockConfig.set.mockReset();
+    mockConfig.delete.mockReset();
   });
 
   it("lists available settings excluding API keys", () => {
@@ -76,5 +78,43 @@ describe("ServerSettingsService", () => {
   it("accepts any setting key", () => {
     const service = new ServerSettingsService();
     expect(service.isValidSetting("anything")).toBe(true);
+  });
+
+  it("deletes custom settings successfully", () => {
+    mockConfig.getConfigData.mockReturnValue({
+      CUSTOM_SETTING: "value",
+    });
+    mockConfig.delete.mockImplementation(() => undefined);
+
+    const service = new ServerSettingsService();
+    const [ok, message] = service.deleteSetting("CUSTOM_SETTING");
+
+    expect(ok).toBe(true);
+    expect(message).toMatch(/deleted successfully/i);
+    expect(mockConfig.delete).toHaveBeenCalledWith("CUSTOM_SETTING");
+  });
+
+  it("rejects deleting predefined settings", () => {
+    mockConfig.getConfigData.mockReturnValue({
+      AUTOBYTEUS_SERVER_HOST: "http://localhost:8000",
+    });
+
+    const service = new ServerSettingsService();
+    const [ok, message] = service.deleteSetting("AUTOBYTEUS_SERVER_HOST");
+
+    expect(ok).toBe(false);
+    expect(message).toContain("cannot be removed");
+    expect(mockConfig.delete).not.toHaveBeenCalled();
+  });
+
+  it("returns error when deleting missing settings", () => {
+    mockConfig.getConfigData.mockReturnValue({});
+
+    const service = new ServerSettingsService();
+    const [ok, message] = service.deleteSetting("MISSING_SETTING");
+
+    expect(ok).toBe(false);
+    expect(message).toContain("does not exist");
+    expect(mockConfig.delete).not.toHaveBeenCalled();
   });
 });

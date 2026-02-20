@@ -9,6 +9,7 @@ const mockConfig = vi.hoisted(() => ({
 const mockServerSettingsService = vi.hoisted(() => ({
   getAvailableSettings: vi.fn(),
   updateSetting: vi.fn(),
+  deleteSetting: vi.fn(),
 }));
 
 vi.mock("../../../../../src/config/app-config-provider.js", () => ({
@@ -31,6 +32,7 @@ describe("ServerSettingsResolver search config", () => {
     mockConfig.set.mockReset();
     mockServerSettingsService.getAvailableSettings.mockReset();
     mockServerSettingsService.updateSetting.mockReset();
+    mockServerSettingsService.deleteSetting.mockReset();
     mockConfig.get.mockImplementation(() => "");
   });
 
@@ -58,6 +60,16 @@ describe("ServerSettingsResolver search config", () => {
       "AUTOBYTEUS_VNC_SERVER_HOSTS",
       "localhost:6081",
     );
+  });
+
+  it("forwards deleteServerSetting to service", () => {
+    mockServerSettingsService.deleteSetting.mockReturnValue([true, "deleted"]);
+
+    const resolver = new ServerSettingsResolver();
+    const result = resolver.deleteServerSetting("CUSTOM_SETTING");
+
+    expect(result).toBe("deleted");
+    expect(mockServerSettingsService.deleteSetting).toHaveBeenCalledWith("CUSTOM_SETTING");
   });
 
   it("returns normalized getSearchConfig snapshot", () => {
