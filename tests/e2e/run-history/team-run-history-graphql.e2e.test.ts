@@ -149,7 +149,6 @@ describe("Team run history GraphQL e2e", () => {
           autoExecuteTools: false,
           llmConfig: null,
           workspaceRootPath,
-          hostNodeId: null,
         },
       ],
     };

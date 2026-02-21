@@ -303,7 +303,6 @@ export class AgentTeamInstanceResolver {
         autoExecuteTools: Boolean(config.autoExecuteTools),
         llmConfig: config.llmConfig ?? null,
         workspaceRootPath: this.resolveWorkspaceRootPath(config),
-        hostNodeId: null,
       };
     });
 

@@ -87,7 +87,6 @@ export class TeamRunHistoryService {
           autoExecuteTools: binding.autoExecuteTools,
           llmConfig: binding.llmConfig ?? null,
           workspaceRootPath: binding.workspaceRootPath,
-          hostNodeId: binding.hostNodeId,
         })),
       });
     }

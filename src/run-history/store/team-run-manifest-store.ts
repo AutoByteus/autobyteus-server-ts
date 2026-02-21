@@ -8,14 +8,6 @@ const logger = {
   warn: (...args: unknown[]) => console.warn(...args),
 };
 
-const normalizeOptionalString = (value: unknown): string | null => {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : null;
-};
-
 const normalizeTeamId = (teamId: string, options: { allowEmpty?: boolean } = {}): string => {
   const normalized = teamId.trim();
   if (normalized.length === 0) {
@@ -41,7 +33,6 @@ const normalizeMemberBinding = (binding: TeamRunMemberBinding): TeamRunMemberBin
   workspaceRootPath: binding.workspaceRootPath
     ? canonicalizeWorkspaceRootPath(binding.workspaceRootPath)
     : null,
-  hostNodeId: normalizeOptionalString(binding.hostNodeId),
 });
 
 const normalizeManifest = (manifest: TeamRunManifest): TeamRunManifest => ({
@@ -72,8 +63,7 @@ const isMemberBindingLike = (value: unknown): value is TeamRunMemberBinding => {
     typeof payload.autoExecuteTools === "boolean" &&
     (payload.llmConfig === null ||
       (typeof payload.llmConfig === "object" && !Array.isArray(payload.llmConfig))) &&
-    (typeof payload.workspaceRootPath === "string" || payload.workspaceRootPath === null) &&
-    (typeof payload.hostNodeId === "string" || payload.hostNodeId === null || payload.hostNodeId === undefined)
+    (typeof payload.workspaceRootPath === "string" || payload.workspaceRootPath === null)
   );
 };
 

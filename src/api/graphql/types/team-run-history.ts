@@ -16,9 +16,6 @@ class TeamRunMemberHistoryObject {
 
   @Field(() => String, { nullable: true })
   workspaceRootPath?: string | null;
-
-  @Field(() => String, { nullable: true })
-  hostNodeId?: string | null;
 }
 
 @ObjectType()

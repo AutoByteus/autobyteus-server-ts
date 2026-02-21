@@ -13,7 +13,6 @@ export interface TeamRunMemberBinding {
   autoExecuteTools: boolean;
   llmConfig: Record<string, unknown> | null;
   workspaceRootPath: string | null;
-  hostNodeId: string | null;
 }
 
 export interface TeamRunManifest {
@@ -53,7 +52,6 @@ export interface TeamRunMemberHistoryItem {
   autoExecuteTools: boolean;
   llmConfig: Record<string, unknown> | null;
   workspaceRootPath: string | null;
-  hostNodeId: string | null;
 }
 
 export interface TeamRunHistoryItem {
