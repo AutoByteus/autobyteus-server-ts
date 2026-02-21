@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
+import { getPersistenceProfile, isSqlPersistenceProfile } from "../persistence/profile.js";
 
 export class AppConfigError extends Error {
   constructor(message: string) {
@@ -62,7 +63,8 @@ export class AppConfig {
     this.loadConfigData();
     this.initializeBaseUrl();
 
-    if (this.get("DB_TYPE", "sqlite") === "sqlite") {
+    const profile = getPersistenceProfile();
+    if (isSqlPersistenceProfile(profile) && this.get("DB_TYPE", "sqlite") === "sqlite") {
       try {
         this.initSqlitePath();
       } catch (error) {
@@ -154,7 +156,12 @@ export class AppConfig {
   private isValidAppRoot(candidate: string): boolean {
     const pkgPath = path.join(candidate, "package.json");
     const prismaPath = path.join(candidate, "prisma", "schema.prisma");
-    return fs.existsSync(pkgPath) && fs.existsSync(prismaPath);
+    const srcAppPath = path.join(candidate, "src", "app.ts");
+    const distAppPath = path.join(candidate, "dist", "app.js");
+    return (
+      fs.existsSync(pkgPath) &&
+      (fs.existsSync(prismaPath) || fs.existsSync(srcAppPath) || fs.existsSync(distAppPath))
+    );
   }
 
   private initSqlitePath(): void {

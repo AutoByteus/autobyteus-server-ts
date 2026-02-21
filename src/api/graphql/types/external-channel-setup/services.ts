@@ -1,4 +1,4 @@
-import { SqlChannelBindingProvider } from "../../../../external-channel/providers/sql-channel-binding-provider.js";
+import { getProviderProxySet } from "../../../../external-channel/providers/provider-proxy-set.js";
 import { ChannelBindingService } from "../../../../external-channel/services/channel-binding-service.js";
 import { ChannelBindingConstraintService } from "../../../../external-channel/services/channel-binding-constraint-service.js";
 import { ChannelBindingTargetOptionsService } from "../../../../external-channel/services/channel-binding-target-options-service.js";
@@ -11,7 +11,8 @@ let cachedDiscordBindingIdentityValidator: DiscordBindingIdentityValidator | nul
 
 export const getBindingService = (): ChannelBindingService => {
   if (!cachedBindingService) {
-    cachedBindingService = new ChannelBindingService(new SqlChannelBindingProvider());
+    const providerSet = getProviderProxySet();
+    cachedBindingService = new ChannelBindingService(providerSet.bindingProvider);
   }
   return cachedBindingService;
 };

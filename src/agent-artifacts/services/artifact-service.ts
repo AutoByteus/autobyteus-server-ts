@@ -1,9 +1,41 @@
-import { PrismaAgentArtifactConverter } from "../converters/prisma-converter.js";
 import type { AgentArtifact } from "../domain/models.js";
-import { SqlAgentArtifactRepository } from "../repositories/sql/agent-artifact-repository.js";
+import { ArtifactPersistenceProxy } from "../providers/persistence-proxy.js";
+import type { ArtifactPersistenceProvider } from "../providers/persistence-provider.js";
+
+type ArtifactRepositoryAdapter = {
+  createArtifact(input: {
+    agentId: string;
+    path: string;
+    type: string;
+    workspaceRoot?: string | null;
+    url?: string | null;
+    createdAt?: Date;
+    updatedAt?: Date;
+  }): Promise<{
+    id: string | number;
+    agentId: string;
+    path: string;
+    type: string;
+    workspaceRoot?: string | null;
+    url?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+  getByAgentId(agentId: string): Promise<Array<{
+    id: string | number;
+    agentId: string;
+    path: string;
+    type: string;
+    workspaceRoot?: string | null;
+    url?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }>>;
+};
 
 type ArtifactServiceOptions = {
-  repository?: SqlAgentArtifactRepository;
+  provider?: ArtifactPersistenceProvider;
+  repository?: ArtifactRepositoryAdapter;
 };
 
 export class ArtifactService {
@@ -20,10 +52,45 @@ export class ArtifactService {
     ArtifactService.instance = null;
   }
 
-  private repository: SqlAgentArtifactRepository;
+  private provider: ArtifactPersistenceProvider;
 
   constructor(options: ArtifactServiceOptions = {}) {
-    this.repository = options.repository ?? new SqlAgentArtifactRepository();
+    if (options.provider) {
+      this.provider = options.provider;
+      return;
+    }
+    if (options.repository) {
+      this.provider = {
+        createArtifact: async (input) => {
+          const created = await options.repository!.createArtifact(input);
+          return {
+            id: String(created.id),
+            agentId: created.agentId,
+            path: created.path,
+            type: created.type,
+            workspaceRoot: created.workspaceRoot ?? null,
+            url: created.url ?? null,
+            createdAt: created.createdAt,
+            updatedAt: created.updatedAt,
+          };
+        },
+        getByAgentId: async (agentId) => {
+          const rows = await options.repository!.getByAgentId(agentId);
+          return rows.map((row) => ({
+            id: String(row.id),
+            agentId: row.agentId,
+            path: row.path,
+            type: row.type,
+            workspaceRoot: row.workspaceRoot ?? null,
+            url: row.url ?? null,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+          }));
+        },
+      };
+      return;
+    }
+    this.provider = new ArtifactPersistenceProxy();
   }
 
   async createArtifact(options: {
@@ -34,7 +101,7 @@ export class ArtifactService {
     workspaceRoot?: string | null;
   }): Promise<AgentArtifact> {
     const now = new Date();
-    const created = await this.repository.createArtifact({
+    return this.provider.createArtifact({
       agentId: options.agentId,
       path: options.path,
       type: options.type,
@@ -43,11 +110,9 @@ export class ArtifactService {
       createdAt: now,
       updatedAt: now,
     });
-    return PrismaAgentArtifactConverter.toDomain(created);
   }
 
   async getArtifactsByAgentId(agentId: string): Promise<AgentArtifact[]> {
-    const records = await this.repository.getByAgentId(agentId);
-    return records.map((record) => PrismaAgentArtifactConverter.toDomain(record));
+    return this.provider.getByAgentId(agentId);
   }
 }

@@ -5,10 +5,7 @@ import {
 import type { LLMCompleteResponseReceivedEvent } from "autobyteus-ts/agent/events/agent-events.js";
 import type { CompleteResponse } from "autobyteus-ts/llm/utils/response-types.js";
 import { appConfigProvider } from "../../../config/app-config-provider.js";
-import { SqlChannelBindingProvider } from "../../../external-channel/providers/sql-channel-binding-provider.js";
-import { SqlChannelCallbackIdempotencyProvider } from "../../../external-channel/providers/sql-channel-callback-idempotency-provider.js";
-import { SqlChannelMessageReceiptProvider } from "../../../external-channel/providers/sql-channel-message-receipt-provider.js";
-import { SqlDeliveryEventProvider } from "../../../external-channel/providers/sql-delivery-event-provider.js";
+import { getProviderProxySet } from "../../../external-channel/providers/provider-proxy-set.js";
 import { GatewayCallbackPublisher } from "../../../external-channel/runtime/gateway-callback-publisher.js";
 import { CallbackIdempotencyService } from "../../../external-channel/services/callback-idempotency-service.js";
 import { ChannelBindingService } from "../../../external-channel/services/channel-binding-service.js";
@@ -40,15 +37,16 @@ export class ExternalChannelAssistantReplyProcessor extends BaseLLMResponseProce
           timeoutMs: config.getChannelCallbackTimeoutMs(),
         })
       : undefined;
+    const providerSet = getProviderProxySet();
 
     this.callbackService = new ReplyCallbackService(
-      new ChannelMessageReceiptService(new SqlChannelMessageReceiptProvider()),
+      new ChannelMessageReceiptService(providerSet.messageReceiptProvider),
       {
         callbackIdempotencyService: new CallbackIdempotencyService(
-          new SqlChannelCallbackIdempotencyProvider(),
+          providerSet.callbackIdempotencyProvider,
         ),
-        deliveryEventService: new DeliveryEventService(new SqlDeliveryEventProvider()),
-        bindingService: new ChannelBindingService(new SqlChannelBindingProvider()),
+        deliveryEventService: new DeliveryEventService(providerSet.deliveryEventProvider),
+        bindingService: new ChannelBindingService(providerSet.bindingProvider),
         callbackPublisher,
       },
     );

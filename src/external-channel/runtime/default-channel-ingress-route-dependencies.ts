@@ -1,10 +1,7 @@
 import { AgentInstanceManager } from "../../agent-execution/services/agent-instance-manager.js";
 import { AgentTeamInstanceManager } from "../../agent-team-execution/services/agent-team-instance-manager.js";
 import type { ChannelIngressRouteDependencies } from "../../api/rest/channel-ingress.js";
-import { SqlChannelBindingProvider } from "../providers/sql-channel-binding-provider.js";
-import { SqlChannelIdempotencyProvider } from "../providers/sql-channel-idempotency-provider.js";
-import { SqlChannelMessageReceiptProvider } from "../providers/sql-channel-message-receipt-provider.js";
-import { SqlDeliveryEventProvider } from "../providers/sql-delivery-event-provider.js";
+import { getProviderProxySet } from "../providers/provider-proxy-set.js";
 import { ChannelBindingService } from "../services/channel-binding-service.js";
 import { ChannelIdempotencyService } from "../services/channel-idempotency-service.js";
 import { ChannelIngressService } from "../services/channel-ingress-service.js";
@@ -21,12 +18,13 @@ export const getDefaultChannelIngressRouteDependencies =
       return cachedDependencies;
     }
 
-    const bindingService = new ChannelBindingService(new SqlChannelBindingProvider());
+    const providerSet = getProviderProxySet();
+    const bindingService = new ChannelBindingService(providerSet.bindingProvider);
     const idempotencyService = new ChannelIdempotencyService(
-      new SqlChannelIdempotencyProvider(),
+      providerSet.idempotencyProvider,
     );
     const messageReceiptService = new ChannelMessageReceiptService(
-      new SqlChannelMessageReceiptProvider(),
+      providerSet.messageReceiptProvider,
     );
     const runtimeFacade = new DefaultChannelRuntimeFacade({
       agentInstanceManager: {
@@ -55,7 +53,7 @@ export const getDefaultChannelIngressRouteDependencies =
       messageReceiptService,
     });
     const deliveryEventService = new DeliveryEventService(
-      new SqlDeliveryEventProvider(),
+      providerSet.deliveryEventProvider,
     );
 
     cachedDependencies = {

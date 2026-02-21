@@ -7,7 +7,11 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "prebuild": "pnpm -C .. -r --filter autobyteus-ts build",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "pnpm run build:full",
+    "build:full": "tsc -p tsconfig.build.json",
+    "build:file": "tsc -p tsconfig.build.file.json",
+    "package:file": "node ./scripts/build-file-package.mjs",
+    "build:file:package": "pnpm run build:file && pnpm run package:file",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest"
   },

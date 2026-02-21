@@ -22,6 +22,7 @@ This directory mirrors the module documentation layout used in `autobyteus-serve
 | MCP Server Management | [mcp_server_management.md](./mcp_server_management.md) |
 | Multimedia Management | [multimedia_management.md](./multimedia_management.md) |
 | Prompt Engineering | [prompt_engineering.md](./prompt_engineering.md) |
+| Run History | [run_history.md](./run_history.md) |
 | Search | [search.md](./search.md) |
 | Skill Versioning | [skill_versioning.md](./skill_versioning.md) |
 | Skills | [skills.md](./skills.md) |
@@ -36,6 +37,7 @@ This directory mirrors the module documentation layout used in `autobyteus-serve
 
 - Services expose `getInstance()` or accessor functions.
 - Cached providers decorate persistence providers for read-heavy flows.
+- Persistence providers are resolved through registry + proxy composition and selected by `PERSISTENCE_PROVIDER` (`file`, `sqlite`, `postgresql`).
 - GraphQL resolvers in `src/api/graphql/types` are thin adapters over services.
 - Startup registration and background initialization run through `src/startup`.
 

@@ -26,6 +26,7 @@ import { mergeMandatoryAndOptional } from "../../agent-definition/utils/processo
 import { NodeType } from "../../agent-team-definition/domain/enums.js";
 import { AgentTeamDefinitionService } from "../../agent-team-definition/services/agent-team-definition-service.js";
 import { PromptLoader, getPromptLoader } from "../../prompt-engineering/utils/prompt-loader.js";
+import { normalizeMemberRouteKey } from "../../run-history/utils/team-member-agent-id.js";
 import { SkillService } from "../../skills/services/skill-service.js";
 import { WorkspaceManager, getWorkspaceManager } from "../../workspaces/workspace-manager.js";
 import { AgentTeamCreationError, AgentTeamTerminationError } from "../errors.js";
@@ -72,6 +73,8 @@ export type TeamMemberConfigInput = {
   autoExecuteTools: boolean;
   workspaceId?: string | null;
   llmConfig?: Record<string, unknown> | null;
+  memberRouteKey?: string | null;
+  memberAgentId?: string | null;
 };
 
 type AgentTeamInstanceManagerOptions = {
@@ -135,25 +138,65 @@ export class AgentTeamInstanceManager {
     teamDefinitionId: string,
     memberConfigs: TeamMemberConfigInput[],
   ): Promise<string> {
+    return this.createTeamInstanceInternal({
+      teamDefinitionId,
+      memberConfigs,
+      preferredTeamId: null,
+    });
+  }
+
+  async createTeamInstanceWithId(
+    teamId: string,
+    teamDefinitionId: string,
+    memberConfigs: TeamMemberConfigInput[],
+  ): Promise<string> {
+    return this.createTeamInstanceInternal({
+      teamDefinitionId,
+      memberConfigs,
+      preferredTeamId: teamId,
+    });
+  }
+
+  private async createTeamInstanceInternal(input: {
+    teamDefinitionId: string;
+    memberConfigs: TeamMemberConfigInput[];
+    preferredTeamId: string | null;
+  }): Promise<string> {
     logger.info(
-      `Attempting to create agent team instance from definition ID: ${teamDefinitionId}`,
+      `Attempting to create agent team instance from definition ID: ${input.teamDefinitionId}`,
     );
 
     try {
       const memberConfigsMap: Record<string, TeamMemberConfigInput> = {};
-      for (const config of memberConfigs) {
+      for (const config of input.memberConfigs) {
         memberConfigsMap[config.memberName] = config;
+        if (typeof config.memberRouteKey === "string" && config.memberRouteKey.trim()) {
+          memberConfigsMap[normalizeMemberRouteKey(config.memberRouteKey)] = config;
+        }
       }
 
       const teamConfig = await this.buildTeamConfigFromDefinition(
-        teamDefinitionId,
+        input.teamDefinitionId,
         memberConfigsMap,
         new Set(),
       );
 
-      const team = this.teamFactory.createTeam(teamConfig) as TeamLike & {
-        start?: () => void;
-      };
+      const createTeamWithId = (this.teamFactory as any).createTeamWithId;
+      const team =
+        input.preferredTeamId && typeof createTeamWithId === "function"
+          ? (createTeamWithId.call(this.teamFactory, input.preferredTeamId, teamConfig) as TeamLike & {
+              start?: () => void;
+            })
+          : (this.teamFactory.createTeam(teamConfig) as TeamLike & {
+              start?: () => void;
+            });
+
+      if (input.preferredTeamId && team.teamId !== input.preferredTeamId) {
+        throw new Error(
+          `Failed to restore team '${input.preferredTeamId}': runtime created '${team.teamId}'.`,
+        );
+      }
+
       team.start?.();
       await this.waitForIdle(team, 120.0);
 
@@ -163,7 +206,7 @@ export class AgentTeamInstanceManager {
       return team.teamId;
     } catch (error) {
       logger.error(
-        `Failed to create agent team from definition ID '${teamDefinitionId}': ${String(error)}`,
+        `Failed to create agent team from definition ID '${input.teamDefinitionId}': ${String(error)}`,
       );
       if (error instanceof AgentTeamCreationError) {
         throw error;
@@ -325,6 +368,14 @@ export class AgentTeamInstanceManager {
 
     const initialCustomData = {
       agent_definition_id: agentDefinitionId,
+      member_route_key:
+        typeof memberConfig.memberRouteKey === "string" && memberConfig.memberRouteKey.trim().length > 0
+          ? normalizeMemberRouteKey(memberConfig.memberRouteKey)
+          : normalizeMemberRouteKey(memberName),
+      member_agent_id:
+        typeof memberConfig.memberAgentId === "string" && memberConfig.memberAgentId.trim().length > 0
+          ? memberConfig.memberAgentId.trim()
+          : null,
       is_first_user_turn: true,
     };
 
@@ -368,7 +419,9 @@ export class AgentTeamInstanceManager {
     const hydratedConfigs: Record<string, AgentConfig | AgentTeamConfig> = {};
     for (const member of teamDef.nodes) {
       if (member.referenceType === NodeType.AGENT) {
-        const memberConfig = memberConfigsMap[member.memberName];
+        const memberConfig =
+          memberConfigsMap[member.memberName] ??
+          memberConfigsMap[normalizeMemberRouteKey(member.memberName)];
         if (!memberConfig) {
           throw new AgentTeamCreationError(
             `Configuration for team member '${member.memberName}' was not provided.`,

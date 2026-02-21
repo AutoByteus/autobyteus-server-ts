@@ -51,6 +51,10 @@ const createManager = (overrides: Partial<ConstructorParameters<typeof AgentTeam
   const fakeTeam = { teamId: "test_team_123", start: vi.fn() };
   const teamFactory = {
     createTeam: vi.fn().mockReturnValue(fakeTeam),
+    createTeamWithId: vi.fn().mockImplementation((teamId: string) => ({
+      teamId,
+      start: vi.fn(),
+    })),
     removeTeam: vi.fn().mockResolvedValue(true),
     getTeam: vi.fn().mockReturnValue(fakeTeam),
     listActiveTeamIds: vi.fn().mockReturnValue(["test_team_123"]),
@@ -351,6 +355,49 @@ describe("AgentTeamInstanceManager integration", () => {
     const ids = manager.listActiveInstances();
     expect(teamFactory.listActiveTeamIds).toHaveBeenCalledTimes(1);
     expect(ids).toEqual(["test_team_123"]);
+  });
+
+  it("creates a team instance with an explicit preferred team ID", async () => {
+    const { manager, teamDefinitionService, agentDefinitionService, teamFactory } = createManager();
+
+    const coordinator = new AgentDefinition({
+      id: "1",
+      name: "Coordinator",
+      role: "Coord",
+      description: "...",
+    });
+    agentDefinitionService.getAgentDefinitionById.mockResolvedValue(coordinator);
+
+    const teamDef = new AgentTeamDefinition({
+      id: "team_def",
+      name: "PreferredIdTeam",
+      description: "...",
+      nodes: [
+        new TeamMember({
+          memberName: "TheCoordinator",
+          referenceId: "1",
+          referenceType: NodeType.AGENT,
+        }),
+      ],
+      coordinatorMemberName: "TheCoordinator",
+    });
+    teamDefinitionService.getDefinitionById.mockResolvedValue(teamDef);
+
+    const teamId = await manager.createTeamInstanceWithId("team_preferred_1", "team_def", [
+      {
+        memberName: "TheCoordinator",
+        agentDefinitionId: "1",
+        llmModelIdentifier: "gpt-4o",
+        autoExecuteTools: false,
+      },
+    ]);
+
+    expect(teamId).toBe("team_preferred_1");
+    expect(teamFactory.createTeamWithId).toHaveBeenCalledTimes(1);
+    expect(teamFactory.createTeamWithId).toHaveBeenCalledWith(
+      "team_preferred_1",
+      expect.any(AgentTeamConfig),
+    );
   });
 
   it("passes llmConfig into createLLM for team members", async () => {

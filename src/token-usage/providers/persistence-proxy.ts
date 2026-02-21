@@ -1,7 +1,7 @@
 import type { TokenUsage } from "autobyteus-ts";
+import { getPersistenceProfile } from "../../persistence/profile.js";
 import type { TokenUsageRecord } from "../domain/models.js";
 import type { PersistenceProvider } from "./persistence-provider.js";
-import { SqlPersistenceProvider } from "./sql-persistence-provider.js";
 import { TokenUsageProviderRegistry } from "./persistence-provider-registry.js";
 
 const logger = {
@@ -11,19 +11,26 @@ const logger = {
 
 export class PersistenceProxy implements PersistenceProvider {
   private providerInstance: PersistenceProvider | null = null;
+  private providerPromise: Promise<PersistenceProvider> | null = null;
   private registry = TokenUsageProviderRegistry.getInstance();
 
-  private get provider(): PersistenceProvider {
-    if (!this.providerInstance) {
-      this.providerInstance = this.initializeProvider();
+  private async getProvider(): Promise<PersistenceProvider> {
+    if (this.providerInstance) {
+      return this.providerInstance;
     }
+
+    if (!this.providerPromise) {
+      this.providerPromise = this.initializeProvider();
+    }
+
+    this.providerInstance = await this.providerPromise;
     return this.providerInstance;
   }
 
-  private initializeProvider(): PersistenceProvider {
-    const providerType = (process.env.PERSISTENCE_PROVIDER ?? "sqlite").toLowerCase();
-    const providerClass = this.registry.getProviderClass(providerType);
-    if (!providerClass) {
+  private async initializeProvider(): Promise<PersistenceProvider> {
+    const providerType = getPersistenceProfile();
+    const loader = this.registry.getProviderLoader(providerType);
+    if (!loader) {
       const available = this.registry.getAvailableProviders().join(", ");
       throw new Error(
         `Unsupported token usage provider: ${providerType}. Available providers: ${available}`,
@@ -31,16 +38,23 @@ export class PersistenceProxy implements PersistenceProvider {
     }
 
     try {
-      return new providerClass();
+      return await loader();
     } catch (error) {
       logger.error(`Failed to initialize ${providerType} provider: ${String(error)}`);
       throw error;
     }
   }
 
+  registerProviderLoader(name: string, loader: () => Promise<PersistenceProvider>): void {
+    this.registry.registerProviderLoader(name, loader);
+    this.providerInstance = null;
+    this.providerPromise = null;
+  }
+
   registerProvider(name: string, providerClass: new () => PersistenceProvider): void {
     this.registry.registerProvider(name, providerClass);
     this.providerInstance = null;
+    this.providerPromise = null;
   }
 
   async createTokenUsageRecord(
@@ -51,7 +65,7 @@ export class PersistenceProxy implements PersistenceProvider {
     llmModel?: string | null,
   ): Promise<TokenUsageRecord> {
     try {
-      const record = await this.provider.createTokenUsageRecord(
+      const record = await (await this.getProvider()).createTokenUsageRecord(
         agentId,
         role,
         tokenCount,
@@ -75,7 +89,8 @@ export class PersistenceProxy implements PersistenceProvider {
     llmModel?: string | null,
   ): Promise<[TokenUsageRecord, TokenUsageRecord]> {
     try {
-      const promptRecord = await this.provider.createTokenUsageRecord(
+      const provider = await this.getProvider();
+      const promptRecord = await provider.createTokenUsageRecord(
         agentId,
         "user",
         tokenUsage.prompt_tokens,
@@ -83,7 +98,7 @@ export class PersistenceProxy implements PersistenceProvider {
         llmModel,
       );
 
-      const completionRecord = await this.provider.createTokenUsageRecord(
+      const completionRecord = await provider.createTokenUsageRecord(
         agentId,
         "assistant",
         tokenUsage.completion_tokens,
@@ -106,7 +121,7 @@ export class PersistenceProxy implements PersistenceProvider {
 
   async getTotalCostInPeriod(startDate: Date, endDate: Date): Promise<number> {
     try {
-      const totalCost = await this.provider.getTotalCostInPeriod(startDate, endDate);
+      const totalCost = await (await this.getProvider()).getTotalCostInPeriod(startDate, endDate);
       logger.info(`Total cost from ${startDate.toISOString()} to ${endDate.toISOString()}: ${totalCost}`);
       return totalCost;
     } catch (error) {
@@ -121,7 +136,11 @@ export class PersistenceProxy implements PersistenceProvider {
     llmModel?: string | null,
   ): Promise<TokenUsageRecord[]> {
     try {
-      const records = await this.provider.getUsageRecordsInPeriod(startDate, endDate, llmModel);
+      const records = await (await this.getProvider()).getUsageRecordsInPeriod(
+        startDate,
+        endDate,
+        llmModel,
+      );
       logger.info(
         `Retrieved ${records.length} TokenUsageRecords in period from ${startDate.toISOString()} to ${endDate.toISOString()}`,
       );

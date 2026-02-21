@@ -1,15 +1,32 @@
+import { getPersistenceProfile } from "../../persistence/profile.js";
 import { Prompt } from "../domain/models.js";
-import { SqlPromptProvider } from "./sql-provider.js";
+import {
+  PromptPersistenceProviderRegistry,
+  type PromptPersistenceProvider as PromptProviderContract,
+} from "./persistence-provider-registry.js";
 
 export class PromptPersistenceProvider {
-  private provider: SqlPromptProvider;
+  private providerPromise: Promise<PromptProviderContract> | null = null;
+  private readonly registry = PromptPersistenceProviderRegistry.getInstance();
 
-  constructor(provider: SqlPromptProvider = new SqlPromptProvider()) {
-    this.provider = provider;
+  private async getProvider(): Promise<PromptProviderContract> {
+    if (!this.providerPromise) {
+      const profile = getPersistenceProfile();
+      const loader = this.registry.getProviderLoader(profile);
+      if (!loader) {
+        const available = this.registry.getAvailableProviders().join(", ");
+        throw new Error(
+          `Unsupported prompt persistence provider: ${profile}. Available providers: ${available}`,
+        );
+      }
+      this.providerPromise = loader();
+    }
+
+    return this.providerPromise;
   }
 
   async createPrompt(prompt: Prompt): Promise<Prompt> {
-    return this.provider.createPrompt(prompt);
+    return (await this.getProvider()).createPrompt(prompt);
   }
 
   async findPrompts(options: {
@@ -17,11 +34,11 @@ export class PromptPersistenceProvider {
     category?: string;
     isActive?: boolean;
   } = {}): Promise<Prompt[]> {
-    return this.provider.findPrompts(options);
+    return (await this.getProvider()).findPrompts(options);
   }
 
   async getAllActivePrompts(): Promise<Prompt[]> {
-    return this.provider.getAllActivePrompts();
+    return (await this.getProvider()).getAllActivePrompts();
   }
 
   async findAllByNameAndCategory(
@@ -29,22 +46,22 @@ export class PromptPersistenceProvider {
     category: string,
     suitableForModels?: string | null,
   ): Promise<Prompt[]> {
-    return this.provider.findAllByNameAndCategory(name, category, suitableForModels);
+    return (await this.getProvider()).findAllByNameAndCategory(name, category, suitableForModels);
   }
 
   async getActivePromptsByContext(name: string, category: string): Promise<Prompt[]> {
-    return this.provider.getActivePromptsByContext(name, category);
+    return (await this.getProvider()).getActivePromptsByContext(name, category);
   }
 
   async updatePrompt(prompt: Prompt): Promise<Prompt> {
-    return this.provider.updatePrompt(prompt);
+    return (await this.getProvider()).updatePrompt(prompt);
   }
 
   async getPromptById(promptId: string): Promise<Prompt> {
-    return this.provider.getPromptById(promptId);
+    return (await this.getProvider()).getPromptById(promptId);
   }
 
   async deletePrompt(promptId: string): Promise<boolean> {
-    return this.provider.deletePrompt(promptId);
+    return (await this.getProvider()).deletePrompt(promptId);
   }
 }

@@ -27,7 +27,9 @@ The TypeScript server follows a layered domain architecture:
 2. Set `AUTOBYTEUS_SERVER_HOST` fallback if needed.
 3. Apply custom app data directory to `AppConfig`.
 4. Initialize `AppConfig` (loads `.env`, resolves paths, sets DB URL for SQLite).
-5. Run Prisma migrations.
+5. Resolve persistence profile and run startup migration gate:
+   - `PERSISTENCE_PROVIDER=file`: skip Prisma migrations.
+   - `PERSISTENCE_PROVIDER=sqlite|postgresql`: run Prisma migrations.
 6. Build and start Fastify transports.
 7. Create temp workspace.
 8. Schedule non-critical background startup tasks.
@@ -55,11 +57,22 @@ Current task groups include:
 
 ## Persistence
 
-Primary persistence path in TS:
+Persistence is profile-driven and selected via `PERSISTENCE_PROVIDER`.
 
-- Prisma repositories via `repository_prisma`
-- SQLite default in local/electron packaging
-- Config-driven paths under app data directory
+- `file` profile:
+  - Domain persistence resolves through registry + proxy layers to file providers.
+  - Data is written under `<memoryDir>/persistence/**` using JSON / JSONL file stores.
+  - Startup skips Prisma migration execution.
+- `sqlite` / `postgresql` profiles:
+  - Domain persistence resolves through the same registry + proxy layers to SQL providers.
+  - SQL providers use Prisma repositories via `repository_prisma`.
+  - Startup runs Prisma migration execution.
+
+Build/package notes:
+
+- `build:full` compiles full graph (file + SQL profiles).
+- `build:file` compiles file-profile graph without SQL/Prisma module inclusion.
+- `build:file:package` emits a file-profile package manifest that removes Prisma dependencies.
 
 ## Module Boundaries
 

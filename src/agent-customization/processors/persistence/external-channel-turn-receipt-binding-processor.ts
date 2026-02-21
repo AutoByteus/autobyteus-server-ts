@@ -4,7 +4,7 @@ import {
   type AgentInputUserMessage,
 } from "autobyteus-ts";
 import type { UserMessageReceivedEvent } from "autobyteus-ts/agent/events/agent-events.js";
-import { SqlChannelMessageReceiptProvider } from "../../../external-channel/providers/sql-channel-message-receipt-provider.js";
+import { getProviderProxySet } from "../../../external-channel/providers/provider-proxy-set.js";
 import { ChannelMessageReceiptService } from "../../../external-channel/services/channel-message-receipt-service.js";
 
 const logger = {
@@ -17,8 +17,9 @@ export class ExternalChannelTurnReceiptBindingProcessor extends BaseAgentUserInp
 
   constructor() {
     super();
+    const providerSet = getProviderProxySet();
     this.messageReceiptService = new ChannelMessageReceiptService(
-      new SqlChannelMessageReceiptProvider(),
+      providerSet.messageReceiptProvider,
     );
   }
 

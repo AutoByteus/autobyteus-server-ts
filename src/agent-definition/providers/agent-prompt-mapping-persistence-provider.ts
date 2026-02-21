@@ -1,26 +1,43 @@
+import { getPersistenceProfile } from "../../persistence/profile.js";
 import { AgentPromptMapping } from "../domain/models.js";
-import { SqlAgentPromptMappingProvider } from "./sql-agent-prompt-mapping-provider.js";
+import {
+  AgentPromptMappingPersistenceProviderRegistry,
+  type AgentPromptMappingPersistenceProviderContract,
+} from "./mapping-persistence-provider-registry.js";
 
 export class AgentPromptMappingPersistenceProvider {
-  private provider: SqlAgentPromptMappingProvider;
+  private readonly registry = AgentPromptMappingPersistenceProviderRegistry.getInstance();
+  private providerPromise: Promise<AgentPromptMappingPersistenceProviderContract> | null = null;
 
-  constructor(provider: SqlAgentPromptMappingProvider = new SqlAgentPromptMappingProvider()) {
-    this.provider = provider;
+  private async getProvider(): Promise<AgentPromptMappingPersistenceProviderContract> {
+    if (!this.providerPromise) {
+      const profile = getPersistenceProfile();
+      const loader = this.registry.getProviderLoader(profile);
+      if (!loader) {
+        const available = this.registry.getAvailableProviders().join(", ");
+        throw new Error(
+          `Unsupported agent prompt-mapping provider: ${profile}. Available providers: ${available}`,
+        );
+      }
+      this.providerPromise = loader();
+    }
+
+    return this.providerPromise;
   }
 
   async getByAgentDefinitionId(agentDefinitionId: string): Promise<AgentPromptMapping | null> {
-    return this.provider.getByAgentDefinitionId(agentDefinitionId);
+    return (await this.getProvider()).getByAgentDefinitionId(agentDefinitionId);
   }
 
   async getByAgentDefinitionIds(agentDefinitionIds: string[]): Promise<Map<string, AgentPromptMapping>> {
-    return this.provider.getByAgentDefinitionIds(agentDefinitionIds);
+    return (await this.getProvider()).getByAgentDefinitionIds(agentDefinitionIds);
   }
 
   async upsert(domainObj: AgentPromptMapping): Promise<AgentPromptMapping> {
-    return this.provider.upsert(domainObj);
+    return (await this.getProvider()).upsert(domainObj);
   }
 
   async deleteByAgentDefinitionId(agentDefinitionId: string): Promise<boolean> {
-    return this.provider.deleteByAgentDefinitionId(agentDefinitionId);
+    return (await this.getProvider()).deleteByAgentDefinitionId(agentDefinitionId);
   }
 }
